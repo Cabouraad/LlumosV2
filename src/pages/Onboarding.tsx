@@ -90,6 +90,57 @@ export default function Onboarding() {
   // SECURITY: Remove automatic hasValidAccess check that bypassed payment
   // All users must explicitly complete payment step during onboarding
 
+  // Helper function to create organization for free tier users
+  const createOrganizationForFreeTier = async () => {
+    // Validate required fields
+    if (!formData.orgName || !formData.domain) {
+      throw new Error("Please provide both organization name and domain.");
+    }
+
+    // Validate domain format
+    const domainRegex = /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i;
+    const cleanedDomain = formData.domain.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '').toLowerCase();
+    
+    if (!domainRegex.test(cleanedDomain)) {
+      throw new Error("Please enter a valid domain format (e.g., example.com)");
+    }
+
+    // Get current session for JWT token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error("Not authenticated");
+    }
+
+    // Call onboarding edge function
+    const { data, error } = await supabase.functions.invoke('onboarding', {
+      body: {
+        name: formData.orgName,
+        domain: cleanedDomain,
+        industry: formData.industry,
+        keywords: formData.keywords,
+        competitors: formData.competitors,
+        business_description: formData.business_description,
+        products_services: formData.products_services,
+        target_audience: formData.target_audience
+      },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    console.log('[Onboarding] Organization created for free tier user');
+
+    // Cache org ID immediately for downstream API calls
+    if (data?.orgId) {
+      try { updateOrgIdCache(data.orgId); } catch {}
+    }
+
+    // Clear temporary storage
+    sessionStorage.removeItem('onboarding-data');
+  };
 
   const handleSubscriptionSetup = async () => {
     if (!selectedPlan) {
@@ -107,9 +158,12 @@ export default function Onboarding() {
     try {
       console.log(`[Onboarding] Starting subscription setup for ${selectedPlan} plan`);
       
-      // Free tier - update database and skip checkout
+      // Free tier - create organization first, then skip checkout
       if (selectedPlan === 'free') {
-        console.log('[Onboarding] Free tier selected - updating database');
+        console.log('[Onboarding] Free tier selected - creating organization first');
+        
+        // CRITICAL: Create organization before proceeding (same as paid flow)
+        await createOrganizationForFreeTier();
         
         // Call check-subscription to ensure Free tier is set in database
         try {
