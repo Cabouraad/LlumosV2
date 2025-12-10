@@ -23,48 +23,19 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 // Routes to prerender with their validation selectors/text
 const ROUTES = [
-  { 
-    path: '/', 
-    waitForSelector: 'h1',
-    validateText: null, // Home page - just ensure h1 exists
-    outputPath: 'index.html'
-  },
-  { 
-    path: '/resources', 
-    waitForSelector: 'h1',
-    validateText: ['Resources', 'Guides', 'Blog', 'Insights'],
-    outputPath: 'resources/index.html'
-  },
-  { 
-    path: '/pricing', 
-    waitForSelector: 'h1',
-    validateText: ['Pricing', 'Plans', 'Price'],
-    outputPath: 'pricing/index.html'
-  },
-  { 
-    path: '/features', 
-    waitForSelector: 'h1',
-    validateText: ['Features', 'Platform'],
-    outputPath: 'features/index.html'
-  },
-  { 
-    path: '/demo', 
-    waitForSelector: 'h1',
-    validateText: ['Demo', 'Watch', 'Video'],
-    outputPath: 'demo/index.html'
-  },
-  { 
-    path: '/terms', 
-    waitForSelector: 'h1',
-    validateText: ['Terms', 'Service'],
-    outputPath: 'terms/index.html'
-  },
-  { 
-    path: '/privacy', 
-    waitForSelector: 'h1',
-    validateText: ['Privacy', 'Policy'],
-    outputPath: 'privacy/index.html'
-  }
+  { path: '/', waitForSelector: 'h1', validateText: null, outputPath: 'index.html' },
+  { path: '/resources', waitForSelector: 'h1', validateText: ['Resources', 'Guides', 'Insights'], outputPath: 'resources/index.html' },
+  { path: '/pricing', waitForSelector: 'h1', validateText: ['Pricing', 'Plans'], outputPath: 'pricing/index.html' },
+  { path: '/features', waitForSelector: 'h1', validateText: ['Features', 'Platform'], outputPath: 'features/index.html' },
+  { path: '/demo', waitForSelector: 'h1', validateText: ['Demo', 'Watch'], outputPath: 'demo/index.html' },
+  { path: '/terms', waitForSelector: 'h1', validateText: ['Terms'], outputPath: 'terms/index.html' },
+  { path: '/privacy', waitForSelector: 'h1', validateText: ['Privacy'], outputPath: 'privacy/index.html' },
+  // Blog posts
+  { path: '/resources/understanding-ai-search-optimization', waitForSelector: 'h1', validateText: ['AI Search'], outputPath: 'resources/understanding-ai-search-optimization/index.html' },
+  { path: '/resources/choosing-ai-visibility-tools', waitForSelector: 'h1', validateText: ['Visibility'], outputPath: 'resources/choosing-ai-visibility-tools/index.html' },
+  { path: '/resources/ai-search-best-practices', waitForSelector: 'h1', validateText: ['Best Practices'], outputPath: 'resources/ai-search-best-practices/index.html' },
+  { path: '/resources/google-ai-overviews-optimization-guide', waitForSelector: 'h1', validateText: ['Google', 'AI'], outputPath: 'resources/google-ai-overviews-optimization-guide/index.html' },
+  { path: '/resources/introducing-llumos-free-tier', waitForSelector: 'h1', validateText: ['Free'], outputPath: 'resources/introducing-llumos-free-tier/index.html' },
 ];
 
 let serverProcess = null;
