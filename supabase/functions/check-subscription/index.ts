@@ -137,6 +137,7 @@ const isManualBypass = existingSubscriber?.stripe_customer_id === "manual_bypass
     trial_started_at: existingSubscriber?.trial_started_at ?? null,
     payment_collected: existingSubscriber?.payment_collected ?? false,
     requires_subscription: false,
+    hasAccess: true, // CRITICAL: Allow access for bypass subscriptions
     bypass_mode: true,
     metadata: existingSubscriber?.metadata || null,
     // Normalized payload fields
@@ -165,6 +166,7 @@ if ((manualSubscribed || manualTrialActive) && !isManualBypass) {
     trial_started_at: existingSubscriber?.trial_started_at ?? null,
     payment_collected: existingSubscriber?.payment_collected ?? false,
     requires_subscription: false,
+    hasAccess: true, // CRITICAL: Allow access for manual subscription overrides
     }), {
       headers: { ...corsHeaders, "content-type": "application/json" },
       status: 200,
@@ -186,6 +188,7 @@ if (isManualBypass) {
     trial_started_at: existingSubscriber?.trial_started_at ?? null,
     payment_collected: existingSubscriber?.payment_collected ?? false,
     requires_subscription: !(manualSubscribed || manualTrialActive),
+    hasAccess: manualSubscribed || manualTrialActive, // CRITICAL: Allow access for bypass users
     bypass_mode: true,
     metadata: existingSubscriber?.metadata || null,
     // Normalized payload fields
@@ -405,6 +408,7 @@ if (customers.data.length === 0) {
           trial_started_at: existingNonBypass.trial_started_at,
           payment_collected: existingNonBypass.payment_collected,
           requires_subscription: !existingNonBypass.subscribed,
+          hasAccess: existingNonBypass.subscribed, // CRITICAL: Allow access for existing subscriptions
           metadata: existingNonBypass.metadata,
           // Normalized payload fields
           plan: (existingNonBypass.subscription_tier || 'starter').toUpperCase(),
@@ -473,6 +477,7 @@ if (customers.data.length === 0) {
         trial_started_at: null,
         payment_collected: true,
         requires_subscription: false,
+        hasAccess: true, // CRITICAL: Allow access for bypass subscriptions
         bypass_mode: true,
         metadata: bypassData.metadata,
         // Normalized payload fields
