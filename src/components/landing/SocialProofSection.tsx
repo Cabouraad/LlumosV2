@@ -34,7 +34,6 @@ const PerplexityLogo = () => (
 const platforms = [
   { name: 'OpenAI', Logo: OpenAILogo, description: 'ChatGPT' },
   { name: 'Google', Logo: GoogleLogo, description: 'Gemini & AI Overviews' },
-  { name: 'Anthropic', Logo: AnthropicLogo, description: 'Claude' },
   { name: 'Perplexity', Logo: PerplexityLogo, description: 'AI Search' },
 ];
 
