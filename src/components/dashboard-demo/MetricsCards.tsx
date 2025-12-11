@@ -1,6 +1,10 @@
 import { TrendingUp, MessageSquare, ThumbsUp, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
+interface MetricsCardsProps {
+  onAlertClick?: () => void;
+}
+
 const metrics = [
   {
     title: "Share of Model",
@@ -26,15 +30,20 @@ const metrics = [
     value: "2",
     trend: null,
     isWarning: true,
+    isClickable: true,
     icon: AlertTriangle,
   },
 ];
 
-export function MetricsCards() {
+export function MetricsCards({ onAlertClick }: MetricsCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {metrics.map((metric) => (
-        <Card key={metric.title} className="bg-card border-border">
+        <Card 
+          key={metric.title} 
+          className={`bg-card border-border ${metric.isClickable ? 'cursor-pointer hover:border-red-500/50 transition-colors' : ''}`}
+          onClick={metric.isClickable ? onAlertClick : undefined}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm text-muted-foreground">{metric.title}</span>
@@ -51,6 +60,9 @@ export function MetricsCards() {
                 </span>
               )}
             </div>
+            {metric.isClickable && (
+              <p className="text-xs text-muted-foreground mt-2">Click to view details</p>
+            )}
           </CardContent>
         </Card>
       ))}
