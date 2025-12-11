@@ -1,5 +1,6 @@
-import { TrendingUp, MessageSquare, ThumbsUp, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, MessageSquare, ThumbsUp, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface MetricsCardsProps {
   onAlertClick?: () => void;
@@ -11,26 +12,32 @@ const metrics = [
     value: "12%",
     trend: "+2.4%",
     trendPositive: true,
+    description: "vs competitors",
     icon: TrendingUp,
   },
   {
     title: "Brand Mentions",
     value: "1,240",
-    trend: null,
+    trend: "-3.1%",
+    trendPositive: false,
+    description: "Last 30 days",
     icon: MessageSquare,
   },
   {
     title: "Sentiment Score",
-    value: "Positive (8.4/10)",
-    trend: null,
+    value: "8.4/10",
+    badge: "Positive",
+    badgeColor: "bg-green-500/10 text-green-500",
+    description: "Across all platforms",
     icon: ThumbsUp,
   },
   {
     title: "Hallucination Alerts",
-    value: "2",
+    value: "1",
     trend: null,
     isWarning: true,
     isClickable: true,
+    description: "Requires attention",
     icon: AlertTriangle,
   },
 ];
@@ -54,14 +61,26 @@ export function MetricsCards({ onAlertClick }: MetricsCardsProps) {
                 {metric.value}
               </span>
               {metric.trend && (
-                <span className="text-sm font-medium text-green-500 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" />
+                <span className={`text-sm font-medium flex items-center gap-1 ${metric.trendPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {metric.trendPositive ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
                   {metric.trend}
                 </span>
               )}
+              {metric.badge && (
+                <Badge className={metric.badgeColor}>
+                  {metric.badge}
+                </Badge>
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {metric.description}
+            </p>
             {metric.isClickable && (
-              <p className="text-xs text-muted-foreground mt-2">Click to view details</p>
+              <p className="text-xs text-red-400 mt-1 font-medium">Click to resolve →</p>
             )}
           </CardContent>
         </Card>
