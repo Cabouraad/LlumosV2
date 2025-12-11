@@ -118,7 +118,7 @@ export function HeroSection() {
 
             <p className="text-lg md:text-xl text-muted-foreground mb-8 leading-relaxed">
               Stop optimizing for ten blue links. Start optimizing for the single right answer. 
-              Track your brand visibility across ChatGPT, Claude, and Gemini.
+              Track your brand visibility across ChatGPT, Perplexity, Google AI Overviews, and Gemini.
             </p>
 
             {/* URL Input Form */}
