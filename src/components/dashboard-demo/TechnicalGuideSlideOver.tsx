@@ -1,4 +1,4 @@
-import { X, Copy, Check, Info, ExternalLink } from "lucide-react";
+import { X, Copy, Check, Info, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -93,7 +93,30 @@ export function TechnicalGuideSlideOver({
                     "source of truth" for robots, ensuring accurate information
                     is returned.
                   </p>
+            </div>
+
+            {/* Pro Tip Section */}
+            <div className="p-4 rounded-lg bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+              <div className="flex gap-3">
+                <div className="p-1.5 bg-violet-500/20 rounded-md h-fit">
+                  <Sparkles className="h-4 w-4 text-violet-400" />
                 </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-violet-400 mb-1">
+                    Pro Tip
+                  </h4>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    To ensure ChatGPT knows exactly who you are, add the{" "}
+                    <code className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 font-mono text-xs">
+                      "sameAs"
+                    </code>{" "}
+                    property to your schema and link to your Wikipedia, Crunchbase, or
+                    LinkedIn profile. This creates an <span className="text-violet-300 font-medium">Entity Identity</span> that
+                    connects your brand across the web.
+                  </p>
+                </div>
+              </div>
+            </div>
               </div>
             </div>
 
