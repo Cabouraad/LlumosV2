@@ -38,13 +38,10 @@ export function HeroSection() {
 
     setIsLoading(true);
     
-    // Store the domain for the signup flow
-    sessionStorage.setItem('analysis-domain', cleanUrl);
-    
-    // Redirect to signup with the domain
+    // Navigate to score results page with the domain
     setTimeout(() => {
-      navigate('/signup', { state: { domain: cleanUrl } });
-    }, 500);
+      navigate(`/score-results?domain=${encodeURIComponent(cleanUrl)}`);
+    }, 300);
   };
 
   return (
