@@ -54,7 +54,7 @@ export function SocialProofSection() {
           <h3 className="text-xl text-muted-foreground mb-2">Optimize for:</h3>
         </motion.div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="flex flex-wrap justify-center gap-8 md:gap-16">
           {platforms.map((platform, index) => (
             <motion.div
               key={platform.name}
