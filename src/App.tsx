@@ -48,6 +48,7 @@ import BlogPostProfoundAlternative from "./pages/BlogPostProfoundAlternative";
 // Other marketing pages (eagerly loaded for SSG)
 import FreeChecker from "./pages/FreeChecker";
 import ComparisonPage from "./pages/ComparisonPage";
+import DashboardDemo from "./pages/DashboardDemo";
 
 // ============================================
 // LAZY LOADED - Auth Routes
@@ -166,6 +167,8 @@ const App = () => {
         
         {/* Other marketing pages (SSG Pre-rendered) */}
         <Route path="/free-checker" element={<FreeChecker />} />
+        <Route path="/vs-competitors" element={<ComparisonPage />} />
+        <Route path="/dashboard-demo" element={<DashboardDemo />} />
         <Route path="/vs-competitors" element={<ComparisonPage />} />
 
         {/* ============================================ */}
