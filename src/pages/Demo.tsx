@@ -1,10 +1,11 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, ArrowLeft } from 'lucide-react';
+import { Play, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Logo } from '@/components/Logo';
 import { SEOHelmet } from '@/components/SEOHelmet';
-import { Breadcrumb } from '@/components/Breadcrumb';
+import { MarketingLayout } from '@/components/landing/MarketingLayout';
+import { motion } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
 
 export default function Demo() {
   return (
@@ -30,103 +31,95 @@ export default function Demo() {
           }
         }}
       />
-    <div className="min-h-screen bg-gradient-bg">
-      {/* Header */}
-      <header className="border-b border-border/30 bg-card/30 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Logo collapsed={false} />
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link to="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Home
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link to="/signup">Start Free Trial</Link>
-            </Button>
+      <MarketingLayout>
+        <div className="container mx-auto px-4 py-12 pt-28">
+          <div className="max-w-6xl mx-auto space-y-8">
+            {/* Header Section */}
+            <motion.div 
+              className="text-center space-y-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Badge className="bg-violet-500/10 text-violet-400 border-violet-500/20">
+                <Play className="h-3 w-3 mr-1" />
+                Product Demo
+              </Badge>
+              <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                See Llumos in Action
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Watch this comprehensive walkthrough to learn how Llumos helps you track, analyze, and improve your brand's visibility across AI platforms like ChatGPT, Gemini, and Perplexity.
+              </p>
+            </motion.div>
+
+            {/* Video Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <Card className="overflow-hidden border-white/10 bg-white/5 shadow-2xl shadow-violet-500/10">
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    src="https://www.loom.com/embed/f37c9294260a4e039b07805c1162c1e4"
+                    frameBorder="0"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full"
+                    title="Llumos Product Demo"
+                  />
+                </div>
+              </Card>
+            </motion.div>
+
+            {/* Key Features Section */}
+            <div className="grid md:grid-cols-3 gap-6 mt-12">
+              {[
+                { emoji: '🎯', title: 'Track Your Brand', desc: 'Monitor how often AI platforms mention your brand in response to relevant prompts.' },
+                { emoji: '📊', title: 'Analyze Competitors', desc: 'See which competitors are being recommended and understand your competitive positioning.' },
+                { emoji: '💡', title: 'Get Recommendations', desc: 'Receive actionable insights to improve your visibility and outrank competitors.' }
+              ].map((feature, i) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
+                >
+                  <Card className="p-6 space-y-3 bg-white/5 border-white/10 hover:border-violet-500/50 transition-colors">
+                    <div className="h-12 w-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                      <span className="text-2xl">{feature.emoji}</span>
+                    </div>
+                    <h3 className="font-semibold text-lg">{feature.title}</h3>
+                    <p className="text-sm text-muted-foreground">{feature.desc}</p>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* CTA Section */}
+            <motion.div 
+              className="text-center space-y-4 mt-12"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <p className="text-xl">
+                Ready to get started with Llumos?
+              </p>
+              <Button 
+                size="lg" 
+                asChild
+                className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/25"
+              >
+                <Link to="/signup">
+                  Start 7-Day Free Trial
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Link>
+              </Button>
+            </motion.div>
           </div>
         </div>
-      </header>
-
-      {/* Breadcrumb */}
-      <Breadcrumb className="container mx-auto" />
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header Section */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20">
-            <Play className="h-4 w-4" />
-            <span className="text-sm font-medium">Product Demo</span>
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            See Llumos in Action
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Watch this comprehensive walkthrough to learn how Llumos helps you track, analyze, and improve your brand's visibility across AI platforms like ChatGPT, Gemini, and Perplexity.
-          </p>
-        </div>
-
-        {/* Video Card */}
-        <Card className="overflow-hidden border-border/50 shadow-elegant">
-          <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-            <iframe
-              src="https://www.loom.com/embed/f37c9294260a4e039b07805c1162c1e4"
-              frameBorder="0"
-              allowFullScreen
-              className="absolute top-0 left-0 w-full h-full"
-              title="Llumos Product Demo"
-            />
-          </div>
-        </Card>
-
-        {/* Key Features Section */}
-        <div className="grid md:grid-cols-3 gap-6 mt-12">
-          <Card className="p-6 space-y-3 border-border/50 hover:border-primary/50 transition-colors">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-2xl">🎯</span>
-            </div>
-            <h3 className="font-semibold text-lg">Track Your Brand</h3>
-            <p className="text-sm text-muted-foreground">
-              Monitor how often AI platforms mention your brand in response to relevant prompts.
-            </p>
-          </Card>
-
-          <Card className="p-6 space-y-3 border-border/50 hover:border-primary/50 transition-colors">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-2xl">📊</span>
-            </div>
-            <h3 className="font-semibold text-lg">Analyze Competitors</h3>
-            <p className="text-sm text-muted-foreground">
-              See which competitors are being recommended and understand your competitive positioning.
-            </p>
-          </Card>
-
-          <Card className="p-6 space-y-3 border-border/50 hover:border-primary/50 transition-colors">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-2xl">💡</span>
-            </div>
-            <h3 className="font-semibold text-lg">Get Recommendations</h3>
-            <p className="text-sm text-muted-foreground">
-              Receive actionable insights to improve your visibility and outrank competitors.
-            </p>
-          </Card>
-        </div>
-
-        {/* CTA Section */}
-        <div className="text-center space-y-4 mt-12">
-          <p className="text-xl text-foreground">
-            Ready to get started with Llumos?
-          </p>
-          <Button size="lg" asChild>
-            <Link to="/signup">Start 7-Day Free Trial</Link>
-          </Button>
-        </div>
-        </div>
-      </main>
-    </div>
+      </MarketingLayout>
     </>
   );
 }
