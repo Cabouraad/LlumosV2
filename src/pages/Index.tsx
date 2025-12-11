@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { SEOHelmet } from '@/components/SEOHelmet';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
-import { LargeLogoSection } from '@/components/landing/LargeLogoSection';
+
 import { HeroSection } from '@/components/landing/HeroSection';
 import { ProblemSection } from '@/components/landing/ProblemSection';
 import { SolutionSection } from '@/components/landing/SolutionSection';
@@ -105,7 +105,6 @@ const Index = () => {
         <ExitIntentPopup />
         <LandingNavbar />
         <main>
-          <LargeLogoSection />
           <HeroSection />
           <ProblemSection />
           <SolutionSection />
