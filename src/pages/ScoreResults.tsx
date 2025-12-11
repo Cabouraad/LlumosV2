@@ -68,33 +68,72 @@ export default function ScoreResults() {
     // Animate through steps
     const stepInterval = setInterval(() => {
       setCurrentStep(prev => Math.min(prev + 1, ANALYSIS_STEPS.length - 1));
-    }, 2000);
+    }, 3000); // Slower for mobile users
 
     const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + 2, 95));
+      setProgress(prev => Math.min(prev + 1, 90)); // Slower progress
     }, 200);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('get-llumos-score-demo', {
-        body: { domain }
-      });
+      // Add retry logic for mobile connections
+      let attempts = 0;
+      const maxAttempts = 2;
+      let lastError: Error | null = null;
+      
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+          const { data, error: fnError } = await supabase.functions.invoke('get-llumos-score-demo', {
+            body: { domain }
+          });
 
+          clearInterval(stepInterval);
+          clearInterval(progressInterval);
+          setProgress(100);
+          
+          if (fnError) {
+            throw new Error(fnError.message || 'Failed to analyze website');
+          }
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          setScoreData(data);
+          return; // Success, exit
+        } catch (err: any) {
+          lastError = err;
+          console.error(`Analysis attempt ${attempts} failed:`, err);
+          
+          // Don't retry for client errors
+          if (err.message?.includes('Invalid domain') || err.message?.includes('required')) {
+            break;
+          }
+          
+          // Wait before retry
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+      
+      // All attempts failed
+      throw lastError || new Error('Failed to analyze website');
+      
+    } catch (err: any) {
       clearInterval(stepInterval);
       clearInterval(progressInterval);
-      setProgress(100);
-      
-      if (fnError) {
-        throw new Error(fnError.message || 'Failed to analyze website');
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setScoreData(data);
-    } catch (err: any) {
       console.error('Analysis error:', err);
-      setError(err.message || 'Failed to analyze website. Please try again.');
+      
+      // User-friendly error messages
+      let errorMessage = err.message || 'Failed to analyze website. Please try again.';
+      if (errorMessage.includes('timeout') || errorMessage.includes('aborted')) {
+        errorMessage = 'The analysis is taking longer than expected. This may be due to a slow connection. Please try again.';
+      } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+        errorMessage = 'High demand right now. Please wait a moment and try again.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setTimeout(() => {
         setIsAnalyzing(false);
