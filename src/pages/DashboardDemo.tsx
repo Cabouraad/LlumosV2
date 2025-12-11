@@ -5,9 +5,16 @@ import { MetricsCards } from "@/components/dashboard-demo/MetricsCards";
 import { VisibilityChart } from "@/components/dashboard-demo/VisibilityChart";
 import { RecentResponsesTable } from "@/components/dashboard-demo/RecentResponsesTable";
 import { CriticalAlertModal } from "@/components/dashboard-demo/CriticalAlertModal";
+import { TechnicalGuideSlideOver } from "@/components/dashboard-demo/TechnicalGuideSlideOver";
 
 export default function DashboardDemo() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  const handleResolve = () => {
+    setIsAlertOpen(false);
+    setIsGuideOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background flex dark">
@@ -26,7 +33,12 @@ export default function DashboardDemo() {
       <CriticalAlertModal
         isOpen={isAlertOpen}
         onClose={() => setIsAlertOpen(false)}
-        onResolve={() => setIsAlertOpen(false)}
+        onResolve={handleResolve}
+      />
+
+      <TechnicalGuideSlideOver
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
     </div>
   );
