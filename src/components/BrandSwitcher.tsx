@@ -26,23 +26,58 @@ interface BrandSwitcherProps {
   collapsed?: boolean;
 }
 
+// Clean domain for logo fetching - remove www. and ensure just the base domain
+const getCleanDomain = (domain?: string, name?: string): string => {
+  if (domain) {
+    // Remove protocol if present
+    let clean = domain.replace(/^https?:\/\//, '');
+    // Remove www.
+    clean = clean.replace(/^www\./, '');
+    // Remove trailing slash and path
+    clean = clean.split('/')[0];
+    return clean;
+  }
+  // Fallback: construct from name
+  if (name) {
+    return `${name.toLowerCase().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}.com`;
+  }
+  return '';
+};
+
 export function BrandSwitcher({ brands, collapsed = false }: BrandSwitcherProps) {
   const { selectedBrand, setSelectedBrand } = useBrand();
   const navigate = useNavigate();
   const [logoUrls, setLogoUrls] = useState<Record<string, string>>({});
   const [logoErrors, setLogoErrors] = useState<Record<string, boolean>>({});
+  const [retryCount, setRetryCount] = useState<Record<string, number>>({});
 
   // Generate logo URLs for all brands using their actual domain
   useEffect(() => {
     const urls: Record<string, string> = {};
     brands.forEach((brand) => {
-      const clearbitUrl = `https://logo.clearbit.com/${brand.domain}`;
+      const cleanDomain = getCleanDomain(brand.domain, brand.name);
+      const clearbitUrl = `https://logo.clearbit.com/${cleanDomain}`;
       urls[brand.id] = clearbitUrl;
     });
     setLogoUrls(urls);
+    setLogoErrors({});
+    setRetryCount({});
   }, [brands]);
 
-  const handleLogoError = (brandId: string, brandName: string) => {
+  const handleLogoError = (brandId: string, brandDomain: string, brandName: string) => {
+    const currentRetry = retryCount[brandId] || 0;
+    
+    if (currentRetry < 1) {
+      // Try Google favicon as fallback
+      const cleanDomain = getCleanDomain(brandDomain, brandName);
+      setRetryCount({ ...retryCount, [brandId]: currentRetry + 1 });
+      setLogoUrls({
+        ...logoUrls,
+        [brandId]: `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`
+      });
+      return;
+    }
+    
     if (!logoErrors[brandId]) {
       setLogoErrors({ ...logoErrors, [brandId]: true });
       setLogoUrls({
@@ -54,17 +89,18 @@ export function BrandSwitcher({ brands, collapsed = false }: BrandSwitcherProps)
 
   const renderLogo = (brand: Brand, size: 'sm' | 'md' = 'md') => {
     const logoUrl = logoUrls[brand.id];
-    const sizeClasses = size === 'sm' ? 'w-5 h-5' : 'w-8 h-8';
+    const sizeClasses = size === 'sm' ? 'w-6 h-6' : 'w-8 h-8';
+    const imgSizeClasses = size === 'sm' ? 'w-5 h-5' : 'w-6 h-6';
     const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-5 h-5';
     
     return (
-      <div className={`${sizeClasses} rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm flex-shrink-0`}>
+      <div className={`${sizeClasses} rounded-lg bg-white flex items-center justify-center border border-border/30 shadow-sm flex-shrink-0 overflow-hidden`}>
         {logoUrl ? (
           <img
             src={logoUrl}
             alt={`${brand.name} logo`}
-            className={`${size === 'sm' ? 'w-4 h-4' : 'w-6 h-6'} rounded object-cover`}
-            onError={() => handleLogoError(brand.id, brand.name)}
+            className={`${imgSizeClasses} object-contain`}
+            onError={() => handleLogoError(brand.id, brand.domain, brand.name)}
           />
         ) : (
           <Building2 className={`${iconSize} text-muted-foreground`} />
@@ -129,7 +165,7 @@ export function BrandSwitcher({ brands, collapsed = false }: BrandSwitcherProps)
           >
             <div className="flex items-center gap-2 min-w-0">
               {selectedBrand && renderLogo(selectedBrand, 'sm')}
-              <span className="text-sm font-medium truncate">
+              <span className="text-base font-semibold truncate">
                 {selectedBrand?.name || 'Select Brand'}
               </span>
             </div>
