@@ -113,7 +113,7 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
     <div className="px-6 py-4 border-b border-border/30 bg-card/30 backdrop-blur-sm">
       <div className="flex items-center gap-3">
         {/* Brand Logo */}
-        <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm overflow-hidden">
+        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-border/30 shadow-sm overflow-hidden">
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -126,9 +126,9 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
           )}
         </div>
         
-        {/* Brand Name */}
+        {/* Brand Name - Larger text */}
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold text-foreground break-words leading-tight">
+          <h2 className="text-xl font-bold text-foreground break-words leading-tight">
             {brandName}
           </h2>
         </div>
