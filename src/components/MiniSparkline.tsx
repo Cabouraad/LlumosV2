@@ -26,6 +26,7 @@ const MiniSparklineComponent = ({
             stroke={color}
             strokeWidth={1.5}
             dot={false}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>

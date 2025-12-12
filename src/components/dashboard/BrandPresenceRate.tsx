@@ -204,6 +204,7 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
                   strokeWidth={2}
                   dot={{ fill: 'hsl(var(--primary))', r: 4 }}
                   activeDot={{ r: 6 }}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
