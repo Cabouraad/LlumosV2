@@ -17,6 +17,7 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
         currentRate: 0,
         previousRate: 0,
         change: 0,
+        hasPreviousData: false,
         currentCount: 0,
         currentTotal: 0,
         weeklyData: [],
@@ -46,8 +47,31 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
     const previousPresent = previousWeekResponses.filter((r) => r.org_brand_present).length;
     const previousTotal = previousWeekResponses.length;
     const previousRate = previousTotal > 0 ? (previousPresent / previousTotal) * 100 : 0;
+    
+    // Check if we have previous week data (at least some responses)
+    const hasPreviousData = previousTotal > 0;
+    
+    // Calculate change - only if we have previous data to compare against
+    const change = hasPreviousData ? currentRate - previousRate : 0;
 
-    const change = previousRate > 0 ? currentRate - previousRate : 0;
+    // Debug logging
+    console.log('[BrandPresenceRate] Week-over-week calculation:', {
+      currentWeekResponses: currentWeekResponses.length,
+      previousWeekResponses: previousWeekResponses.length,
+      currentPresent,
+      currentTotal,
+      currentRate: currentRate.toFixed(2),
+      previousPresent,
+      previousTotal,
+      previousRate: previousRate.toFixed(2),
+      hasPreviousData,
+      change: change.toFixed(2),
+      dateRanges: {
+        now: now.toISOString(),
+        sevenDaysAgo: sevenDaysAgo.toISOString(),
+        fourteenDaysAgo: fourteenDaysAgo.toISOString(),
+      }
+    });
 
     // Calculate daily data for the past 14 days for a clearer trend
     const weeklyData = [];
@@ -78,6 +102,7 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
       currentRate,
       previousRate,
       change,
+      hasPreviousData,
       currentCount: currentPresent,
       currentTotal,
       weeklyData,
@@ -142,11 +167,11 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
           </div>
         </div>
 
-        {/* Daily Trend Chart */}
+        {/* Daily Trend Chart - Larger height */}
         {stats.weeklyData.length > 0 && (
-          <div className="h-28 mt-4">
+          <div className="h-40 mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.weeklyData}>
+              <LineChart data={stats.weeklyData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
                 <XAxis 
                   dataKey="week" 
                   stroke="hsl(var(--muted-foreground))"
@@ -177,8 +202,8 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
                   dataKey="rate"
                   stroke="hsl(var(--primary))"
                   strokeWidth={2}
-                  dot={{ fill: 'hsl(var(--primary))', r: 3 }}
-                  activeDot={{ r: 5 }}
+                  dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
