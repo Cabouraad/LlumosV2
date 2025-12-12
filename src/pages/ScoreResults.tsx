@@ -152,31 +152,29 @@ export default function ScoreResults() {
     setIsSubmitting(true);
 
     try {
-      // Store lead in database
-      const { error: insertError } = await supabase
-        .from('visibility_report_requests')
-        .insert({
+      // Call edge function to store lead and send email notification
+      const { data, error: fnError } = await supabase.functions.invoke('request-visibility-report', {
+        body: {
+          firstName: name.trim() || 'Visitor',
           email: email.trim(),
           domain: domain,
-          score: scoreData?.score || null,
-          metadata: {
-            name: name.trim() || null,
-            company: company.trim() || null,
-            score_tier: scoreData?.tier || null,
-            source: 'score_results_page',
-            requested_at: new Date().toISOString()
-          }
-        });
+          score: scoreData?.score || 0
+        }
+      });
 
-      if (insertError) {
-        throw insertError;
+      if (fnError) {
+        throw new Error(fnError.message || 'Failed to submit request');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       setFormSubmitted(true);
       toast.success('Report request submitted! We\'ll be in touch shortly.');
     } catch (err: any) {
       console.error('Form submission error:', err);
-      toast.error('Failed to submit request. Please try again.');
+      toast.error(err.message || 'Failed to submit request. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
