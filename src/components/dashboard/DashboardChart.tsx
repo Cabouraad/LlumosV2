@@ -158,6 +158,7 @@ const DashboardChartComponent = ({
                 strokeWidth={3}
                 name="Your Brand"
                 dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
+                isAnimationActive={false}
               />
               {competitors.map((competitor, index) => 
                 visibleCompetitors.has(index) ? (
@@ -169,6 +170,7 @@ const DashboardChartComponent = ({
                     strokeWidth={2}
                     name={competitor.name}
                     dot={{ fill: competitorColors[index % competitorColors.length], strokeWidth: 1, r: 3 }}
+                    isAnimationActive={false}
                   />
                 ) : null
               )}
