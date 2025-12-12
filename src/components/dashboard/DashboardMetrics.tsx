@@ -1,7 +1,7 @@
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { MiniSparkline } from '@/components/MiniSparkline';
 import { HelpTooltip } from '@/components/HelpTooltip';
-import { Eye, Users, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { Eye, Users, TrendingUp, TrendingDown, AlertTriangle, Minus } from 'lucide-react';
 
 interface DashboardMetricsProps {
   metrics: {
@@ -19,6 +19,7 @@ interface DashboardMetricsProps {
     sparklineData: Array<{ value: number }>;
     totalCount: number;
     presenceCount: number;
+    weekOverWeekChange?: number;
   };
   promptLimit?: number;
 }
@@ -86,12 +87,33 @@ export function DashboardMetrics({ metrics, presenceStats, promptLimit }: Dashbo
             </div>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center space-y-3">
-            <div className="text-4xl font-bold text-secondary mt-4">{presenceStats.rate.toFixed(1)}%</div>
+            <div className="flex items-center gap-3">
+              <div className="text-4xl font-bold text-secondary">{presenceStats.rate.toFixed(1)}%</div>
+              {presenceStats.weekOverWeekChange !== undefined && presenceStats.weekOverWeekChange !== 0 && (
+                <div className={`flex items-center gap-1 text-sm font-medium ${
+                  presenceStats.weekOverWeekChange > 0 ? 'text-success' : 'text-destructive'
+                }`}>
+                  {presenceStats.weekOverWeekChange > 0 ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4" />
+                  )}
+                  {presenceStats.weekOverWeekChange > 0 ? '+' : ''}{presenceStats.weekOverWeekChange.toFixed(1)}%
+                </div>
+              )}
+              {(presenceStats.weekOverWeekChange === 0 || presenceStats.weekOverWeekChange === undefined) && presenceStats.totalCount > 0 && (
+                <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
+                  <Minus className="h-4 w-4" />
+                  0.0%
+                </div>
+              )}
+            </div>
             <div className="w-20 h-10">
               <MiniSparkline data={presenceStats.sparklineData} color="hsl(var(--secondary))" />
             </div>
             <p className="text-sm text-muted-foreground text-center">
               {presenceStats.presenceCount} of {presenceStats.totalCount} responses
+              <span className="block text-xs">vs last week</span>
             </p>
           </div>
         </CardContent>

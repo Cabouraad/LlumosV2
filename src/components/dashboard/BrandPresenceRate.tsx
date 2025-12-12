@@ -160,8 +160,17 @@ export function BrandPresenceRate({ responses, isLoading }: BrandPresenceRatePro
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
-                  domain={[0, 100]}
-                  ticks={[0, 50, 100]}
+                  domain={(() => {
+                    const rates = stats.weeklyData.map(d => d.rate);
+                    const minRate = Math.min(...rates);
+                    const maxRate = Math.max(...rates);
+                    const padding = Math.max((maxRate - minRate) * 0.2, 5); // At least 5% padding
+                    return [
+                      Math.max(0, Math.floor((minRate - padding) / 5) * 5),
+                      Math.min(100, Math.ceil((maxRate + padding) / 5) * 5)
+                    ];
+                  })()}
+                  tickCount={5}
                 />
                 <Line
                   type="monotone"

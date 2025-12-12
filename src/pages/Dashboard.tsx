@@ -141,22 +141,39 @@ export default function Dashboard() {
   // Compute brand presence stats from existing data
   const presenceStats = useMemo(() => {
     if (!dashboardData?.responses || dashboardData.responses.length === 0) {
-      return { rate: 0, sparklineData: [], totalCount: 0, presenceCount: 0 };
+      return { rate: 0, sparklineData: [], totalCount: 0, presenceCount: 0, weekOverWeekChange: 0 };
     }
 
-    // Get last 7 days
+    // Get date ranges
+    const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-    // Filter successful responses in last 7 days
+    // Filter successful responses in last 7 days (current week)
     const recentResponses = dashboardData.responses.filter((response: any) => {
       const responseDate = new Date(response.run_at || response.created_at);
       return responseDate >= sevenDaysAgo && (response.status === 'success' || response.status === 'completed');
     });
 
+    // Filter successful responses from previous week (8-14 days ago)
+    const previousWeekResponses = dashboardData.responses.filter((response: any) => {
+      const responseDate = new Date(response.run_at || response.created_at);
+      return responseDate >= fourteenDaysAgo && responseDate < sevenDaysAgo && (response.status === 'success' || response.status === 'completed');
+    });
+
     const totalCount = recentResponses.length;
     const presenceCount = recentResponses.filter((response: any) => response.org_brand_present === true).length;
     const rate = totalCount > 0 ? (presenceCount / totalCount) * 100 : 0;
+
+    // Calculate previous week rate
+    const prevTotalCount = previousWeekResponses.length;
+    const prevPresenceCount = previousWeekResponses.filter((response: any) => response.org_brand_present === true).length;
+    const prevRate = prevTotalCount > 0 ? (prevPresenceCount / prevTotalCount) * 100 : 0;
+
+    // Calculate week-over-week change
+    const weekOverWeekChange = prevTotalCount > 0 ? rate - prevRate : 0;
 
     // Create 7-day sparkline data
     const sparklineData: Array<{ value: number }> = [];
@@ -180,7 +197,7 @@ export default function Dashboard() {
       sparklineData.push({ value: dayRate });
     }
 
-    return { rate, sparklineData, totalCount, presenceCount };
+    return { rate, sparklineData, totalCount, presenceCount, weekOverWeekChange };
   }, [dashboardData?.responses]);
 
   // Compute competitor presence chart data
