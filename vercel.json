@@ -13,7 +13,11 @@
       "destination": "/features/index.html"
     },
     {
-      "source": "/((?!api|_next|static|favicon.ico|robots.txt|sitemap.xml|resources|pricing|features|.*\\..*).*)",
+      "source": "/score-results",
+      "destination": "/score-results.html"
+    },
+    {
+      "source": "/((?!api|_next|static|favicon.ico|robots.txt|sitemap.xml|resources|pricing|features|score-results|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

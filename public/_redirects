@@ -6,6 +6,8 @@
 /pricing/ /pricing.html 200
 /features /features.html 200
 /features/ /features.html 200
+/score-results /score-results.html 200
+/score-results/ /score-results.html 200
 
 # SPA fallback for all other routes
 /* /index.html 200

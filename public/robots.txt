@@ -3,5 +3,6 @@ Allow: /
 Disallow: /app/*
 Disallow: /dashboard/*
 Disallow: /onboarding/*
+Disallow: /auth/*
 
-Sitemap: https://llumos.ai/sitemap.xml
+Sitemap: https://llumos.app/sitemap.xml
