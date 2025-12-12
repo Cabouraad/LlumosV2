@@ -208,8 +208,8 @@ export default function Dashboard() {
 
     const chartData: any[] = [];
     
-    // Create 7 days of data
-    for (let i = 6; i >= 0; i--) {
+    // Create 5 days of data
+    for (let i = 4; i >= 0; i--) {
       const dayDate = new Date();
       dayDate.setDate(dayDate.getDate() - i);
       dayDate.setHours(0, 0, 0, 0);
