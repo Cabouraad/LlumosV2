@@ -11,22 +11,53 @@ interface BrandDisplayProps {
 export function BrandDisplay({ brandName, brandDomain, collapsed = false, size = 'default' }: BrandDisplayProps) {
   const [logoUrl, setLogoUrl] = useState<string>('');
   const [logoError, setLogoError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Clean domain for logo fetching - remove www. and ensure just the base domain
+  const getCleanDomain = (domain?: string, name?: string): string => {
+    if (domain) {
+      // Remove protocol if present
+      let clean = domain.replace(/^https?:\/\//, '');
+      // Remove www.
+      clean = clean.replace(/^www\./, '');
+      // Remove trailing slash and path
+      clean = clean.split('/')[0];
+      return clean;
+    }
+    // Fallback: construct from name
+    if (name) {
+      return `${name.toLowerCase().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}.com`;
+    }
+    return '';
+  };
 
   // Generate logo URLs using actual domain if available
   useEffect(() => {
     if (!brandName) return;
     
-    // Use provided domain or construct from name
-    const domain = brandDomain || `${brandName.toLowerCase().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}.com`;
+    const domain = getCleanDomain(brandDomain, brandName);
     const clearbitUrl = `https://logo.clearbit.com/${domain}`;
     setLogoUrl(clearbitUrl);
     setLogoError(false);
+    setRetryCount(0);
   }, [brandName, brandDomain]);
 
   const handleLogoError = () => {
+    if (retryCount < 2 && brandDomain) {
+      // Try alternative domain formats
+      const domain = getCleanDomain(brandDomain, brandName);
+      setRetryCount(prev => prev + 1);
+      
+      if (retryCount === 0) {
+        // Try Google favicon as fallback
+        setLogoUrl(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+        return;
+      }
+    }
+    
     if (!logoError) {
       setLogoError(true);
-      // Fallback to UI Avatars with brand colors - adjust size based on prop
+      // Final fallback to UI Avatars with brand colors
       const avatarSize = size === 'large' ? 64 : 40;
       setLogoUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(brandName)}&size=${avatarSize}&background=6366f1&color=ffffff&bold=true&format=svg`);
     }
@@ -40,7 +71,7 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
             <img
               src={logoUrl}
               alt={`${brandName} logo`}
-              className="w-6 h-6 rounded object-cover"
+              className="w-6 h-6 rounded object-contain"
               onError={handleLogoError}
             />
           ) : (
@@ -56,12 +87,12 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
     return (
       <div className="flex items-center gap-4">
         {/* Brand Logo */}
-        <div className="w-16 h-16 rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm">
+        <div className="w-16 h-16 rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm overflow-hidden">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt={`${brandName} logo`}
-              className="w-14 h-14 rounded object-cover"
+              className="w-12 h-12 object-contain"
               onError={handleLogoError}
             />
           ) : (
@@ -82,12 +113,12 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
     <div className="px-6 py-4 border-b border-border/30 bg-card/30 backdrop-blur-sm">
       <div className="flex items-center gap-3">
         {/* Brand Logo */}
-        <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm">
+        <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center border border-border/30 shadow-sm overflow-hidden">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt={`${brandName} logo`}
-              className="w-8 h-8 rounded object-cover"
+              className="w-8 h-8 object-contain"
               onError={handleLogoError}
             />
           ) : (
