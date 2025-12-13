@@ -261,6 +261,50 @@ const Features = () => {
                 </Card>
               </motion.div>
             </div>
+
+            {/* Content Studio Feature - Highlighted */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              viewport={{ once: true }}
+              className="mt-8"
+            >
+              <Card className="p-8 bg-gradient-to-br from-violet-500/10 to-blue-500/10 border-violet-500/30 hover:border-violet-500/50 transition-all relative overflow-hidden">
+                <Badge className="absolute top-4 right-4 bg-violet-500 text-white border-0">
+                  New
+                </Badge>
+                <div className="grid md:grid-cols-2 gap-8 items-center">
+                  <div>
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center mb-6">
+                      <FileText className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-4">Content Studio for AEO & GEO</h2>
+                    <p className="text-muted-foreground mb-6">
+                      Create AI-optimized content with inline AI editing, real-time SEO scoring, 8 content templates, and direct WordPress publishing. Master Answer Engine Optimization and Generative Engine Optimization.
+                    </p>
+                    <Button asChild className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0">
+                      <Link to="/features/content-studio">
+                        Explore Content Studio <ArrowRight className="ml-2 w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { icon: Sparkles, label: 'Inline AI Editing' },
+                      { icon: BarChart3, label: 'SEO Scoring' },
+                      { icon: FileText, label: '8 Templates' },
+                      { icon: Globe, label: 'WordPress Integration' }
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                        <item.icon className="w-5 h-5 text-violet-400" />
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
           </div>
         </section>
 

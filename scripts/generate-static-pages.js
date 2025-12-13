@@ -30,6 +30,10 @@ const ROUTES = [
   { path: '/demo', waitForSelector: 'h1', validateText: ['Demo', 'Watch'], outputPath: 'demo/index.html' },
   { path: '/terms', waitForSelector: 'h1', validateText: ['Terms'], outputPath: 'terms/index.html' },
   { path: '/privacy', waitForSelector: 'h1', validateText: ['Privacy'], outputPath: 'privacy/index.html' },
+  // Feature pages
+  { path: '/features/content-studio', waitForSelector: 'h1', validateText: ['Content Studio', 'AEO', 'GEO'], outputPath: 'features/content-studio/index.html' },
+  { path: '/features/brand-visibility', waitForSelector: 'h1', validateText: ['Visibility', 'Brand'], outputPath: 'features/brand-visibility/index.html' },
+  { path: '/features/competitive-analysis', waitForSelector: 'h1', validateText: ['Competitive', 'Analysis'], outputPath: 'features/competitive-analysis/index.html' },
   // Blog posts
   { path: '/resources/understanding-ai-search-optimization', waitForSelector: 'h1', validateText: ['AI Search'], outputPath: 'resources/understanding-ai-search-optimization/index.html' },
   { path: '/resources/choosing-ai-visibility-tools', waitForSelector: 'h1', validateText: ['Visibility'], outputPath: 'resources/choosing-ai-visibility-tools/index.html' },
