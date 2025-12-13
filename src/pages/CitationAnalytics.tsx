@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TopCitedContent } from '@/features/citations/TopCitedContent';
 import { ContentTypeAnalysis } from '@/features/citations/ContentTypeAnalysis';
 import { CompetitiveCitationInsights } from '@/features/citations/CompetitiveCitationInsights';
 import { CitationHealthDashboard } from '@/features/citations/CitationHealthDashboard';
 import { PriorityRecommendations } from '@/features/citations/PriorityRecommendations';
-import { Target, TrendingUp, FileText } from 'lucide-react';
+import { OwnedCitations } from '@/features/citations/OwnedCitations';
+import { Target, TrendingUp, FileText, Award, Building2 } from 'lucide-react';
 import { useBrand } from '@/contexts/BrandContext';
 
 export default function CitationAnalytics() {
@@ -48,8 +48,12 @@ export default function CitationAnalytics() {
         <PriorityRecommendations days={Number(timeRange)} brandId={brandId} />
 
         {/* Detailed Analysis Tabs */}
-        <Tabs defaultValue="top-content" className="space-y-6">
+        <Tabs defaultValue="owned" className="space-y-6">
           <TabsList>
+            <TabsTrigger value="owned" className="flex items-center gap-2">
+              <Award className="h-4 w-4" />
+              Owned Citations
+            </TabsTrigger>
             <TabsTrigger value="top-content" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Top Cited Content
@@ -59,10 +63,14 @@ export default function CitationAnalytics() {
               Content Types
             </TabsTrigger>
             <TabsTrigger value="competitive" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
+              <Building2 className="h-4 w-4" />
               Competitive Analysis
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="owned" className="space-y-6">
+            <OwnedCitations days={Number(timeRange)} brandId={brandId} />
+          </TabsContent>
 
           <TabsContent value="top-content" className="space-y-6">
             <TopCitedContent days={Number(timeRange)} brandId={brandId} />
