@@ -140,4 +140,22 @@ export interface WeeklyReportData {
     keyFindings: string[];
     recommendations: string[];
   };
+  // Phase 1 Enhancements: Citation Analytics
+  citations?: {
+    totalCitations: number;
+    validatedCount: number;
+    validationRate: number;
+    topSources: Array<{
+      domain: string;
+      mentions: number;
+      avgAuthority: number;
+    }>;
+    byProvider: Array<{
+      provider: string;
+      citationCount: number;
+      validationRate: number;
+    }>;
+  };
+  // For internal tracking
+  totalResponses?: number;
 }

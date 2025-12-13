@@ -499,6 +499,95 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
     throw new Error(`Failed to fetch responses: ${responsesError.message}`);
   }
 
+  // Phase 1 Enhancement: Collect citation data
+  logStep('Collecting citation analytics data', { orgId });
+  let citationQuery = supabase
+    .from('prompt_provider_responses')
+    .select('citations_json, citations_validation_status, provider')
+    .eq('org_id', orgId)
+    .gte('run_at', weekStart + 'T00:00:00Z')
+    .lte('run_at', weekEnd + 'T23:59:59Z')
+    .eq('status', 'success')
+    .not('citations_json', 'is', null);
+
+  if (brandId) {
+    citationQuery = citationQuery.eq('brand_id', brandId);
+  }
+
+  const { data: citationResponses } = await citationQuery;
+  
+  // Process citation data
+  const citationDomainMap = new Map<string, { count: number; authorities: number[] }>();
+  const citationByProvider = new Map<string, { total: number; validated: number }>();
+  let totalCitations = 0;
+  let validatedCitations = 0;
+
+  for (const resp of citationResponses || []) {
+    const citations = Array.isArray(resp.citations_json) ? resp.citations_json : [];
+    const isValidated = resp.citations_validation_status === 'validated';
+    
+    // Track by provider
+    if (!citationByProvider.has(resp.provider)) {
+      citationByProvider.set(resp.provider, { total: 0, validated: 0 });
+    }
+    const provCitations = citationByProvider.get(resp.provider)!;
+    
+    for (const citation of citations) {
+      totalCitations++;
+      provCitations.total++;
+      
+      if (isValidated) {
+        validatedCitations++;
+        provCitations.validated++;
+      }
+      
+      // Extract domain from URL
+      try {
+        const url = typeof citation === 'string' ? citation : citation?.url;
+        if (url) {
+          const domain = new URL(url).hostname.replace('www.', '');
+          if (!citationDomainMap.has(domain)) {
+            citationDomainMap.set(domain, { count: 0, authorities: [] });
+          }
+          const domainData = citationDomainMap.get(domain)!;
+          domainData.count++;
+          // Add authority score if available
+          if (citation?.authority_score) {
+            domainData.authorities.push(citation.authority_score);
+          }
+        }
+      } catch {
+        // Invalid URL, skip
+      }
+    }
+  }
+
+  const citationsData = {
+    totalCitations,
+    validatedCount: validatedCitations,
+    validationRate: totalCitations > 0 ? (validatedCitations / totalCitations) * 100 : 0,
+    topSources: Array.from(citationDomainMap.entries())
+      .map(([domain, data]) => ({
+        domain,
+        mentions: data.count,
+        avgAuthority: data.authorities.length > 0 
+          ? data.authorities.reduce((a, b) => a + b, 0) / data.authorities.length 
+          : 0
+      }))
+      .sort((a, b) => b.mentions - a.mentions)
+      .slice(0, 10),
+    byProvider: Array.from(citationByProvider.entries()).map(([provider, data]) => ({
+      provider,
+      citationCount: data.total,
+      validationRate: data.total > 0 ? (data.validated / data.total) * 100 : 0
+    }))
+  };
+
+  logStep('Citation data collected', { 
+    totalCitations: citationsData.totalCitations, 
+    topSourcesCount: citationsData.topSources.length 
+  });
+
   // Get historical data (last 8 weeks for trends)
   const eightWeeksAgo = new Date(new Date(weekStart).getTime() - 56 * 24 * 60 * 60 * 1000);
   const { data: historicalResponses } = await supabase
@@ -756,7 +845,9 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
       providersUsed,
       dailyBreakdown
     },
-    insights
+    insights,
+    citations: citationsData,
+    totalResponses
   };
 }
 

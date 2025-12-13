@@ -580,9 +580,146 @@ export async function renderReportPDF(dto: WeeklyReportData): Promise<Uint8Array
     });
   }
 
-  // PAGE 5: Strategic Recommendations
+  // PAGE 5: Citation Analytics (Phase 1 Enhancement)
+  if (dto.citations && dto.citations.totalCitations > 0) {
+    const citationsPage = pdfDoc.addPage([pageWidth, pageHeight]);
+    currentY = addHeader(citationsPage, 'Citation Analytics', 5);
+
+    // Citation summary cards
+    currentY -= 40;
+    const citationCardWidth = 150;
+    const citationCardHeight = 80;
+
+    // Total Citations
+    drawBrandedCard(
+      citationsPage,
+      40,
+      currentY - citationCardHeight,
+      citationCardWidth,
+      citationCardHeight,
+      'Total Citations',
+      dto.citations.totalCitations.toString(),
+      undefined,
+      'Across all AI responses'
+    );
+
+    // Validation Rate
+    drawBrandedCard(
+      citationsPage,
+      40 + citationCardWidth + 20,
+      currentY - citationCardHeight,
+      citationCardWidth,
+      citationCardHeight,
+      'Validation Rate',
+      `${dto.citations.validationRate.toFixed(1)}%`,
+      undefined,
+      'Verified citations'
+    );
+
+    // Top Sources Count
+    drawBrandedCard(
+      citationsPage,
+      40 + (citationCardWidth + 20) * 2,
+      currentY - citationCardHeight,
+      citationCardWidth,
+      citationCardHeight,
+      'Unique Sources',
+      dto.citations.topSources.length.toString(),
+      undefined,
+      'Distinct domains cited'
+    );
+
+    currentY -= citationCardHeight + 40;
+
+    // Top Citation Sources with Bar Chart
+    if (dto.citations.topSources.length > 0) {
+      citationsPage.drawText('Top Citation Sources', {
+        x: 40,
+        y: currentY,
+        size: 14,
+        font: boldFont,
+        color: colors.neutralDark,
+      });
+
+      currentY -= 30;
+      const maxMentions = Math.max(...dto.citations.topSources.map(s => s.mentions));
+      const barMaxWidth = 300;
+
+      dto.citations.topSources.slice(0, 8).forEach((source, index) => {
+        const barWidth = (source.mentions / maxMentions) * barMaxWidth;
+        
+        // Domain name
+        citationsPage.drawText(stripEmojis(source.domain.substring(0, 30)), {
+          x: 50,
+          y: currentY,
+          size: 10,
+          font: font,
+          color: colors.neutralDark,
+        });
+
+        // Bar background
+        citationsPage.drawRectangle({
+          x: 200,
+          y: currentY - 3,
+          width: barMaxWidth,
+          height: 14,
+          color: colors.neutralLight,
+        });
+
+        // Bar fill
+        citationsPage.drawRectangle({
+          x: 200,
+          y: currentY - 3,
+          width: barWidth,
+          height: 14,
+          color: colors.primaryBlue,
+        });
+
+        // Count
+        citationsPage.drawText(`${source.mentions}`, {
+          x: 510,
+          y: currentY,
+          size: 10,
+          font: font,
+          color: colors.neutralGray,
+        });
+
+        currentY -= 25;
+      });
+    }
+
+    // Citations by Provider
+    if (dto.citations.byProvider && dto.citations.byProvider.length > 0) {
+      currentY -= 40;
+      citationsPage.drawText('Citations by AI Provider', {
+        x: 40,
+        y: currentY,
+        size: 14,
+        font: boldFont,
+        color: colors.neutralDark,
+      });
+
+      currentY -= 30;
+      dto.citations.byProvider.forEach((prov) => {
+        citationsPage.drawText(
+          stripEmojis(`${prov.provider}: ${prov.citationCount} citations (${prov.validationRate.toFixed(1)}% validated)`),
+          {
+            x: 50,
+            y: currentY,
+            size: 11,
+            font: font,
+            color: colors.neutralDark,
+          }
+        );
+        currentY -= 20;
+      });
+    }
+  }
+
+  // PAGE 6: Strategic Recommendations
   const recoPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  currentY = addHeader(recoPage, 'Strategic Recommendations', 5);
+  const pageNum = dto.citations && dto.citations.totalCitations > 0 ? 6 : 5;
+  currentY = addHeader(recoPage, 'Strategic Recommendations', pageNum);
 
   // Key findings
   currentY -= 40;

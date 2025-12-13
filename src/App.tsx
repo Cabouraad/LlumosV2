@@ -109,6 +109,7 @@ const ComparisonLandingPage = lazy(() => loadChunkWithRetry(() => import("./page
 const DynamicIndustryLandingPage = lazy(() => loadChunkWithRetry(() => import("./pages/DynamicIndustryLandingPage")));
 const AICompetitorFinder = lazy(() => loadChunkWithRetry(() => import("./pages/AICompetitorFinder")));
 const SharedScanReport = lazy(() => loadChunkWithRetry(() => import("./pages/SharedScanReport")));
+const SharedReport = lazy(() => loadChunkWithRetry(() => import("./pages/SharedReport")));
 const NotFound = lazy(() => loadChunkWithRetry(() => import("./pages/NotFound")));
 
 // Suspense fallback for lazy-loaded routes
