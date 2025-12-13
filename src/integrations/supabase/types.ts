@@ -2545,33 +2545,19 @@ export type Database = {
               total_citations: number
             }[]
           }
-      get_citation_health_dashboard:
-        | {
-            Args: { p_days?: number; p_org_id: string }
-            Returns: {
-              avg_visibility_score: number
-              health_score: number
-              market_share_pct: number
-              total_citations: number
-              total_competitor_citations: number
-              total_own_citations: number
-              trending_up: boolean
-              week_over_week_change: number
-            }[]
-          }
-        | {
-            Args: { p_brand_id?: string; p_days?: number; p_org_id: string }
-            Returns: {
-              avg_visibility_score: number
-              health_score: number
-              market_share_pct: number
-              total_citations: number
-              total_competitor_citations: number
-              total_own_citations: number
-              trending_up: boolean
-              week_over_week_change: number
-            }[]
-          }
+      get_citation_health_dashboard: {
+        Args: { p_brand_id?: string; p_days?: number; p_org_id: string }
+        Returns: {
+          avg_visibility_score: number
+          health_score: number
+          market_share_pct: number
+          total_citations: number
+          total_competitor_citations: number
+          total_own_citations: number
+          trending_up: boolean
+          week_over_week_change: number
+        }[]
+      }
       get_citation_performance_insights:
         | {
             Args: {
@@ -2594,7 +2580,12 @@ export type Database = {
             }[]
           }
         | {
-            Args: { p_days?: number; p_limit?: number; p_org_id?: string }
+            Args: {
+              p_brand_id?: string
+              p_days?: number
+              p_limit?: number
+              p_org_id?: string
+            }
             Returns: {
               avg_brand_visibility_score: number
               brand_present_rate: number
@@ -2611,51 +2602,30 @@ export type Database = {
               unique_prompts: number
             }[]
           }
-      get_citation_recommendations:
-        | {
-            Args: { p_days?: number; p_org_id: string }
-            Returns: {
-              data_support: Json
-              description: string
-              difficulty: string
-              expected_impact: string
-              priority: number
-              recommendation_type: string
-              title: string
-            }[]
-          }
-        | {
-            Args: { p_brand_id?: string; p_days?: number; p_org_id: string }
-            Returns: {
-              data_support: Json
-              description: string
-              difficulty: string
-              expected_impact: string
-              priority: number
-              recommendation_type: string
-              title: string
-            }[]
-          }
-      get_citation_trends:
-        | {
-            Args: {
-              p_brand_id?: string
-              p_days?: number
-              p_limit?: number
-              p_org_id: string
-            }
-            Returns: {
-              citation_url: string
-              trend_data: Json
-            }[]
-          }
-        | {
-            Args: { p_days?: number; p_limit?: number; p_org_id: string }
-            Returns: {
-              citation_url: string
-              trend_data: Json
-            }[]
-          }
+      get_citation_recommendations: {
+        Args: { p_brand_id?: string; p_days?: number; p_org_id: string }
+        Returns: {
+          data_support: Json
+          description: string
+          difficulty: string
+          expected_impact: string
+          priority: number
+          recommendation_type: string
+          title: string
+        }[]
+      }
+      get_citation_trends: {
+        Args: {
+          p_brand_id?: string
+          p_days?: number
+          p_limit?: number
+          p_org_id: string
+        }
+        Returns: {
+          citation_url: string
+          trend_data: Json
+        }[]
+      }
       get_cluster_tag_color: { Args: { tag: string }; Returns: string }
       get_competitor_share_7d: {
         Args: { p_org_id?: string }

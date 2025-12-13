@@ -90,7 +90,7 @@ export function useCitationAnalytics(
         .from('prompt_provider_responses')
         .select('id, prompt_id, provider, model, citations_json, run_at, prompts(text)')
         .eq('org_id', orgId)
-        .eq('status', 'completed')
+        .in('status', ['completed', 'success'])
         .gte('run_at', startDate.toISOString())
         .not('citations_json', 'is', null);
 
