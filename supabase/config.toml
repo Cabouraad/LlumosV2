@@ -274,3 +274,6 @@ verify_jwt = false
 
 [functions.public-competitor-lookup]
 verify_jwt = false
+
+[functions.wordpress-publish]
+verify_jwt = true

@@ -2,7 +2,7 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, FileText, Clock, CheckCircle, Edit3, Eye, Trash2 } from 'lucide-react';
+import { Sparkles, FileText, Clock, CheckCircle, Edit3, Eye, Trash2, Globe, Send, Calendar } from 'lucide-react';
 import { useContentStudioItems, useUpdateContentStudioItemStatus, useDeleteContentStudioItem } from '@/features/content-studio/hooks';
 import { ContentStudioDrawer, ContentEditor, type ContentStudioItem } from '@/features/content-studio';
 import { useState } from 'react';
@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
 import { useNavigate } from 'react-router-dom';
 import { Crown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { WordPressConnectDialog } from '@/features/content-studio/components/WordPressConnectDialog';
+import { SchedulePublishDialog } from '@/features/content-studio/components/SchedulePublishDialog';
 
 export default function ContentStudio() {
   const { data: items, isLoading } = useContentStudioItems();
@@ -29,8 +33,24 @@ export default function ContentStudio() {
   const [selectedItem, setSelectedItem] = useState<ContentStudioItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishItem, setPublishItem] = useState<ContentStudioItem | null>(null);
   const { canAccessRecommendations } = useSubscriptionGate();
   const navigate = useNavigate();
+
+  // Fetch CMS connections to show status
+  const { data: cmsConnections } = useQuery({
+    queryKey: ['cms-connections'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cms_connections')
+        .select('*')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data;
+    },
+  });
   
   const accessCheck = canAccessRecommendations();
   
@@ -118,9 +138,22 @@ export default function ContentStudio() {
               Create AI-optimized content with guided frameworks and AI assistance
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate('/optimizations')}>
-            Generate New Blueprint
-          </Button>
+          <div className="flex gap-2">
+            {cmsConnections && cmsConnections.length > 0 ? (
+              <Button variant="outline" size="sm" className="gap-1.5" disabled>
+                <Globe className="h-4 w-4 text-green-500" />
+                WordPress Connected
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setConnectDialogOpen(true)} className="gap-1.5">
+                <Globe className="h-4 w-4" />
+                Connect WordPress
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => navigate('/optimizations')}>
+              Generate New Blueprint
+            </Button>
+          </div>
         </div>
 
         {/* Content Items Grid */}
@@ -191,6 +224,19 @@ export default function ContentStudio() {
                       <Edit3 className="h-3.5 w-3.5" />
                       Write
                     </Button>
+                    {cmsConnections && cmsConnections.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => {
+                          setPublishItem(item);
+                          setPublishDialogOpen(true);
+                        }}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button 
@@ -248,6 +294,22 @@ export default function ContentStudio() {
           setDrawerOpen(false);
           setSelectedItem(null);
         }}
+      />
+
+      {/* WordPress Connect Dialog */}
+      <WordPressConnectDialog
+        open={connectDialogOpen}
+        onClose={() => setConnectDialogOpen(false)}
+      />
+
+      {/* Schedule/Publish Dialog */}
+      <SchedulePublishDialog
+        open={publishDialogOpen}
+        onClose={() => {
+          setPublishDialogOpen(false);
+          setPublishItem(null);
+        }}
+        item={publishItem}
       />
     </Layout>
   );

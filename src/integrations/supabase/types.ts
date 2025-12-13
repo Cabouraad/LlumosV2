@@ -424,6 +424,70 @@ export type Database = {
           },
         ]
       }
+      cms_connections: {
+        Row: {
+          app_password_encrypted: string
+          brand_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          last_connected_at: string | null
+          org_id: string
+          platform: string
+          site_url: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          app_password_encrypted: string
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_connected_at?: string | null
+          org_id: string
+          platform?: string
+          site_url: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          app_password_encrypted?: string
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_connected_at?: string | null
+          org_id?: string
+          platform?: string
+          site_url?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_connections_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cms_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "cms_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_studio_items: {
         Row: {
           content_type: string
@@ -1544,6 +1608,86 @@ export type Database = {
             columns: ["keyword_id"]
             isOneToOne: false
             referencedRelation: "tracked_keywords"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_publications: {
+        Row: {
+          cms_connection_id: string
+          content_studio_item_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json
+          org_id: string
+          post_status: string
+          post_type: string
+          published_at: string | null
+          scheduled_at: string
+          status: string
+          updated_at: string
+          wordpress_post_id: string | null
+        }
+        Insert: {
+          cms_connection_id: string
+          content_studio_item_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          org_id: string
+          post_status?: string
+          post_type?: string
+          published_at?: string | null
+          scheduled_at: string
+          status?: string
+          updated_at?: string
+          wordpress_post_id?: string | null
+        }
+        Update: {
+          cms_connection_id?: string
+          content_studio_item_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          org_id?: string
+          post_status?: string
+          post_type?: string
+          published_at?: string | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+          wordpress_post_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_publications_cms_connection_id_fkey"
+            columns: ["cms_connection_id"]
+            isOneToOne: false
+            referencedRelation: "cms_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_publications_content_studio_item_id_fkey"
+            columns: ["content_studio_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_studio_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_publications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "scheduled_publications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
