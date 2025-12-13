@@ -2573,7 +2573,10 @@ export type Database = {
               citation_title: string
               citation_url: string
               content_type: string
+              first_cited: string
               is_own_domain: boolean
+              last_cited: string
+              prompt_contexts: Json
               providers: string[]
               total_mentions: number
               unique_prompts: number
