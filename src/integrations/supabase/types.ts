@@ -1498,6 +1498,8 @@ export type Database = {
           period_end: string
           period_start: string
           sha256: string | null
+          share_token: string | null
+          share_token_expires_at: string | null
           storage_path: string
           template_id: string | null
           updated_at: string | null
@@ -1512,6 +1514,8 @@ export type Database = {
           period_end: string
           period_start: string
           sha256?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
           storage_path: string
           template_id?: string | null
           updated_at?: string | null
@@ -1526,6 +1530,8 @@ export type Database = {
           period_end?: string
           period_start?: string
           sha256?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
           storage_path?: string
           template_id?: string | null
           updated_at?: string | null

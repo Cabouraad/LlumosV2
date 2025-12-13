@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, FileText, Crown, Calendar, Users, RefreshCw, Clock, Settings, Trash2 } from 'lucide-react';
+import { Download, FileText, Crown, Calendar, Users, RefreshCw, Clock, Settings, Trash2, Share2, Link, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { TemplateSelector } from '@/components/reports/TemplateSelector';
 import { TemplateEditor } from '@/components/reports/TemplateEditor';
 import { useReportTemplates } from '@/hooks/useReportTemplates';
+import { useReportSharing } from '@/hooks/useReportSharing';
 import type { DateRange } from 'react-day-picker';
 import type { ReportTemplate } from '@/hooks/useReportTemplates';
 
@@ -76,6 +77,8 @@ export default function Reports() {
     deleteTemplate,
     setAsDefault,
   } = useReportTemplates(orgData?.organizations?.id);
+
+  const { createShareLink, isSharing } = useReportSharing();
 
   useEffect(() => {
     if (orgData?.organizations?.id && reportsAccess.hasAccess) {
@@ -834,7 +837,16 @@ export default function Reports() {
                                   disabled={downloadingId === report.id || deletingId === report.id}
                                 >
                                   <Download className="h-4 w-4 mr-2" />
-                                  {downloadingId === report.id ? 'Downloading...' : 'Download PDF'}
+                                  {downloadingId === report.id ? 'Downloading...' : 'Download'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => createShareLink(report.id)}
+                                  disabled={isSharing(report.id) || deletingId === report.id}
+                                  title="Create shareable link"
+                                >
+                                  <Share2 className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="outline"
