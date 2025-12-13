@@ -61,36 +61,103 @@ interface TrackedCompetitor {
   first_detected_at: string;
 }
 
+// Known brand domains for accurate logo fetching
+const BRAND_DOMAINS: Record<string, string> = {
+  'salesforce': 'salesforce.com',
+  'hubspot': 'hubspot.com',
+  'zoho': 'zoho.com',
+  'zoho crm': 'zoho.com',
+  'pipedrive': 'pipedrive.com',
+  'zapier': 'zapier.com',
+  'marketo': 'marketo.com',
+  'mailchimp': 'mailchimp.com',
+  'klaviyo': 'klaviyo.com',
+  'activecampaign': 'activecampaign.com',
+  'getresponse': 'getresponse.com',
+  'sendinblue': 'brevo.com',
+  'brevo': 'brevo.com',
+  'convertkit': 'convertkit.com',
+  'drip': 'drip.com',
+  'intercom': 'intercom.com',
+  'zendesk': 'zendesk.com',
+  'drift': 'drift.com',
+  'freshworks': 'freshworks.com',
+  'freshsales': 'freshsales.com',
+  'freshdesk': 'freshdesk.com',
+  'microsoft': 'microsoft.com',
+  'google': 'google.com',
+  'adobe': 'adobe.com',
+  'oracle': 'oracle.com',
+  'ibm': 'ibm.com',
+  'sap': 'sap.com',
+  'slack': 'slack.com',
+  'notion': 'notion.so',
+  'asana': 'asana.com',
+  'trello': 'trello.com',
+  'monday': 'monday.com',
+  'clickup': 'clickup.com',
+  'airtable': 'airtable.com',
+  'stripe': 'stripe.com',
+  'shopify': 'shopify.com',
+  'wix': 'wix.com',
+  'squarespace': 'squarespace.com',
+  'semrush': 'semrush.com',
+  'ahrefs': 'ahrefs.com',
+  'moz': 'moz.com',
+  'sales hub': 'hubspot.com',
+};
+
+const getBrandDomain = (brandName: string): string => {
+  const normalizedName = brandName.toLowerCase().trim();
+  
+  // Check known domains first
+  if (BRAND_DOMAINS[normalizedName]) {
+    return BRAND_DOMAINS[normalizedName];
+  }
+  
+  // Try common patterns
+  const cleanName = normalizedName.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+  return `${cleanName}.com`;
+};
+
 const BrandLogo = ({ brandName }: { brandName: string }) => {
   const [logoUrl, setLogoUrl] = useState<string>('');
   const [hasError, setHasError] = useState(false);
+  const [fallbackAttempted, setFallbackAttempted] = useState(false);
 
   useEffect(() => {
-    // Try Clearbit logo API first, fallback to generated avatar
-    setLogoUrl(`https://logo.clearbit.com/${brandName.toLowerCase().replace(/\s+/g, '')}.com`);
+    setHasError(false);
+    setFallbackAttempted(false);
+    const domain = getBrandDomain(brandName);
+    setLogoUrl(`https://logo.clearbit.com/${domain}`);
   }, [brandName]);
 
   const handleError = () => {
-    if (!hasError) {
+    if (!fallbackAttempted) {
+      setFallbackAttempted(true);
+      // Use Google's favicon service as a fallback
+      const domain = getBrandDomain(brandName);
+      setLogoUrl(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
+    } else if (!hasError) {
       setHasError(true);
-      // Fallback to generated avatar
+      // Final fallback to generated avatar
       setLogoUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(brandName)}&size=32&background=6366f1&color=ffffff&bold=true&format=svg`);
     }
   };
 
   return (
-    <div className="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center border">
-      {logoUrl ? (
+    <div className="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center border border-border">
+      {logoUrl && !hasError ? (
         <img 
           src={logoUrl} 
           alt={`${brandName} logo`}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           onError={handleError}
         />
       ) : (
         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
           <span className="text-xs font-semibold text-primary">
-            {brandName.charAt(0).toUpperCase()}
+            {brandName.slice(0, 2).toUpperCase()}
           </span>
         </div>
       )}
@@ -181,7 +248,28 @@ export default function Competitors() {
       setLoading(true);
       const orgId = await getOrgId();
 
-      // Build brand-filtered queries for catalog count and tracked competitors
+      // Get org name first
+      const orgResult = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', orgId)
+        .single();
+
+      const currentOrgName = orgResult.data?.name || 'Your Brand';
+      setOrgName(currentOrgName);
+
+      // Check if brand is primary (for legacy data fallback)
+      let isPrimaryBrand = false;
+      if (selectedBrand?.id) {
+        const { data: brandInfo } = await supabase
+          .from('brands')
+          .select('is_primary')
+          .eq('id', selectedBrand.id)
+          .single();
+        isPrimaryBrand = brandInfo?.is_primary || false;
+      }
+
+      // Try to get brand-specific competitors first
       let catalogCountQuery = supabase
         .from('brand_catalog')
         .select('id', { count: 'exact', head: true })
@@ -190,26 +278,18 @@ export default function Competitors() {
       
       let trackedQuery = supabase
         .from('brand_catalog')
-        .select('id, name, first_detected_at, total_appearances, is_org_brand, average_score, brand_id')
+        .select('id, name, first_detected_at, total_appearances, is_org_brand, average_score, brand_id, last_seen_at')
         .eq('org_id', orgId)
         .eq('is_org_brand', false)
         .order('total_appearances', { ascending: false })
-        .order('last_seen_at', { ascending: false })
         .limit(50);
 
-      // Apply strict brand filtering for multi-brand isolation
       if (selectedBrand?.id) {
         catalogCountQuery = catalogCountQuery.eq('brand_id', selectedBrand.id);
         trackedQuery = trackedQuery.eq('brand_id', selectedBrand.id);
       }
 
-      // Get org name and brand info
-      const [orgResult, competitorSummaryResult, catalogCountResult, trackedResult] = await Promise.all([
-        supabase
-          .from('organizations')
-          .select('name')
-          .eq('id', orgId)
-          .single(),
+      const [competitorSummaryResult, catalogCountResult, trackedResult] = await Promise.all([
         supabase.rpc('get_org_competitor_summary_v2', { 
           p_org_id: orgId, 
           p_days: 30, 
@@ -223,48 +303,64 @@ export default function Competitors() {
       ]);
 
       let competitorRows = competitorSummaryResult.data as any[] | null;
-      // IMPORTANT: Do NOT fall back to org-level data when brand-specific is empty
-      // This would violate brand isolation - each brand should have independent competitor data
       setIsBrandFallback(false);
 
+      // Handle RPC errors with legacy fallback
       if (competitorSummaryResult.error) {
-        console.warn('get_org_competitor_summary_v2 failed, attempting legacy fallback', competitorSummaryResult.error);
-        const legacy = await supabase
-          .rpc('get_org_competitor_summary', { p_org_id: orgId, p_days: 30 });
-        if (legacy.error) {
-          console.error('Legacy competitor summary also failed:', legacy.error);
-          return;
-        }
-        competitorRows = legacy.data as any[] | null;
+        console.warn('get_org_competitor_summary_v2 failed', competitorSummaryResult.error);
       }
-
-      const currentOrgName = orgResult.data?.name || 'Your Brand';
-      setOrgName(currentOrgName);
 
       // Convert RPC data to competitor format
       let competitors: CompetitorData[] = competitorRows || [];
       
-      // Fallback to brand_catalog if RPC returned no data (but still brand-filtered)
+      // Fallback 1: Use trackedResult data if RPC returned nothing
       if (competitors.length === 0 && trackedResult.data && trackedResult.data.length > 0) {
-        console.info('RPC returned no competitors, using brand_catalog data (brand-filtered)');
+        console.info('Using brand_catalog data');
         competitors = trackedResult.data
-          .filter(b => b.total_appearances > 0) // Only show competitors with actual mentions
+          .filter(b => b.total_appearances > 0)
           .map(cat => ({
             competitor_name: cat.name,
             total_mentions: cat.total_appearances,
-            distinct_prompts: cat.total_appearances, // Approximate
+            distinct_prompts: cat.total_appearances,
             first_seen: cat.first_detected_at,
-            last_seen: cat.first_detected_at, // Use same as first if we don't have last_seen
+            last_seen: cat.last_seen_at || cat.first_detected_at,
             avg_score: cat.average_score || 0
           }));
       }
       
+      // Fallback 2: For primary brand, try legacy null brand_id competitors
+      if (competitors.length === 0 && isPrimaryBrand) {
+        console.info('Primary brand - fetching legacy competitors (null brand_id)');
+        const { data: legacyData, count: legacyCount } = await supabase
+          .from('brand_catalog')
+          .select('id, name, first_detected_at, total_appearances, is_org_brand, average_score, brand_id, last_seen_at', { count: 'exact' })
+          .eq('org_id', orgId)
+          .eq('is_org_brand', false)
+          .is('brand_id', null)
+          .order('total_appearances', { ascending: false })
+          .limit(50);
+        
+        if (legacyData && legacyData.length > 0) {
+          setIsBrandFallback(true);
+          competitors = legacyData
+            .filter(b => b.total_appearances > 0)
+            .map(cat => ({
+              competitor_name: cat.name,
+              total_mentions: cat.total_appearances,
+              distinct_prompts: cat.total_appearances,
+              first_seen: cat.first_detected_at,
+              last_seen: cat.last_seen_at || cat.first_detected_at,
+              avg_score: cat.average_score || 0
+            }));
+          setCatalogCount(legacyCount || 0);
+        }
+      } else {
+        setCatalogCount(catalogCountResult.count || 0);
+      }
+      
       setCompetitorData(competitors);
 
-      // Set catalog count for limit enforcement
-      setCatalogCount(catalogCountResult.count || 0);
-
-      // Separate org brands from manual competitors (from limited fetch)
+      // Separate manually added competitors
       const manualCompetitors = trackedResult.data?.filter(b => b.total_appearances === 0) || [];
 
       const orgBrandInCompetitors = competitors.find(c => 
@@ -284,7 +380,6 @@ export default function Competitors() {
         });
       }
 
-      // Set tracked competitors (manually added, with 0 appearances)
       setTrackedCompetitors(manualCompetitors.map(comp => ({
         id: comp.id,
         name: comp.name,
