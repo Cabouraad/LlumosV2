@@ -36,6 +36,7 @@ import { useAutoSave } from '../hooks/useAutoSave';
 import { SectionEditor } from './SectionEditor';
 import { ContentMetrics } from './ContentMetrics';
 import { SEOMetadataPanel } from './SEOMetadataPanel';
+import { SEOScorePanel } from './SEOScorePanel';
 
 interface ContentEditorProps {
   item: ContentStudioItem;
@@ -234,6 +235,8 @@ export function ContentEditor({ item, onBack }: ContentEditorProps) {
                         }
                         onAiAssist={() => handleAiAssist(idx)}
                         isAssisting={assistingSection === idx}
+                        context={item.topic_key}
+                        toneGuidelines={item.tone_guidelines}
                       />
                     ))}
 
@@ -265,18 +268,23 @@ export function ContentEditor({ item, onBack }: ContentEditorProps) {
 
                   {/* Sidebar Panel */}
                   <div className="space-y-4">
-                    {/* Content Metrics */}
-                    <Card className="sticky top-4">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Content Metrics</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ContentMetrics editorState={editorState} item={item} />
-                      </CardContent>
-                    </Card>
+                    {/* SEO Score */}
+                    <div className="sticky top-4 space-y-4">
+                      <SEOScorePanel editorState={editorState} item={item} />
 
-                    {/* SEO Metadata */}
-                    <SEOMetadataPanel editorState={editorState} item={item} />
+                      {/* Content Metrics */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">Content Metrics</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ContentMetrics editorState={editorState} item={item} />
+                        </CardContent>
+                      </Card>
+
+                      {/* SEO Metadata */}
+                      <SEOMetadataPanel editorState={editorState} item={item} />
+                    </div>
 
                     {/* Writing Guidelines */}
                     <Card>

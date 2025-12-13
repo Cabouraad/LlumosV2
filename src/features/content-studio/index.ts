@@ -10,3 +10,7 @@ export { useContentEditor } from './hooks/useContentEditor';
 export { useAutoSave } from './hooks/useAutoSave';
 export { ContentMetrics } from './components/ContentMetrics';
 export { SEOMetadataPanel } from './components/SEOMetadataPanel';
+export { SEOScorePanel } from './components/SEOScorePanel';
+export { InlineAIMenu } from './components/InlineAIMenu';
+export { ContentTemplates, TEMPLATES } from './components/ContentTemplates';
+export { useInlineAI } from './hooks/useInlineAI';
