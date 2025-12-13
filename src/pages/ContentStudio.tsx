@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sparkles, FileText, Clock, CheckCircle, Edit3, Eye, Trash2, Globe, Send, Calendar } from 'lucide-react';
 import { useContentStudioItems, useUpdateContentStudioItemStatus, useDeleteContentStudioItem } from '@/features/content-studio/hooks';
-import { ContentStudioDrawer, ContentEditor, type ContentStudioItem } from '@/features/content-studio';
+import { ContentStudioDrawer, ContentEditor, ContentTemplates, type ContentStudioItem } from '@/features/content-studio';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
@@ -138,7 +138,8 @@ export default function ContentStudio() {
               Create AI-optimized content with guided frameworks and AI assistance
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <ContentTemplates onSelectTemplate={(template) => console.log('Selected template:', template)} />
             {cmsConnections && cmsConnections.length > 0 ? (
               <Button variant="outline" size="sm" className="gap-1.5" disabled>
                 <Globe className="h-4 w-4 text-green-500" />
