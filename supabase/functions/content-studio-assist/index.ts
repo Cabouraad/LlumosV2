@@ -13,7 +13,19 @@ interface AssistRequest {
   existingContent: string;
   toneGuidelines: string[];
   keyEntities: string[];
+  // Inline editing mode
+  mode?: 'section' | 'inline';
+  action?: 'rewrite' | 'expand' | 'shorten' | 'improve' | 'simplify';
+  text?: string;
 }
+
+const INLINE_PROMPTS: Record<string, string> = {
+  rewrite: 'Rewrite this text with different wording while keeping the same meaning and tone. Keep the same length.',
+  expand: 'Expand this text with more detail, examples, or explanations. Double the length while maintaining quality.',
+  shorten: 'Shorten this text to about half the length while keeping the key points. Be concise.',
+  improve: 'Improve this text by making it clearer, more engaging, and more professional. Fix any issues.',
+  simplify: 'Simplify this text using simpler words and shorter sentences. Make it easier to understand.',
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,19 +59,76 @@ serve(async (req) => {
     }
 
     const body: AssistRequest = await req.json();
+
+    if (!lovableApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Handle inline editing mode
+    if (body.mode === 'inline' && body.action && body.text) {
+      const inlinePrompt = INLINE_PROMPTS[body.action];
+      if (!inlinePrompt) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid action' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const systemPrompt = `You are a precise text editor. Follow instructions exactly. Only return the edited text, nothing else.
+${body.toneGuidelines?.length ? `\nTone: ${body.toneGuidelines.join(', ')}` : ''}`;
+
+      const userPrompt = `${inlinePrompt}
+
+Text to edit:
+"${body.text}"
+
+Return only the edited text, no explanations or quotes.`;
+
+      console.log(`Inline AI action: ${body.action}`);
+
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          max_tokens: 500,
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        console.error('AI API error:', aiResponse.status);
+        return new Response(
+          JSON.stringify({ error: 'Failed to process text' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const aiData = await aiResponse.json();
+      const generatedContent = aiData.choices?.[0]?.message?.content?.trim() || '';
+
+      return new Response(
+        JSON.stringify({ generatedContent }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Original section assist mode
     const { context, sectionHeading, suggestions, existingContent, toneGuidelines, keyEntities } = body;
 
     if (!sectionHeading) {
       return new Response(
         JSON.stringify({ error: 'Section heading is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!lovableApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'AI service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
