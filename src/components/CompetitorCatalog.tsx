@@ -34,34 +34,99 @@ interface CleanupResult {
   error?: string;
 }
 
+// Known brand domains for accurate logo fetching
+const BRAND_DOMAINS: Record<string, string> = {
+  'salesforce': 'salesforce.com',
+  'hubspot': 'hubspot.com',
+  'zoho': 'zoho.com',
+  'zoho crm': 'zoho.com',
+  'pipedrive': 'pipedrive.com',
+  'zapier': 'zapier.com',
+  'marketo': 'marketo.com',
+  'mailchimp': 'mailchimp.com',
+  'klaviyo': 'klaviyo.com',
+  'activecampaign': 'activecampaign.com',
+  'getresponse': 'getresponse.com',
+  'sendinblue': 'brevo.com',
+  'brevo': 'brevo.com',
+  'convertkit': 'convertkit.com',
+  'drip': 'drip.com',
+  'intercom': 'intercom.com',
+  'zendesk': 'zendesk.com',
+  'drift': 'drift.com',
+  'freshworks': 'freshworks.com',
+  'freshsales': 'freshsales.com',
+  'freshdesk': 'freshdesk.com',
+  'microsoft': 'microsoft.com',
+  'google': 'google.com',
+  'adobe': 'adobe.com',
+  'oracle': 'oracle.com',
+  'ibm': 'ibm.com',
+  'sap': 'sap.com',
+  'slack': 'slack.com',
+  'notion': 'notion.so',
+  'asana': 'asana.com',
+  'trello': 'trello.com',
+  'monday': 'monday.com',
+  'clickup': 'clickup.com',
+  'airtable': 'airtable.com',
+  'stripe': 'stripe.com',
+  'shopify': 'shopify.com',
+  'wix': 'wix.com',
+  'squarespace': 'squarespace.com',
+  'semrush': 'semrush.com',
+  'ahrefs': 'ahrefs.com',
+  'moz': 'moz.com',
+  'sales hub': 'hubspot.com',
+};
+
+const getBrandDomain = (brandName: string): string => {
+  const normalizedName = brandName.toLowerCase().trim();
+  
+  if (BRAND_DOMAINS[normalizedName]) {
+    return BRAND_DOMAINS[normalizedName];
+  }
+  
+  const cleanName = normalizedName.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+  return `${cleanName}.com`;
+};
+
 const BrandLogo = ({ brandName }: { brandName: string }) => {
   const [logoUrl, setLogoUrl] = useState<string>('');
   const [hasError, setHasError] = useState(false);
+  const [fallbackAttempted, setFallbackAttempted] = useState(false);
 
   useEffect(() => {
-    setLogoUrl(`https://logo.clearbit.com/${brandName.toLowerCase().replace(/\s+/g, '')}.com`);
+    setHasError(false);
+    setFallbackAttempted(false);
+    const domain = getBrandDomain(brandName);
+    setLogoUrl(`https://logo.clearbit.com/${domain}`);
   }, [brandName]);
 
   const handleError = () => {
-    if (!hasError) {
+    if (!fallbackAttempted) {
+      setFallbackAttempted(true);
+      const domain = getBrandDomain(brandName);
+      setLogoUrl(`https://www.google.com/s2/favicons?domain=${domain}&sz=64`);
+    } else if (!hasError) {
       setHasError(true);
       setLogoUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(brandName)}&size=32&background=6366f1&color=ffffff&bold=true&format=svg`);
     }
   };
 
   return (
-    <div className="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center border">
-      {logoUrl ? (
+    <div className="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center border border-border">
+      {logoUrl && !hasError ? (
         <img 
           src={logoUrl} 
           alt={`${brandName} logo`}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           onError={handleError}
         />
       ) : (
         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
           <span className="text-xs font-semibold text-primary">
-            {brandName.charAt(0).toUpperCase()}
+            {brandName.slice(0, 2).toUpperCase()}
           </span>
         </div>
       )}
@@ -95,19 +160,57 @@ export function CompetitorCatalog() {
         .eq('is_org_brand', false)
         .order('total_appearances', { ascending: false });
 
-      // Filter by brand if one is selected
+      // If a brand is selected, try to get brand-specific competitors first
       if (selectedBrand?.id) {
-        query = query.eq('brand_id', selectedBrand.id);
+        const { data: brandSpecificData, error: brandError } = await query.eq('brand_id', selectedBrand.id);
+        
+        if (brandError) {
+          console.error('Error fetching brand-specific competitors:', brandError);
+          throw brandError;
+        }
+        
+        // If we have brand-specific data, use it
+        if (brandSpecificData && brandSpecificData.length > 0) {
+          setCatalog(brandSpecificData);
+          return;
+        }
+        
+        // Fallback: Check if this is the primary brand - if so, show legacy null brand_id competitors
+        const { data: brandInfo } = await supabase
+          .from('brands')
+          .select('is_primary')
+          .eq('id', selectedBrand.id)
+          .single();
+        
+        if (brandInfo?.is_primary) {
+          // For primary brand, also include legacy competitors (brand_id is null)
+          const { data: legacyData, error: legacyError } = await supabase
+            .from('brand_catalog')
+            .select('*')
+            .eq('org_id', orgId)
+            .eq('is_org_brand', false)
+            .is('brand_id', null)
+            .order('total_appearances', { ascending: false });
+          
+          if (!legacyError) {
+            setCatalog(legacyData || []);
+            return;
+          }
+        }
+        
+        // No data for non-primary brand - show empty state
+        setCatalog([]);
+      } else {
+        // No brand selected - show all competitors (legacy behavior)
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('Error fetching competitor catalog:', error);
+          throw error;
+        }
+        
+        setCatalog(data || []);
       }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching competitor catalog:', error);
-        throw error;
-      }
-
-      setCatalog(data || []);
     } catch (error) {
       console.error('Error loading competitor catalog:', error);
       toast({
