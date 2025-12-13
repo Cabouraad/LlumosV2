@@ -277,3 +277,6 @@ verify_jwt = false
 
 [functions.wordpress-publish]
 verify_jwt = true
+
+[functions.reports-share]
+verify_jwt = false

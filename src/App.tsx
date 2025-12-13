@@ -193,6 +193,7 @@ const App = () => {
               <Route path="/industries/:industry" element={<DynamicIndustryLandingPage />} />
               <Route path="/tools/ai-competitor-finder" element={<AICompetitorFinder />} />
               <Route path="/share/:token" element={<SharedScanReport />} />
+              <Route path="/reports/shared/:token" element={<SharedReport />} />
 
               {/* Auth Routes */}
               <Route path="/signin" element={
