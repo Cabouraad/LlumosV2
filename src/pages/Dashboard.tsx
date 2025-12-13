@@ -128,14 +128,7 @@ export default function Dashboard() {
 
   // Memoize chart data to prevent unnecessary re-renders
   const memoizedChartData = useMemo(() => {
-    const chartData = dashboardData?.chartData || [];
-    console.log('[Dashboard] Chart data memoized:', {
-      length: chartData.length,
-      sampleData: chartData.slice(0, 3),
-      scores: chartData.map(d => d.score),
-      hasValidScores: chartData.some(d => d.score != null && !isNaN(d.score))
-    });
-    return chartData;
+    return dashboardData?.chartData || [];
   }, [dashboardData?.chartData]);
 
   // Compute brand presence stats from existing data
@@ -381,18 +374,7 @@ export default function Dashboard() {
     );
   }
 
-  // Debug logging for troubleshooting
-  console.log('[Dashboard] Render state:', {
-    loading,
-    hasData: !!dashboardData,
-    metricsKeys: dashboardData?.metrics ? Object.keys(dashboardData.metrics) : 'no metrics',
-    promptsCount: dashboardData?.prompts?.length || 0,
-    chartDataPoints: dashboardData?.chartData?.length || 0,
-    error: error?.message
-  });
-
   if (loading) {
-    console.log('[Dashboard] Showing loading skeleton');
     return (
       <Layout>
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -413,7 +395,6 @@ export default function Dashboard() {
   }
 
   if (error) {
-    console.log('[Dashboard] Showing error state:', error.message);
     return (
       <Layout>
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
