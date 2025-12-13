@@ -127,3 +127,20 @@ export async function updateContentStudioItemStatus(
     throw error;
   }
 }
+
+/**
+ * Delete a Content Studio item
+ */
+export async function deleteContentStudioItem(id: string): Promise<void> {
+  const sb = getSupabaseBrowserClient();
+  
+  const { error } = await sb
+    .from('content_studio_items')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting content studio item:', error);
+    throw error;
+  }
+}

@@ -5,7 +5,8 @@ import {
   generateContentStudioItem, 
   listContentStudioItems, 
   getContentStudioItem,
-  updateContentStudioItemStatus 
+  updateContentStudioItemStatus,
+  deleteContentStudioItem
 } from './api';
 import type { GenerateContentStudioRequest, ContentStudioItem } from './types';
 
@@ -81,6 +82,24 @@ export function useUpdateContentStudioItemStatus() {
     },
     onError: (error: Error) => {
       toast.error('Failed to update status', { description: error.message });
+    },
+  });
+}
+
+/**
+ * Hook to delete a Content Studio item
+ */
+export function useDeleteContentStudioItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteContentStudioItem(id),
+    onSuccess: () => {
+      toast.success('Content removed');
+      queryClient.invalidateQueries({ queryKey: ['content-studio-items'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to delete content', { description: error.message });
     },
   });
 }

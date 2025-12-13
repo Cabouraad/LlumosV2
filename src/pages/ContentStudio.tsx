@@ -2,18 +2,30 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sparkles, FileText, Clock, CheckCircle, Edit3, Eye } from 'lucide-react';
-import { useContentStudioItems, useUpdateContentStudioItemStatus } from '@/features/content-studio/hooks';
+import { Sparkles, FileText, Clock, CheckCircle, Edit3, Eye, Trash2 } from 'lucide-react';
+import { useContentStudioItems, useUpdateContentStudioItemStatus, useDeleteContentStudioItem } from '@/features/content-studio/hooks';
 import { ContentStudioDrawer, ContentEditor, type ContentStudioItem } from '@/features/content-studio';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
 import { useNavigate } from 'react-router-dom';
 import { Crown } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function ContentStudio() {
   const { data: items, isLoading } = useContentStudioItems();
   const updateStatus = useUpdateContentStudioItemStatus();
+  const deleteItem = useDeleteContentStudioItem();
   const [selectedItem, setSelectedItem] = useState<ContentStudioItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editorMode, setEditorMode] = useState(false);
@@ -169,7 +181,7 @@ export default function ContentStudio() {
                       onClick={() => handleViewBlueprint(item)}
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      View Blueprint
+                      View
                     </Button>
                     <Button 
                       size="sm" 
@@ -177,8 +189,36 @@ export default function ContentStudio() {
                       onClick={() => handleEditContent(item)}
                     >
                       <Edit3 className="h-3.5 w-3.5" />
-                      Write Content
+                      Write
                     </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete content?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete "{item.topic_key}" and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteItem.mutate(item.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
