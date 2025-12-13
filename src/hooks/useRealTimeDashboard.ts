@@ -53,9 +53,14 @@ export function useRealTimeDashboard(
   const adaptivePollerRef = useRef<AdaptivePoller | null>(null);
   const pollerUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  console.log('[Dashboard] Hook initialized:', { autoRefreshInterval, enableAutoRefresh });
+  // Refs to store toast function to avoid re-creating fetchData callback
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
-  // Fetch data function
+  // Fetch data function - use refs to avoid dependency changes
   const fetchData = useCallback(async (forceRefresh: boolean = false) => {
     // Prevent concurrent fetches
     if (fetchInProgressRef.current) {
@@ -94,10 +99,10 @@ export function useRealTimeDashboard(
       console.error('[Dashboard] Fetch error:', error);
       setError(error);
       
-      if (onError) {
-        onError(error);
+      if (onErrorRef.current) {
+        onErrorRef.current(error);
       } else {
-        toast({
+        toastRef.current({
           title: 'Dashboard Error',
           description: error.message || 'Failed to load dashboard data. Please try again.',
           variant: 'destructive'
@@ -107,7 +112,7 @@ export function useRealTimeDashboard(
       setLoading(false);
       fetchInProgressRef.current = false;
     }
-  }, [onError, toast]);
+  }, []); // Empty deps - uses refs to avoid recreating
 
   // Manual refresh function
   const refresh = useCallback(async () => {
