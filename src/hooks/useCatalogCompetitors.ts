@@ -35,9 +35,9 @@ export function useCatalogCompetitors() {
       setLoading(true);
       const orgId = await getOrgId();
 
-      // Build query with brand filtering
-      // When a brand is selected, show ONLY that brand's competitors (strict isolation)
-      // Legacy null brand_id entries are NOT shown to maintain brand separation
+      // Build query with STRICT brand filtering
+      // When a brand is selected, show ONLY that brand's competitors
+      // Do NOT include legacy NULL brand_id entries when brand is selected
       let query = supabase
         .from('brand_catalog')
         .select('id, name, is_org_brand, total_appearances, last_seen_at, brand_id')
@@ -45,13 +45,11 @@ export function useCatalogCompetitors() {
         .eq('is_org_brand', false)
         .order('total_appearances', { ascending: false });
 
-      // STRICT brand filtering - each brand sees only its own competitors
       if (selectedBrand?.id) {
-        // When brand selected: ONLY show competitors with that exact brand_id
-        // Do NOT include NULL brand_id records to maintain brand isolation
+        // STRICT: Only competitors with this exact brand_id
         query = query.eq('brand_id', selectedBrand.id);
       }
-      // If no brand selected, show all competitors for the org (no additional filter)
+      // When no brand is selected, show all (including NULL brand_id)
 
       const { data, error } = await query;
 

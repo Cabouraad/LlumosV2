@@ -152,7 +152,9 @@ export function CompetitorCatalog() {
       setLoading(true);
       const orgId = await getOrgId();
 
-      // Build query with brand filtering
+      // Build query with STRICT brand filtering
+      // When a brand is selected, show ONLY that brand's competitors (brand_id match)
+      // Also include legacy NULL brand_id competitors ONLY when no brand is selected
       let query = supabase
         .from('brand_catalog')
         .select('*')
@@ -160,57 +162,21 @@ export function CompetitorCatalog() {
         .eq('is_org_brand', false)
         .order('total_appearances', { ascending: false });
 
-      // If a brand is selected, try to get brand-specific competitors first
       if (selectedBrand?.id) {
-        const { data: brandSpecificData, error: brandError } = await query.eq('brand_id', selectedBrand.id);
-        
-        if (brandError) {
-          console.error('Error fetching brand-specific competitors:', brandError);
-          throw brandError;
-        }
-        
-        // If we have brand-specific data, use it
-        if (brandSpecificData && brandSpecificData.length > 0) {
-          setCatalog(brandSpecificData);
-          return;
-        }
-        
-        // Fallback: Check if this is the primary brand - if so, show legacy null brand_id competitors
-        const { data: brandInfo } = await supabase
-          .from('brands')
-          .select('is_primary')
-          .eq('id', selectedBrand.id)
-          .single();
-        
-        if (brandInfo?.is_primary) {
-          // For primary brand, also include legacy competitors (brand_id is null)
-          const { data: legacyData, error: legacyError } = await supabase
-            .from('brand_catalog')
-            .select('*')
-            .eq('org_id', orgId)
-            .eq('is_org_brand', false)
-            .is('brand_id', null)
-            .order('total_appearances', { ascending: false });
-          
-          if (!legacyError) {
-            setCatalog(legacyData || []);
-            return;
-          }
-        }
-        
-        // No data for non-primary brand - show empty state
-        setCatalog([]);
-      } else {
-        // No brand selected - show all competitors (legacy behavior)
-        const { data, error } = await query;
-        
-        if (error) {
-          console.error('Error fetching competitor catalog:', error);
-          throw error;
-        }
-        
-        setCatalog(data || []);
+        // STRICT brand filtering: only show competitors with this exact brand_id
+        // Do NOT include NULL brand_id records - this maintains brand isolation
+        query = query.eq('brand_id', selectedBrand.id);
       }
+      // When no brand is selected, show all competitors (including legacy null brand_id)
+
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching competitor catalog:', error);
+        throw error;
+      }
+      
+      setCatalog(data || []);
     } catch (error) {
       console.error('Error loading competitor catalog:', error);
       toast({
