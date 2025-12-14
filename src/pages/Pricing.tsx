@@ -129,13 +129,32 @@ export default function Pricing() {
     {
       tier: 'pro' as const,
       title: 'Pro',
-      description: 'For enterprises managing multiple brands',
-      monthlyPrice: 250,
-      yearlyPrice: 2500,
+      description: 'For teams managing multiple brands',
+      monthlyPrice: 199,
+      yearlyPrice: 1990,
+      features: [
+        'Up to 5 user accounts',
+        '200 prompts tracked daily',
+        'All 4 AI platforms',
+        'Up to 3 brands',
+        'Track 50 competitors',
+        'Custom optimization plans',
+        'Content Studio',
+        'Priority support',
+        'Advanced reporting & exports'
+      ]
+    },
+    {
+      tier: 'agency' as const,
+      title: 'Agency',
+      description: 'For agencies and enterprises',
+      monthlyPrice: 399,
+      yearlyPrice: 3990,
       features: [
         'Up to 10 user accounts',
         '300 prompts tracked daily',
         'All 4 AI platforms',
+        'Up to 10 brands',
         'Track 50 competitors',
         'Custom optimization plans',
         'Content Studio',
@@ -164,7 +183,8 @@ export default function Pricing() {
             offers: [
               { "@type": "Offer", name: "Starter", price: "39", priceCurrency: "USD", description: "For small companies tracking AI visibility" },
               { "@type": "Offer", name: "Growth", price: "89", priceCurrency: "USD", description: "For growing companies needing deeper insights" },
-              { "@type": "Offer", name: "Pro", price: "250", priceCurrency: "USD", description: "For enterprises managing multiple brands" }
+              { "@type": "Offer", name: "Pro", price: "199", priceCurrency: "USD", description: "For teams managing multiple brands" },
+              { "@type": "Offer", name: "Agency", price: "399", priceCurrency: "USD", description: "For agencies and enterprises" }
             ]
           },
           {
@@ -278,7 +298,7 @@ export default function Pricing() {
         </Card>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-12">
+        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
           {pricingTiers.map((tier) => (
             <PricingCard
               key={tier.tier}
