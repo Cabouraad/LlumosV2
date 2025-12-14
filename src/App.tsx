@@ -40,6 +40,8 @@ import ContentStudioFeature from "./pages/features/ContentStudio";
 import StarterPlan from "./pages/plans/StarterPlan";
 import GrowthPlan from "./pages/plans/GrowthPlan";
 import ProPlan from "./pages/plans/ProPlan";
+import AgencyPlan from "./pages/plans/AgencyPlan";
+import ContactSales from "./pages/ContactSales";
 
 // Blog posts (eagerly loaded for SSG)
 import BlogPostGPT from "./pages/BlogPostGPT";
@@ -162,6 +164,8 @@ const App = () => {
         <Route path="/plans/starter" element={<StarterPlan />} />
         <Route path="/plans/growth" element={<GrowthPlan />} />
         <Route path="/plans/pro" element={<ProPlan />} />
+        <Route path="/plans/agency" element={<AgencyPlan />} />
+        <Route path="/contact-sales" element={<ContactSales />} />
         
         {/* Blog posts (SSG Pre-rendered) */}
         <Route path="/blog/how-to-optimize-for-chatgpt-search" element={<BlogPostGPT />} />
