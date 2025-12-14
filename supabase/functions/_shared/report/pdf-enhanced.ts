@@ -29,7 +29,7 @@ function stripEmojis(text: string | number | null | undefined): string {
     .trim();
 }
 
-export async function renderReportPDF(dto: WeeklyReportData): Promise<Uint8Array> {
+export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<string, boolean> | null): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);

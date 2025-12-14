@@ -159,12 +159,12 @@ Deno.serve(async (req) => {
       const results: any[] = [];
       const errors: any[] = [];
 
-      // Parse request body for optional brand_id, custom date range, and template
+      // Parse request body for optional brand_id, custom date range, sections, and template
       let requestedBrandId: string | null = null;
       let customStartDate: string | null = null;
       let customEndDate: string | null = null;
       let templateId: string | null = null;
-      let templateConfig: any = null;
+      let sectionsConfig: Record<string, boolean> | null = null;
       
       try {
         const body = await req.json();
@@ -172,7 +172,8 @@ Deno.serve(async (req) => {
         customStartDate = body?.start_date || null;
         customEndDate = body?.end_date || null;
         templateId = body?.template_id || null;
-        templateConfig = body?.template_config || null;
+        sectionsConfig = body?.sections || null;
+        logStep('Parsed request body', { brandId: requestedBrandId, sections: sectionsConfig });
       } catch {
         // No body or invalid JSON - continue without filters
       }
@@ -289,12 +290,12 @@ Deno.serve(async (req) => {
           }
 
           // Collect weekly data
-          logStep('Collecting weekly data', { orgId, brandId: requestedBrandId, templateId });
-          const reportData = await generateReportData(supabase, orgId, periodStart, periodEnd, requestedBrandId, templateConfig);
+          logStep('Collecting weekly data', { orgId, brandId: requestedBrandId, templateId, sections: sectionsConfig });
+          const reportData = await generateReportData(supabase, orgId, periodStart, periodEnd, requestedBrandId, sectionsConfig);
 
           // Generate both PDF and CSV reports
-          logStep('Generating PDF report', { orgId });
-          const pdfBytes = await generatePDFReport(reportData, weekKey);
+          logStep('Generating PDF report', { orgId, sections: sectionsConfig });
+          const pdfBytes = await generatePDFReport(reportData, weekKey, sectionsConfig);
           
           logStep('Generating CSV report', { orgId });
           const csvContent = generateCSVContent(reportData);
@@ -929,9 +930,9 @@ function generateInsights(avgScore: number, brandRate: number, scoreTrend: numbe
 /**
  * Generate PDF report using enhanced renderer
  */
-async function generatePDFReport(reportData: WeeklyReportData, weekKey: string): Promise<Uint8Array> {
-  logStep('Using enhanced PDF renderer');
-  const pdfBytes = await renderReportPDF(reportData);
+async function generatePDFReport(reportData: WeeklyReportData, weekKey: string, sectionsConfig?: Record<string, boolean> | null): Promise<Uint8Array> {
+  logStep('Using enhanced PDF renderer', { sections: sectionsConfig });
+  const pdfBytes = await renderReportPDF(reportData, sectionsConfig);
   return pdfBytes;
 }
 
