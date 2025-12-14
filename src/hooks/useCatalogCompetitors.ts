@@ -45,13 +45,13 @@ export function useCatalogCompetitors() {
         .eq('is_org_brand', false)
         .order('total_appearances', { ascending: false });
 
-      // Apply strict brand filtering for brand isolation
+      // STRICT brand filtering - each brand sees only its own competitors
       if (selectedBrand?.id) {
+        // When brand selected: ONLY show competitors with that exact brand_id
+        // Do NOT include NULL brand_id records to maintain brand isolation
         query = query.eq('brand_id', selectedBrand.id);
-      } else {
-        // If no brand selected, show all competitors (legacy behavior)
-        // No additional filter needed
       }
+      // If no brand selected, show all competitors for the org (no additional filter)
 
       const { data, error } = await query;
 

@@ -328,35 +328,9 @@ export default function Competitors() {
           }));
       }
       
-      // Fallback 2: For primary brand, try legacy null brand_id competitors
-      if (competitors.length === 0 && isPrimaryBrand) {
-        console.info('Primary brand - fetching legacy competitors (null brand_id)');
-        const { data: legacyData, count: legacyCount } = await supabase
-          .from('brand_catalog')
-          .select('id, name, first_detected_at, total_appearances, is_org_brand, average_score, brand_id, last_seen_at', { count: 'exact' })
-          .eq('org_id', orgId)
-          .eq('is_org_brand', false)
-          .is('brand_id', null)
-          .order('total_appearances', { ascending: false })
-          .limit(50);
-        
-        if (legacyData && legacyData.length > 0) {
-          setIsBrandFallback(true);
-          competitors = legacyData
-            .filter(b => b.total_appearances > 0)
-            .map(cat => ({
-              competitor_name: cat.name,
-              total_mentions: cat.total_appearances,
-              distinct_prompts: cat.total_appearances,
-              first_seen: cat.first_detected_at,
-              last_seen: cat.last_seen_at || cat.first_detected_at,
-              avg_score: cat.average_score || 0
-            }));
-          setCatalogCount(legacyCount || 0);
-        }
-      } else {
-        setCatalogCount(catalogCountResult.count || 0);
-      }
+      // No legacy fallback - strict brand isolation
+      // Each brand has its own separate competitor catalog
+      setCatalogCount(catalogCountResult.count || 0);
       
       setCompetitorData(competitors);
 
@@ -471,6 +445,7 @@ export default function Competitors() {
         .from('brand_catalog')
         .insert({
           org_id: orgId,
+          brand_id: selectedBrand?.id || null, // Associate with current brand
           name: newCompetitorName.trim(),
           is_org_brand: false,
           variants_json: [],
