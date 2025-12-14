@@ -13,7 +13,7 @@ import { openExternalUrl } from '@/lib/navigation';
 import { isBillingBypassEligible, grantStarterBypass } from '@/lib/billing/bypass-utils';
 
 export interface PricingCardProps {
-  tier: 'free' | 'starter' | 'growth' | 'pro';
+  tier: 'free' | 'starter' | 'growth' | 'pro' | 'agency';
   title: string;
   description: string;
   monthlyPrice: number;
@@ -134,6 +134,8 @@ export function PricingCard({
       // Use create-trial-checkout for starter tier, create-checkout for others
       const functionName = tier === 'starter' ? 'create-trial-checkout' : 'create-checkout';
       const body = tier === 'starter' ? {} : { tier, billingCycle };
+      
+      // Agency tier uses same checkout flow as pro
       
       const { data, error } = await EnhancedEdgeFunctionClient.invoke(functionName, {
         body,
@@ -263,8 +265,10 @@ export function PricingCard({
             ? 'Current Plan'
             : isFreeTier
             ? 'Get Started Free'
+            : tier === 'agency'
+            ? 'Contact Sales'
             : tier === 'pro'
-            ? 'Book a demo'
+            ? 'Get started'
             : 'Get started'
           }
         </Button>

@@ -4,19 +4,21 @@
  */
 
 export type ProviderName = 'openai' | 'perplexity' | 'gemini' | 'google_ai_overview';
-export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'free' | 'enterprise';
+export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'agency' | 'free' | 'enterprise';
 
 /**
  * Provider access policies aligned with pricing page:
  * - Starter: 2 providers (OpenAI + Perplexity)
  * - Growth: 4 providers (all including Google AIO)
  * - Pro: 4 providers (all including Google AIO)
+ * - Agency: 4 providers (all including Google AIO)
  * - Enterprise: 4 providers (all including Google AIO)
  */
 const PROVIDER_TIER_POLICIES: Record<SubscriptionTier, ProviderName[]> = {
   starter: ['openai', 'perplexity'],
   growth: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
   pro: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
+  agency: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
   enterprise: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
   free: ['openai'] // Fallback for unsubscribed users
 };
@@ -65,7 +67,7 @@ export async function getOrgSubscriptionTier(supabase: any, orgId: string): Prom
   const tier = org?.plan_tier;
   
   // Map various tier names to our standardized types
-  if (tier === 'starter' || tier === 'growth' || tier === 'pro') {
+  if (tier === 'starter' || tier === 'growth' || tier === 'pro' || tier === 'agency') {
     return tier;
   }
   
@@ -81,6 +83,7 @@ const TIER_RUN_FREQUENCY: Record<SubscriptionTier, 'daily' | 'weekly'> = {
   starter: 'daily',
   growth: 'daily',
   pro: 'daily',
+  agency: 'daily',
   enterprise: 'daily',
   free: 'weekly'
 };
@@ -92,6 +95,7 @@ const TIER_MAX_PROMPTS: Record<SubscriptionTier, number | null> = {
   starter: null, // Unlimited
   growth: null,
   pro: null,
+  agency: null,
   enterprise: null,
   free: 5 // Free tier limited to 5 prompts
 };

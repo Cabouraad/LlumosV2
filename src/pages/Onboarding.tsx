@@ -36,9 +36,9 @@ export default function Onboarding() {
   const [autoFillLoading, setAutoFillLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1: Basic info, 2: Business Context, 3: Pricing, 4: Prompts
   const [promptSuggestionsGenerated, setPromptSuggestionsGenerated] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'starter' | 'growth' | 'pro'>(() => {
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'starter' | 'growth' | 'pro' | 'agency'>(() => {
     const saved = sessionStorage.getItem('selected-plan');
-    return (saved as 'free' | 'starter' | 'growth' | 'pro') || 'growth';
+    return (saved as 'free' | 'starter' | 'growth' | 'pro' | 'agency') || 'growth';
   });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>(() => {
     const saved = sessionStorage.getItem('billing-cycle');
@@ -613,16 +613,33 @@ export default function Onboarding() {
     {
       tier: 'pro' as const,
       title: 'Pro',
-      description: 'For enterprises & agencies',
-      monthlyPrice: 250,
-      yearlyPrice: 2500,
+      description: 'For teams with multiple brands',
+      monthlyPrice: 199,
+      yearlyPrice: 1990,
+      features: [
+        'Up to 200 prompts to track daily',
+        '4 AI providers (OpenAI, Perplexity, Gemini, Google AI Overviews)',
+        'Up to 3 brands',
+        'Comprehensive competitor analysis',
+        'AI-powered visibility optimizations',
+        'Priority support'
+      ],
+      limitations: []
+    },
+    {
+      tier: 'agency' as const,
+      title: 'Agency',
+      description: 'For agencies & enterprises',
+      monthlyPrice: 399,
+      yearlyPrice: 3990,
       features: [
         'Up to 300 prompts to track daily',
         '4 AI providers (OpenAI, Perplexity, Gemini, Google AI Overviews)',
-        'Advanced visibility scoring',
+        'Up to 10 brands',
         'Comprehensive competitor analysis',
         'AI-powered visibility optimizations',
-        'Priority support + dedicated account manager'
+        'Dedicated account manager',
+        'White-label reports'
       ],
       limitations: []
     }
@@ -972,7 +989,7 @@ export default function Onboarding() {
         </Card>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
+        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {pricingTiers.map((tier) => (
             <Card 
               key={tier.tier} 
@@ -981,7 +998,7 @@ export default function Onboarding() {
                   ? 'ring-2 ring-primary border-primary' 
                   : 'hover:border-primary/50'
               } ${tier.isPopular ? 'relative' : ''} ${tier.isFree ? 'border-dashed' : ''}`}
-              onClick={() => setSelectedPlan(tier.tier as 'free' | 'starter' | 'growth' | 'pro')}
+              onClick={() => setSelectedPlan(tier.tier as 'free' | 'starter' | 'growth' | 'pro' | 'agency')}
             >
               {tier.isFree && (
                 <div className="absolute -top-2 left-1/2 -translate-x-1/2">

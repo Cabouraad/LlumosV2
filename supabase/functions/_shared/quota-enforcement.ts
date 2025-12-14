@@ -3,7 +3,7 @@
  * Handles plan entitlements, usage tracking, and structured error responses
  */
 
-export type PlanTier = 'starter' | 'growth' | 'pro' | 'free';
+export type PlanTier = 'starter' | 'growth' | 'pro' | 'agency' | 'free';
 
 export interface TierQuotas {
   promptsPerDay: number;
@@ -39,7 +39,8 @@ export interface UsageData {
  * - Free: 5 prompts max, weekly runs, 1 provider
  * - Starter: 25 prompts/day, 2 providers
  * - Growth: 100 prompts/day, 4 providers
- * - Pro: 300 prompts/day, 4 providers
+ * - Pro: 200 prompts/day, 4 providers, 3 brands
+ * - Agency: 300 prompts/day, 4 providers, 10 brands
  */
 export function getQuotasForTier(planTier: PlanTier): TierQuotas {
   switch (planTier) {
@@ -48,6 +49,8 @@ export function getQuotasForTier(planTier: PlanTier): TierQuotas {
     case 'growth':
       return { promptsPerDay: 100, providersPerPrompt: 4, runFrequency: 'daily' };
     case 'pro':
+      return { promptsPerDay: 200, providersPerPrompt: 4, runFrequency: 'daily' };
+    case 'agency':
       return { promptsPerDay: 300, providersPerPrompt: 4, runFrequency: 'daily' };
     case 'free':
       return { promptsPerDay: 5, providersPerPrompt: 1, maxPrompts: 5, runFrequency: 'weekly' };
