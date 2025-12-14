@@ -48,6 +48,12 @@ export function PricingCard({
   const isFreeTier = tier === 'free';
 
   const handleSubscribe = async () => {
+    // Agency tier redirects to contact sales
+    if (tier === 'agency') {
+      navigate('/contact-sales');
+      return;
+    }
+
     // Free tier just navigates to signup
     if (isFreeTier) {
       if (user) {
