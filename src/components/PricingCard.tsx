@@ -273,11 +273,11 @@ export function PricingCard({
           }
         </Button>
 
-        <ul className="space-y-3 mb-4">
+        <ul className="space-y-3 mb-4 text-left">
           {features.map((feature, index) => (
             <li key={index} className="flex items-start gap-3">
               <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm">{feature}</span>
+              <span className="text-sm leading-snug">{feature}</span>
             </li>
           ))}
         </ul>
