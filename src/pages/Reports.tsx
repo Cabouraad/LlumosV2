@@ -10,16 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, FileText, Crown, Calendar, Users, RefreshCw, Clock, Settings, Trash2, Share2, Link, Copy } from 'lucide-react';
+import { Download, FileText, Crown, Calendar, Users, RefreshCw, Clock, Settings, Trash2, Share2, Link, Copy, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, subDays } from 'date-fns';
 import { toast } from 'sonner';
 import { useBrand } from '@/contexts/BrandContext';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { TemplateSelector } from '@/components/reports/TemplateSelector';
 import { TemplateEditor } from '@/components/reports/TemplateEditor';
+import { ReportPreviewModal } from '@/components/reports/ReportPreviewModal';
 import { useReportTemplates } from '@/hooks/useReportTemplates';
 import { useReportSharing } from '@/hooks/useReportSharing';
+import { useReportPreview } from '@/hooks/useReportPreview';
 import type { DateRange } from 'react-day-picker';
 import type { ReportTemplate } from '@/hooks/useReportTemplates';
 
@@ -61,6 +63,7 @@ export default function Reports() {
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | undefined>(undefined);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
   
   const [activeTab, setActiveTab] = useState('pdf-reports');
 
@@ -79,6 +82,16 @@ export default function Reports() {
   } = useReportTemplates(orgData?.organizations?.id);
 
   const { createShareLink, isSharing } = useReportSharing();
+
+  // Report preview data
+  const { 
+    previewData, 
+    loading: previewLoading, 
+    fetchPreviewData 
+  } = useReportPreview({ 
+    orgId: orgData?.organizations?.id, 
+    brandId: selectedBrand?.id 
+  });
 
   useEffect(() => {
     if (orgData?.organizations?.id && reportsAccess.hasAccess) {
@@ -458,7 +471,26 @@ export default function Reports() {
     });
   };
 
-  const generatePdfReport = async () => {
+  const openPreviewModal = async () => {
+    // Calculate date range for preview
+    const endDate = dateRange?.to || new Date();
+    const startDate = dateRange?.from || subDays(endDate, 7);
+    
+    // Fetch preview data
+    await fetchPreviewData(
+      format(startDate, 'yyyy-MM-dd'),
+      format(endDate, 'yyyy-MM-dd')
+    );
+    
+    setPreviewModalOpen(true);
+  };
+
+  const generatePdfReportWithSections = async (sections: Record<string, boolean>) => {
+    setPreviewModalOpen(false);
+    await generatePdfReport(sections);
+  };
+
+  const generatePdfReport = async (sections?: Record<string, boolean>) => {
     try {
       setGenerating(true);
       const brandInfo = selectedBrand ? ` for ${selectedBrand.name}` : '';
@@ -474,7 +506,7 @@ export default function Reports() {
         return;
       }
 
-      // Prepare request body with optional brand_id, date range, and template
+      // Prepare request body with optional brand_id, date range, sections, and template
       const requestBody: any = {};
       if (selectedBrand) {
         requestBody.brand_id = selectedBrand.id;
@@ -483,19 +515,20 @@ export default function Reports() {
         requestBody.start_date = format(dateRange.from, 'yyyy-MM-dd');
         requestBody.end_date = format(dateRange.to, 'yyyy-MM-dd');
       }
-      if (selectedTemplate) {
+      
+      // Use sections from preview modal or template config
+      if (sections) {
+        requestBody.sections = sections;
+      } else if (selectedTemplate) {
         requestBody.template_id = selectedTemplate.id;
-        requestBody.template_config = {
-          include_executive_summary: selectedTemplate.include_executive_summary,
-          include_visibility_overview: selectedTemplate.include_visibility_overview,
-          include_brand_presence: selectedTemplate.include_brand_presence,
-          include_competitor_analysis: selectedTemplate.include_competitor_analysis,
-          include_provider_performance: selectedTemplate.include_provider_performance,
-          include_prompt_performance: selectedTemplate.include_prompt_performance,
-          include_citations_sources: selectedTemplate.include_citations_sources,
-          include_historical_trends: selectedTemplate.include_historical_trends,
-          include_recommendations: selectedTemplate.include_recommendations,
-          metrics: selectedTemplate.metrics,
+        requestBody.sections = {
+          executive_summary: selectedTemplate.include_executive_summary,
+          visibility_overview: selectedTemplate.include_visibility_overview,
+          competitor_analysis: selectedTemplate.include_competitor_analysis,
+          provider_performance: selectedTemplate.include_provider_performance,
+          prompt_performance: selectedTemplate.include_prompt_performance,
+          citations_sources: selectedTemplate.include_citations_sources,
+          recommendations: selectedTemplate.include_recommendations,
         };
       }
       
@@ -759,7 +792,7 @@ export default function Reports() {
                         </Button>
                       )}
                       <Button
-                        onClick={generatePdfReport}
+                        onClick={openPreviewModal}
                         disabled={loading || generating}
                         size="sm"
                       >
@@ -770,8 +803,8 @@ export default function Reports() {
                           </>
                         ) : (
                           <>
-                            <FileText className="h-4 w-4 mr-2" />
-                            Generate Report
+                            <Eye className="h-4 w-4 mr-2" />
+                            Preview & Generate
                           </>
                         )}
                       </Button>
@@ -1073,6 +1106,21 @@ export default function Reports() {
             } else {
               await createTemplate(template);
             }
+          }}
+        />
+
+        {/* Report Preview Modal */}
+        <ReportPreviewModal
+          open={previewModalOpen}
+          onOpenChange={setPreviewModalOpen}
+          previewData={previewData}
+          loading={previewLoading}
+          onGenerate={generatePdfReportWithSections}
+          generating={generating}
+          brandName={selectedBrand?.name}
+          dateRange={{
+            from: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+            to: dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
           }}
         />
       </div>
