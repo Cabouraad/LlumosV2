@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { isFeatureEnabled } from '@/lib/config/feature-flags';
 import { DashboardMetrics } from '@/components/dashboard/DashboardMetrics';
 import { DashboardChart } from '@/components/dashboard/DashboardChart';
+import { ProviderVisibilityChart } from '@/components/dashboard/ProviderVisibilityChart';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { useContentOptimizations } from '@/features/visibility-optimizer/hooks';
 import { LlumosScoreWidget } from '@/components/llumos/LlumosScoreWidget';
@@ -451,6 +452,12 @@ export default function Dashboard() {
             competitorChartData={competitorChartData}
             competitors={competitorData.map(c => ({ name: c.competitor_name }))}
             loadingCompetitors={loadingCompetitors}
+          />
+
+          {/* Visibility by AI Platform */}
+          <ProviderVisibilityChart 
+            responses={dashboardData?.responses || []}
+            isLoading={loading}
           />
 
           {/* Brand Presence & Competitor Comparison */}
