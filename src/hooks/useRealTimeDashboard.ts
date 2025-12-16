@@ -61,7 +61,8 @@ export function useRealTimeDashboard(
   onErrorRef.current = onError;
 
   // Fetch data function - use refs to avoid dependency changes
-  const fetchData = useCallback(async (forceRefresh: boolean = false) => {
+  // showLoading parameter controls whether to show loading state (false for background refreshes)
+  const fetchData = useCallback(async (forceRefresh: boolean = false, showLoading: boolean = true) => {
     // Prevent concurrent fetches
     if (fetchInProgressRef.current) {
       console.log('[Dashboard] Fetch already in progress, skipping');
@@ -69,10 +70,13 @@ export function useRealTimeDashboard(
     }
     
     fetchInProgressRef.current = true;
-    console.log('[Dashboard] Starting fetch:', { forceRefresh });
+    console.log('[Dashboard] Starting fetch:', { forceRefresh, showLoading });
     
     try {
-      setLoading(true);
+      // Only show loading state for manual refreshes, not background updates
+      if (showLoading) {
+        setLoading(true);
+      }
       setError(null);
       
       const result = await dashboardFetcher.getData(forceRefresh);
@@ -101,7 +105,8 @@ export function useRealTimeDashboard(
       
       if (onErrorRef.current) {
         onErrorRef.current(error);
-      } else {
+      } else if (showLoading) {
+        // Only show error toast for manual refreshes
         toastRef.current({
           title: 'Dashboard Error',
           description: error.message || 'Failed to load dashboard data. Please try again.',
@@ -109,7 +114,9 @@ export function useRealTimeDashboard(
         });
       }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
       fetchInProgressRef.current = false;
     }
   }, []); // Empty deps - uses refs to avoid recreating
@@ -132,11 +139,11 @@ export function useRealTimeDashboard(
     }
 
     if (enableAdaptivePolling) {
-      // Use adaptive poller
+      // Use adaptive poller with longer intervals
       console.log('[Dashboard] Setting up adaptive polling');
       adaptivePollerRef.current = new AdaptivePoller({
-        minInterval: 30000, // 30 seconds
-        maxInterval: autoRefreshInterval,
+        minInterval: 120000, // 2 minutes minimum
+        maxInterval: Math.max(autoRefreshInterval, 300000), // 5 minutes max
         backoffMultiplier: 1.5,
         activityThreshold: 300000, // 5 minutes
         changeDetection: true
@@ -144,24 +151,25 @@ export function useRealTimeDashboard(
 
       pollerUnsubscribeRef.current = adaptivePollerRef.current.subscribe(async () => {
         if (!fetchInProgressRef.current) {
-          console.log('[Dashboard] Adaptive poll triggered');
-          return fetchData(false);
+          console.log('[Dashboard] Adaptive poll triggered (silent)');
+          return fetchData(false, false); // Silent background refresh
         }
         console.log('[Dashboard] Adaptive poll skipped, already loading');
         return Promise.resolve();
       });
 
     } else {
-      // Use traditional interval polling
-      console.log('[Dashboard] Setting up traditional polling:', autoRefreshInterval);
+      // Use traditional interval polling with longer interval
+      const pollInterval = Math.max(autoRefreshInterval, 120000); // At least 2 minutes
+      console.log('[Dashboard] Setting up traditional polling:', pollInterval);
       intervalRef.current = setInterval(() => {
         if (!fetchInProgressRef.current) {
-          console.log('[Dashboard] Traditional poll triggered');
-          fetchData(false);
+          console.log('[Dashboard] Traditional poll triggered (silent)');
+          fetchData(false, false); // Silent background refresh
         } else {
           console.log('[Dashboard] Traditional poll skipped, already loading');
         }
-      }, autoRefreshInterval);
+      }, pollInterval);
     }
 
     return () => {
@@ -198,11 +206,11 @@ export function useRealTimeDashboard(
       // Only refresh when tab becomes visible, not when hidden
       if (document.visibilityState === 'visible' && !fetchInProgressRef.current) {
         const now = Date.now();
-        // Increased throttle to 30 seconds to prevent excessive refetching
-        if (now - lastVisibilityFetchRef.current > 30000) {
-          console.log('[Dashboard] Tab visible, refreshing');
+        // Increased throttle to 2 minutes to prevent excessive refetching
+        if (now - lastVisibilityFetchRef.current > 120000) {
+          console.log('[Dashboard] Tab visible, refreshing (silent)');
           lastVisibilityFetchRef.current = now;
-          fetchData(false);
+          fetchData(false, false); // Silent background refresh
         } else {
           console.log('[Dashboard] Tab visible but throttled');
         }
