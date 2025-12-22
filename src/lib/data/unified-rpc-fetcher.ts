@@ -11,6 +11,7 @@ export interface UnifiedDashboardResponse {
   success: boolean;
   error?: string;
   noOrg?: boolean; // Indicates user has no organization (not an error, needs onboarding)
+  isTimeout?: boolean; // Indicates a temporary database timeout (not a critical error)
   prompts: any[];
   responses: any[];
   chartData: any[];
@@ -110,10 +111,35 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promi
     const fetchTime = Date.now() - startTime;
     
     if (error) {
+      const isTimeout = error.message?.includes('statement timeout') || error.message?.includes('canceling statement');
       logger.error('RPC fetch failed', error, { 
         component: 'unified-rpc-fetcher',
-        metadata: { fetchTimeMs: fetchTime, error: error.message }
+        metadata: { fetchTimeMs: fetchTime, error: error.message, isTimeout }
       });
+      
+      // For timeouts, return a soft error that won't trigger scary toasts
+      if (isTimeout) {
+        return {
+          success: false,
+          error: 'temporarily_unavailable', // Special error code for timeouts
+          isTimeout: true,
+          prompts: [],
+          responses: [],
+          chartData: [],
+          metrics: {
+            avgScore: 0,
+            overallScore: 0,
+            trend: 0,
+            promptCount: 0,
+            activePrompts: 0,
+            inactivePrompts: 0,
+            totalRuns: 0,
+            recentRunsCount: 0
+          },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
       throw new Error(`Database error: ${error.message}`);
     }
 
@@ -260,6 +286,18 @@ export class RealTimeDashboardFetcher {
 
     // Fetch fresh data with brand filtering
     const data = await getUnifiedDashboardDataRPC(this.currentBrandId);
+    
+    // On timeout, return stale cached data if available (better than showing error)
+    if (data.isTimeout && this.cache && this.cache.success) {
+      logger.info('Returning stale cache on timeout', { 
+        component: 'unified-rpc-fetcher',
+        metadata: {
+          cacheAge: now - this.lastFetch,
+          prompts: this.cache.prompts?.length || 0
+        }
+      });
+      return this.cache; // Return stale cache instead of error
+    }
     
     // Only update cache if successful
     if (data.success) {
