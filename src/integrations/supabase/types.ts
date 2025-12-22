@@ -263,6 +263,7 @@ export type Database = {
       }
       brand_candidates: {
         Row: {
+          brand_id: string | null
           candidate_name: string
           confidence_score: number
           created_at: string
@@ -277,6 +278,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand_id?: string | null
           candidate_name: string
           confidence_score?: number
           created_at?: string
@@ -291,6 +293,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand_id?: string | null
           candidate_name?: string
           confidence_score?: number
           created_at?: string
@@ -304,7 +307,15 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brand_candidates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       brand_catalog: {
         Row: {
@@ -2528,10 +2539,19 @@ export type Database = {
         Args: { p_enable: boolean; p_org_id: string }
         Returns: undefined
       }
-      approve_brand_candidate: {
-        Args: { p_candidate_id: string; p_candidate_name: string }
-        Returns: undefined
-      }
+      approve_brand_candidate:
+        | {
+            Args: { p_candidate_id: string; p_candidate_name: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_brand_id?: string
+              p_candidate_id: string
+              p_candidate_name: string
+            }
+            Returns: undefined
+          }
       calculate_brand_prominence_from_response: {
         Args: { p_org_brands: string[]; p_raw_response: string }
         Returns: number
@@ -2636,17 +2656,30 @@ export type Database = {
           schedule: string
         }[]
       }
-      get_brand_candidates_for_org: {
-        Args: never
-        Returns: {
-          candidate_name: string
-          detection_count: number
-          first_detected_at: string
-          id: string
-          last_detected_at: string
-          status: string
-        }[]
-      }
+      get_brand_candidates_for_org:
+        | {
+            Args: never
+            Returns: {
+              candidate_name: string
+              detection_count: number
+              first_detected_at: string
+              id: string
+              last_detected_at: string
+              status: string
+            }[]
+          }
+        | {
+            Args: { p_brand_id?: string }
+            Returns: {
+              brand_id: string
+              candidate_name: string
+              detection_count: number
+              first_detected_at: string
+              id: string
+              last_detected_at: string
+              status: string
+            }[]
+          }
       get_brand_card_stats: {
         Args: { p_brand_ids: string[]; p_org_id: string }
         Returns: {

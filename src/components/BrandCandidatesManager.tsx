@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useBrand } from '@/contexts/BrandContext';
 import { Check, X, Eye } from 'lucide-react';
 
 interface BrandCandidate {
@@ -13,21 +14,25 @@ interface BrandCandidate {
   first_detected_at: string;
   last_detected_at: string;
   status: 'pending' | 'approved' | 'rejected';
+  brand_id: string | null;
 }
 
 export function BrandCandidatesManager() {
   const [candidates, setCandidates] = useState<BrandCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { selectedBrand } = useBrand();
 
   const loadCandidates = async () => {
     try {
-      // Use raw SQL query since TypeScript types aren't updated yet
+      // Pass brand_id for multi-brand filtering
       const { data, error } = await supabase
-        .rpc('get_brand_candidates_for_org');
+        .rpc('get_brand_candidates_for_org', {
+          p_brand_id: selectedBrand?.id || null
+        } as any);
 
       if (error) throw error;
-      setCandidates((data || []).map(item => ({
+      setCandidates((data || []).map((item: any) => ({
         ...item,
         status: item.status as 'pending' | 'approved' | 'rejected'
       })));
@@ -42,23 +47,24 @@ export function BrandCandidatesManager() {
 
   useEffect(() => {
     loadCandidates();
-  }, []);
+  }, [selectedBrand?.id]); // Re-fetch when brand changes
 
   const handleApprove = async (candidateId: string, candidateName: string) => {
     try {
-      // Use raw SQL to handle the approval
+      // Pass brand_id for multi-brand isolation when adding to catalog
       const { error } = await supabase
         .rpc('approve_brand_candidate', {
           p_candidate_id: candidateId,
-          p_candidate_name: candidateName
-        });
+          p_candidate_name: candidateName,
+          p_brand_id: selectedBrand?.id || null
+        } as any);
 
       if (error) throw error;
 
       setCandidates(prev => prev.filter(c => c.id !== candidateId));
       toast({
         title: 'Success',
-        description: `${candidateName} approved as competitor`,
+        description: `${candidateName} approved as competitor${selectedBrand ? ` for ${selectedBrand.name}` : ''}`,
       });
     } catch (error) {
       console.error('Error approving candidate:', error);
@@ -121,7 +127,7 @@ export function BrandCandidatesManager() {
         </CardHeader>
         <CardContent>
           <div className="text-sm text-muted-foreground">
-            No brand candidates pending review. New potential competitors will appear here when detected.
+            No brand candidates pending review{selectedBrand ? ` for ${selectedBrand.name}` : ''}. New potential competitors will appear here when detected.
           </div>
         </CardContent>
       </Card>
@@ -136,7 +142,7 @@ export function BrandCandidatesManager() {
           Brand Candidates for Review ({candidates.length})
         </CardTitle>
         <div className="text-sm text-muted-foreground">
-          Review potential competitors detected in responses. Approved brands will be added to your competitor catalog.
+          Review potential competitors detected in responses{selectedBrand ? ` for ${selectedBrand.name}` : ''}. Approved brands will be added to your competitor catalog.
         </div>
       </CardHeader>
       <CardContent>
