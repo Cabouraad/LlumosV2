@@ -41,11 +41,6 @@ export function useRealTimeDashboard(
   const { toast } = useToast();
   const { selectedBrand } = useBrand();
 
-  // Update brand filter when selectedBrand changes
-  useEffect(() => {
-    dashboardFetcher.setBrandId(selectedBrand?.id || null);
-  }, [selectedBrand]);
-  
   // Refs to prevent excessive fetching
   const fetchInProgressRef = useRef(false);
   const lastVisibilityFetchRef = useRef(0);
