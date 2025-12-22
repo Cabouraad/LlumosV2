@@ -90,6 +90,13 @@ export function useRealTimeDashboard(
         return;
       }
       
+      // Handle timeout errors silently - the fetcher returns cached data when available
+      if (result.isTimeout && !result.success) {
+        console.log('[Dashboard] Database timeout - using cached data or ignoring');
+        // Don't show error toast for timeouts, they're temporary
+        return;
+      }
+      
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch dashboard data');
       }
