@@ -248,26 +248,22 @@ export default function Competitors() {
       setLoading(true);
       const orgId = await getOrgId();
 
-      // Get org name first
-      const orgResult = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', orgId)
-        .single();
+      // Prefer selected brand name for multi-brand isolation in UI + calculations.
+      const preferredBrandName = selectedBrand?.name?.trim();
+      let currentBrandName = preferredBrandName || 'Your Brand';
 
-      const currentOrgName = orgResult.data?.name || 'Your Brand';
-      setOrgName(currentOrgName);
+      // Only fetch org name as a fallback when no brand is selected.
+      if (!preferredBrandName) {
+        const orgResult = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', orgId)
+          .maybeSingle();
 
-      // Check if brand is primary (for legacy data fallback)
-      let isPrimaryBrand = false;
-      if (selectedBrand?.id) {
-        const { data: brandInfo } = await supabase
-          .from('brands')
-          .select('is_primary')
-          .eq('id', selectedBrand.id)
-          .single();
-        isPrimaryBrand = brandInfo?.is_primary || false;
+        currentBrandName = orgResult.data?.name || 'Your Brand';
       }
+
+      setOrgName(currentBrandName);
 
       // Try to get brand-specific competitors first
       let catalogCountQuery = supabase
@@ -337,8 +333,8 @@ export default function Competitors() {
       // Separate manually added competitors
       const manualCompetitors = trackedResult.data?.filter(b => b.total_appearances === 0) || [];
 
-      const orgBrandInCompetitors = competitors.find(c => 
-        c.competitor_name.toLowerCase() === currentOrgName.toLowerCase()
+      const orgBrandInCompetitors = competitors.find(c =>
+        c.competitor_name.toLowerCase() === currentBrandName.toLowerCase()
       );
       
       if (orgBrandInCompetitors) {
