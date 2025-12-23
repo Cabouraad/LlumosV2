@@ -6,64 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Fetch Google Trends interest for a query via SerpAPI
-async function getGoogleTrendsInterest(query: string, serpApiKey: string): Promise<number | null> {
-  try {
-    const params = new URLSearchParams({
-      engine: 'google_trends',
-      q: query,
-      api_key: serpApiKey,
-      data_type: 'TIMESERIES',
-      date: 'today 3-m',
-    });
-    
-    const response = await fetch(`https://serpapi.com/search.json?${params}`);
-    if (!response.ok) {
-      console.warn(`Google Trends API error for "${query}": ${response.status}`);
-      return null;
-    }
-    
-    const data = await response.json();
-    const timelineData = data.interest_over_time?.timeline_data || [];
-    if (timelineData.length === 0) return null;
-    
-    const values = timelineData
-      .map((item: any) => item.values?.[0]?.extracted_value)
-      .filter((v: any) => typeof v === 'number');
-    
-    if (values.length === 0) return null;
-    
-    return Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
-  } catch (error) {
-    console.warn(`Failed to fetch Google Trends for "${query}":`, error);
-    return null;
-  }
-}
-
-// Batch fetch trends data with rate limiting
-async function batchGetTrendsData(
-  queries: string[], 
-  serpApiKey: string
-): Promise<Map<string, number | null>> {
-  const results = new Map<string, number | null>();
-  
-  const batchSize = 5;
-  for (let i = 0; i < queries.length; i += batchSize) {
-    const batch = queries.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(q => getGoogleTrendsInterest(q, serpApiKey).then(v => ({ query: q, value: v })))
-    );
-    
-    batchResults.forEach(({ query, value }) => results.set(query, value));
-    
-    if (i + batchSize < queries.length) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-  }
-  
-  return results;
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -267,12 +209,22 @@ Categorize each prompt as one of:
 - "competitor_analysis" (for competitor comparison queries)  
 - "market_research" (for industry/solution discovery)
 
+For each prompt, estimate the monthly search volume using this scale:
+- "high" (10000+): Very common questions asked frequently across the industry
+- "medium" (1000-10000): Moderately popular queries with good search intent
+- "low" (100-1000): More specific/niche queries but still valuable
+- "very_low" (<100): Highly specific or emerging queries
+
+Also provide a numeric estimate (your best guess of monthly searches).
+
 Return ONLY a JSON array with this exact format:
 [
   {
     "text": "What are the best project management tools for remote teams?",
     "source": "brand_visibility",
-    "reasoning": "Potential customers searching for PM tools would see this company in results"
+    "reasoning": "Potential customers searching for PM tools would see this company in results",
+    "volume_tier": "high",
+    "estimated_volume": 15000
   }
 ]`;
 
@@ -343,19 +295,6 @@ Return ONLY a JSON array with this exact format:
       );
     }
 
-    // Fetch Google Trends data if SerpAPI key is available
-    const serpApiKey = Deno.env.get('SERPAPI_KEY');
-    let trendsData = new Map<string, number | null>();
-    
-    if (serpApiKey) {
-      console.log(`Fetching Google Trends data for ${newSuggestions.length} suggestions...`);
-      const queries = newSuggestions.map((s: any) => s.text);
-      trendsData = await batchGetTrendsData(queries, serpApiKey);
-      console.log(`Got trends data for ${trendsData.size} queries`);
-    } else {
-      console.log('SERPAPI_KEY not configured, skipping trends data');
-    }
-
     // Map AI-generated sources to valid database values
     const mapSourceToDatabase = (aiSource: string): string => {
       const mapping: Record<string, string> = {
@@ -366,17 +305,18 @@ Return ONLY a JSON array with this exact format:
       return mapping[aiSource] || 'gap';
     };
 
-    // Insert suggestions into database with brand_id and search_volume
-    // Save all suggestions - search_volume is optional and can be null
+    // Insert suggestions into database with brand_id and AI-estimated search_volume
     const insertData = newSuggestions.map((suggestion: any) => ({
       org_id: userData.org_id,
       brand_id: brandId || null,
       text: suggestion.text.trim(),
       source: mapSourceToDatabase(suggestion.source),
-      search_volume: trendsData.get(suggestion.text) ?? null,
+      search_volume: suggestion.estimated_volume || null,
       metadata: {
         reasoning: suggestion.reasoning,
-        generated_for_brand: brandContext?.name || null
+        generated_for_brand: brandContext?.name || null,
+        volume_tier: suggestion.volume_tier || null,
+        volume_source: 'ai_estimated'
       }
     }));
 
@@ -406,10 +346,14 @@ Return ONLY a JSON array with this exact format:
     return new Response(
       JSON.stringify({ 
         success: true, 
-        suggestionsCreated: newSuggestions.length,
-        trendsDataFetched: trendsData.size,
+        suggestionsCreated: insertData.length,
         brandId: brandId,
-        suggestions: newSuggestions.map(s => ({ text: s.text, source: s.source }))
+        suggestions: newSuggestions.map((s: any) => ({ 
+          text: s.text, 
+          source: s.source,
+          estimated_volume: s.estimated_volume,
+          volume_tier: s.volume_tier
+        }))
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
