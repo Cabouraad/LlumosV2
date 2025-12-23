@@ -5,8 +5,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Shield, CheckCircle, XCircle, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Shield, CheckCircle, XCircle, Building2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface AdminAccount {
   org_id: string;
@@ -26,6 +39,27 @@ export default function SuperAdmin() {
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccounts = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-delete-accounts');
+      
+      if (error) {
+        toast.error('Failed to delete accounts: ' + error.message);
+        return;
+      }
+
+      toast.success(data.message || 'Accounts deleted successfully');
+      // Refresh the data
+      window.location.reload();
+    } catch (err) {
+      toast.error('An unexpected error occurred');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchAdminData() {
@@ -127,6 +161,53 @@ export default function SuperAdmin() {
             </CardHeader>
           </Card>
         </div>
+
+        {/* Danger Zone */}
+        <Card className="border-destructive/50 mb-8">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Danger Zone
+            </CardTitle>
+            <CardDescription>
+              Irreversible actions. Protected accounts: abouraa.chri@gmail.com, emaediongeyo5@gmail.com, eliza.templet@gmail.com, amir@test.com, 409450051@qq.com
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={deleting}>
+                  {deleting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete All Non-Protected Accounts
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete ALL accounts except the protected ones. This action cannot be undone.
+                    All organization data, prompts, and related records will be removed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccounts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Yes, delete all accounts
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
 
         {/* Accounts Table */}
         <Card>
