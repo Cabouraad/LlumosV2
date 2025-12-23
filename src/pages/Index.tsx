@@ -27,7 +27,7 @@ const Index = () => {
   }
 
   if (user && orgData && orgStatus === 'success') {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/brands" replace />;
   }
 
   if (user && orgStatus === 'not_found' && !isChecking) {
