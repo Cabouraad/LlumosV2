@@ -96,6 +96,7 @@ const AuditRuns = lazy(() => loadChunkWithRetry(() => import("./pages/admin/Audi
 const CronSetup = lazy(() => loadChunkWithRetry(() => import("./pages/CronSetup")));
 const RunReports = lazy(() => loadChunkWithRetry(() => import("./pages/RunReports")));
 const DomainAuthority = lazy(() => loadChunkWithRetry(() => import("./pages/admin/DomainAuthority")));
+const SuperAdmin = lazy(() => loadChunkWithRetry(() => import("./pages/SuperAdmin")));
 
 // ============================================
 // LAZY LOADED - Secondary Public Pages (dynamic routes, not pre-rendered)
@@ -408,6 +409,11 @@ const App = () => {
               <Route path="/brands" element={
                 <ProtectedRoute>
                   <Brands />
+                </ProtectedRoute>
+              } />
+              <Route path="/super-admin" element={
+                <ProtectedRoute>
+                  <SuperAdmin />
                 </ProtectedRoute>
               } />
 

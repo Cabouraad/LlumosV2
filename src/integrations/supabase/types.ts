@@ -3094,6 +3094,21 @@ export type Database = {
           runs_total: number
         }[]
       }
+      get_super_admin_dashboard: {
+        Args: never
+        Returns: {
+          created_at: string
+          is_subscribed: boolean
+          last_login_at: string
+          org_domain: string
+          org_id: string
+          org_name: string
+          owner_email: string
+          prompts_count: number
+          stripe_customer_id: string
+          subscription_tier: string
+        }[]
+      }
       get_today_key_ny: { Args: { d?: string }; Returns: string }
       get_unified_dashboard_data: {
         Args: { p_brand_id?: string; p_org_id: string }
