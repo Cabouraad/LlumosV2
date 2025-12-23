@@ -367,28 +367,26 @@ Return ONLY a JSON array with this exact format:
     };
 
     // Insert suggestions into database with brand_id and search_volume
-    // Only include prompts that have search volume data available
-    const insertData = newSuggestions
-      .map((suggestion: any) => ({
-        org_id: userData.org_id,
-        brand_id: brandId || null,
-        text: suggestion.text.trim(),
-        source: mapSourceToDatabase(suggestion.source),
-        search_volume: trendsData.get(suggestion.text) ?? null,
-        metadata: {
-          reasoning: suggestion.reasoning,
-          generated_for_brand: brandContext?.name || null
-        }
-      }))
-      .filter((item: any) => item.search_volume !== null);
+    // Save all suggestions - search_volume is optional and can be null
+    const insertData = newSuggestions.map((suggestion: any) => ({
+      org_id: userData.org_id,
+      brand_id: brandId || null,
+      text: suggestion.text.trim(),
+      source: mapSourceToDatabase(suggestion.source),
+      search_volume: trendsData.get(suggestion.text) ?? null,
+      metadata: {
+        reasoning: suggestion.reasoning,
+        generated_for_brand: brandContext?.name || null
+      }
+    }));
 
     if (insertData.length === 0) {
-      console.log('No suggestions with search volume data available');
+      console.log('No valid suggestions to insert');
       return new Response(
         JSON.stringify({ 
           success: true, 
           suggestionsCreated: 0, 
-          message: 'No prompts had search volume data available. Try again later.' 
+          message: 'No new unique suggestions could be generated.' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
