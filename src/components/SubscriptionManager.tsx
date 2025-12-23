@@ -159,9 +159,10 @@ export function SubscriptionManager() {
     }
   };
 
-  // Clamp progress value for reliability
-  const denom = Math.max(1, limits?.promptsPerDay ?? 1);
-  const usagePct = Math.min(100, Math.max(0, (activePromptsCount / denom) * 100));
+  // For paid tiers, maxPrompts is null (unlimited). Only show progress for free tier.
+  const hasPromptLimit = limits?.maxPrompts !== null && limits?.maxPrompts !== undefined;
+  const denom = hasPromptLimit ? Math.max(1, limits.maxPrompts) : 1;
+  const usagePct = hasPromptLimit ? Math.min(100, Math.max(0, (activePromptsCount / denom) * 100)) : 0;
 
   return (
     <Card>
@@ -224,10 +225,14 @@ export function SubscriptionManager() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Active Prompts</span>
-                <span className="font-medium">{activePromptsCount} / {limits.promptsPerDay}</span>
+                <span className="font-medium">
+                  {activePromptsCount}
+                  {hasPromptLimit && ` / ${limits.maxPrompts}`}
+                  {!hasPromptLimit && ' (unlimited)'}
+                </span>
               </div>
               <Progress 
-                value={usagePct} 
+                value={hasPromptLimit ? usagePct : 0}
                 className={`h-2 ${usagePct >= 90 ? '[&>div]:bg-error' : usagePct >= 75 ? '[&>div]:bg-warning' : ''}`}
               />
               {usagePct >= 90 && (

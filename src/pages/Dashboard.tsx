@@ -443,7 +443,7 @@ export default function Dashboard() {
             <DashboardMetrics 
               metrics={dashboardData?.metrics || {}}
               presenceStats={presenceStats}
-              promptLimit={limits.promptsPerDay}
+              promptLimit={limits.maxPrompts ?? undefined}
             />
           </div>
 
