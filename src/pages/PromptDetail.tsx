@@ -11,6 +11,7 @@ import { DateRangePicker } from '@/components/DateRangePicker';
 import { ProviderResponseCard } from '@/components/ProviderResponseCard';
 
 import { PromptCitationsTable } from '@/components/citations/PromptCitationsTable';
+import { PromptCompetitorsTab } from '@/components/prompts/PromptCompetitorsTab';
 import { ScoreBreakdownTooltip } from '@/components/prompts/ScoreBreakdownTooltip';
 import { OptimizePromptDialog } from '@/components/prompts/OptimizePromptDialog';
 import { getUnifiedPromptData } from '@/lib/data/unified-fetcher';
@@ -297,9 +298,10 @@ export default function PromptDetail() {
 
         {/* Tabbed Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="responses">AI Responses</TabsTrigger>
+            <TabsTrigger value="competitors">Competitors</TabsTrigger>
             <TabsTrigger value="citations">Citations</TabsTrigger>
           </TabsList>
 
@@ -368,6 +370,16 @@ export default function PromptDetail() {
                 />
               );
             })}
+          </TabsContent>
+
+          <TabsContent value="competitors" className="mt-6">
+            <PromptCompetitorsTab 
+              promptDetails={promptDetails?.providers ? 
+                Object.values(promptDetails.providers).flat().filter((r: any) => r?.status === 'completed' || r?.status === 'success') 
+                : null
+              }
+              isLoading={loading}
+            />
           </TabsContent>
 
           <TabsContent value="citations" className="mt-6">
