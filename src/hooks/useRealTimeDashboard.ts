@@ -41,6 +41,11 @@ export function useRealTimeDashboard(
   const { toast } = useToast();
   const { selectedBrand } = useBrand();
 
+  // Update fetcher with current brand ID whenever it changes
+  useEffect(() => {
+    dashboardFetcher.setBrandId(selectedBrand?.id || null);
+  }, [selectedBrand?.id]);
+
   // Refs to prevent excessive fetching
   const fetchInProgressRef = useRef(false);
   const lastVisibilityFetchRef = useRef(0);
@@ -128,10 +133,10 @@ export function useRealTimeDashboard(
     await fetchData(true);
   }, [fetchData]);
 
-  // Initial data fetch
+  // Initial data fetch and refetch when brand changes
   useEffect(() => {
     fetchData(false);
-  }, [fetchData]);
+  }, [fetchData, selectedBrand?.id]);
 
   // Auto-refresh interval with adaptive polling
   useEffect(() => {
