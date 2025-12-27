@@ -62,14 +62,20 @@ export default function CitationAnalytics() {
   const days = Number(timeRange);
 
   // Fetch all citation data
-  const { data: citationData, isLoading } = useQuery({
-    queryKey: ['citation-analytics-unified', days, brandId ?? null],
+  const { data: citationData, isLoading, error: queryError } = useQuery({
+    queryKey: ['citation-analytics-unified', days, brandId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_citation_performance_insights', {
+      // Build params object - only include p_brand_id if it has a value
+      const params: { p_days: number; p_limit: number; p_brand_id?: string } = {
         p_days: days,
         p_limit: 200,
-        p_brand_id: brandId || null,
-      } as any);
+      };
+      
+      if (brandId) {
+        params.p_brand_id = brandId;
+      }
+      
+      const { data, error } = await supabase.rpc('get_citation_performance_insights', params as any);
 
       if (error) throw error;
       
