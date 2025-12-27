@@ -170,13 +170,18 @@ export function TopCitedContent({ days, brandId }: TopCitedContentProps) {
   const [minCitations, setMinCitations] = useState<number>(0);
 
   const { data: citations, isLoading } = useQuery({
-    queryKey: ['citation-performance', days, brandId ?? null],
+    queryKey: ['citation-performance', days, brandId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_citation_performance_insights', {
+      const params: { p_days: number; p_limit: number; p_brand_id?: string } = {
         p_days: days,
         p_limit: 200,
-        p_brand_id: brandId || null,
-      } as any);
+      };
+      
+      if (brandId) {
+        params.p_brand_id = brandId;
+      }
+      
+      const { data, error } = await supabase.rpc('get_citation_performance_insights', params as any);
 
       if (error) throw error;
       return data as CitationInsight[];
