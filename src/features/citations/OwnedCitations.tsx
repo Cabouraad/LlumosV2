@@ -35,13 +35,18 @@ interface OwnedCitation {
 
 export function OwnedCitations({ days, brandId }: OwnedCitationsProps) {
   const { data: allCitations, isLoading } = useQuery({
-    queryKey: ['citation-performance-owned', days, brandId ?? null],
+    queryKey: ['citation-performance-owned', days, brandId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_citation_performance_insights', {
+      const params: { p_days: number; p_limit: number; p_brand_id?: string } = {
         p_days: days,
         p_limit: 200,
-        p_brand_id: brandId || null,
-      } as any);
+      };
+      
+      if (brandId) {
+        params.p_brand_id = brandId;
+      }
+      
+      const { data, error } = await supabase.rpc('get_citation_performance_insights', params as any);
 
       if (error) throw error;
       return (data as OwnedCitation[]).filter(c => c.is_own_domain);

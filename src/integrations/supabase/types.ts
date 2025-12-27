@@ -2741,53 +2741,29 @@ export type Database = {
           week_over_week_change: number
         }[]
       }
-      get_citation_performance_insights:
-        | {
-            Args: {
-              p_brand_id?: string
-              p_days?: number
-              p_limit?: number
-              p_org_id?: string
-            }
-            Returns: {
-              avg_brand_visibility_score: number
-              brand_present_rate: number
-              citation_domain: string
-              citation_title: string
-              citation_url: string
-              content_type: string
-              first_cited: string
-              is_own_domain: boolean
-              last_cited: string
-              prompt_contexts: Json
-              providers: string[]
-              total_mentions: number
-              unique_prompts: number
-            }[]
-          }
-        | {
-            Args: {
-              p_brand_id?: string
-              p_days?: number
-              p_limit?: number
-              p_org_id?: string
-            }
-            Returns: {
-              avg_brand_visibility_score: number
-              brand_present_rate: number
-              citation_domain: string
-              citation_title: string
-              citation_url: string
-              content_type: string
-              first_cited: string
-              is_own_domain: boolean
-              last_cited: string
-              prompt_contexts: Json
-              providers: Json
-              total_mentions: number
-              unique_prompts: number
-            }[]
-          }
+      get_citation_performance_insights: {
+        Args: {
+          p_brand_id?: string
+          p_days?: number
+          p_limit?: number
+          p_org_id?: string
+        }
+        Returns: {
+          avg_brand_visibility_score: number
+          brand_present_rate: number
+          citation_domain: string
+          citation_title: string
+          citation_url: string
+          content_type: string
+          first_cited: string
+          is_own_domain: boolean
+          last_cited: string
+          prompt_contexts: Json
+          providers: string[]
+          total_mentions: number
+          unique_prompts: number
+        }[]
+      }
       get_citation_recommendations: {
         Args: { p_brand_id?: string; p_days?: number; p_org_id: string }
         Returns: {
