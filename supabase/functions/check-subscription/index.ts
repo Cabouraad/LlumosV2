@@ -290,16 +290,19 @@ if (customers.data.length === 0) {
         const amount = price.unit_amount || 0;
         
         // Handle both monthly and yearly prices
+        // ALIGNED WITH PRICING PAGE: Starter=$39, Growth=$89, Pro=$199, Agency=$399
         const monthlyAmount = price.recurring?.interval === 'year' ? Math.round(amount / 12) : amount;
         
-        if (monthlyAmount >= 25000) {
+        if (monthlyAmount >= 39900) {
+          subscriptionTier = "agency";
+        } else if (monthlyAmount >= 19900) {
           subscriptionTier = "pro";
         } else if (monthlyAmount >= 8900) {
           subscriptionTier = "growth";
         } else if (monthlyAmount >= 3900) {
           subscriptionTier = "starter";
         } else {
-          subscriptionTier = "starter"; // Default fallback
+          subscriptionTier = "starter"; // Default fallback for paid
         }
         diagnostics.logStep("Determined subscription tier from price", { priceId, amount, monthlyAmount, subscriptionTier });
       }

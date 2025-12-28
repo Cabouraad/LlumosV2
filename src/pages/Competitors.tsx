@@ -213,7 +213,7 @@ const CompetitorRow = ({ competitor, rank }: { competitor: CompetitorBrand; rank
 };
 
 export default function Competitors() {
-  const { canAccessCompetitorAnalysis } = useSubscriptionGate();
+  const { canAccessCompetitorAnalysis, isFreeTier } = useSubscriptionGate();
   const competitorAccess = canAccessCompetitorAnalysis();
   const { selectedBrand } = useBrand();
   const navigate = useNavigate();
@@ -541,6 +541,7 @@ export default function Competitors() {
               reason={competitorAccess.reason || ''}
               isTrialExpired={competitorAccess.isTrialExpired}
               daysRemainingInTrial={competitorAccess.daysRemainingInTrial}
+              isFreeTier={isFreeTier}
             />
           </div>
         </div>
