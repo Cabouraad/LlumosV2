@@ -48,9 +48,9 @@ export function PricingCard({
   const isFreeTier = tier === 'free';
 
   const handleSubscribe = async () => {
-    // Agency tier redirects to contact sales
-    if (tier === 'agency') {
-      navigate('/contact-sales');
+    // Growth, Pro, and Agency tiers redirect to Calendly for demo booking
+    if (tier === 'growth' || tier === 'pro' || tier === 'agency') {
+      window.open('https://calendly.com/llumos-info/llumos-demo', '_blank');
       return;
     }
 
@@ -271,10 +271,8 @@ export function PricingCard({
             ? 'Current Plan'
             : isFreeTier
             ? 'Get Started Free'
-            : tier === 'agency'
-            ? 'Contact Sales'
-            : tier === 'pro'
-            ? 'Get started'
+            : tier === 'growth' || tier === 'pro' || tier === 'agency'
+            ? 'Meet with Us'
             : 'Get started'
           }
         </Button>
