@@ -23,6 +23,7 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 // Routes to prerender with their validation selectors/text
 const ROUTES = [
+  // Core marketing pages
   { path: '/', waitForSelector: 'h1', validateText: null, outputPath: 'index.html' },
   { path: '/resources', waitForSelector: 'h1', validateText: ['Resources', 'Guides', 'Insights'], outputPath: 'resources/index.html' },
   { path: '/pricing', waitForSelector: 'h1', validateText: ['Pricing', 'Plans'], outputPath: 'pricing/index.html' },
@@ -30,16 +31,57 @@ const ROUTES = [
   { path: '/demo', waitForSelector: 'h1', validateText: ['Demo', 'Watch'], outputPath: 'demo/index.html' },
   { path: '/terms', waitForSelector: 'h1', validateText: ['Terms'], outputPath: 'terms/index.html' },
   { path: '/privacy', waitForSelector: 'h1', validateText: ['Privacy'], outputPath: 'privacy/index.html' },
+  { path: '/security', waitForSelector: 'h1', validateText: ['Security'], outputPath: 'security/index.html' },
+  { path: '/sitemap', waitForSelector: 'h1', validateText: ['Sitemap'], outputPath: 'sitemap-page/index.html' },
+  { path: '/agencies', waitForSelector: 'h1', validateText: ['Agencies', 'Agency'], outputPath: 'agencies/index.html' },
+  { path: '/free-checker', waitForSelector: 'h1', validateText: ['Free', 'Checker', 'Visibility'], outputPath: 'free-checker/index.html' },
+  { path: '/vs-competitors', waitForSelector: 'h1', validateText: ['Compare', 'Competitor'], outputPath: 'vs-competitors/index.html' },
+  
   // Feature pages
   { path: '/features/content-studio', waitForSelector: 'h1', validateText: ['Content Studio', 'AEO', 'GEO'], outputPath: 'features/content-studio/index.html' },
   { path: '/features/brand-visibility', waitForSelector: 'h1', validateText: ['Visibility', 'Brand'], outputPath: 'features/brand-visibility/index.html' },
   { path: '/features/competitive-analysis', waitForSelector: 'h1', validateText: ['Competitive', 'Analysis'], outputPath: 'features/competitive-analysis/index.html' },
+  { path: '/features/actionable-recommendations', waitForSelector: 'h1', validateText: ['Recommendations', 'Actionable'], outputPath: 'features/actionable-recommendations/index.html' },
+  { path: '/features/citation-analysis', waitForSelector: 'h1', validateText: ['Citation'], outputPath: 'features/citation-analysis/index.html' },
+  { path: '/features/llms-txt', waitForSelector: 'h1', validateText: ['LLMs', 'txt'], outputPath: 'features/llms-txt/index.html' },
+  { path: '/features/tier-comparison', waitForSelector: 'h1', validateText: ['Tier', 'Comparison'], outputPath: 'features/tier-comparison/index.html' },
+  
+  // Plan pages
+  { path: '/plans/starter', waitForSelector: 'h1', validateText: ['Starter'], outputPath: 'plans/starter/index.html' },
+  { path: '/plans/growth', waitForSelector: 'h1', validateText: ['Growth'], outputPath: 'plans/growth/index.html' },
+  { path: '/plans/pro', waitForSelector: 'h1', validateText: ['Pro'], outputPath: 'plans/pro/index.html' },
+  { path: '/plans/agency', waitForSelector: 'h1', validateText: ['Agency'], outputPath: 'plans/agency/index.html' },
+  { path: '/contact-sales', waitForSelector: 'h1', validateText: ['Contact', 'Sales'], outputPath: 'contact-sales/index.html' },
+  
   // Blog posts
+  { path: '/blog/how-to-optimize-for-chatgpt-search', waitForSelector: 'h1', validateText: ['ChatGPT'], outputPath: 'blog/how-to-optimize-for-chatgpt-search/index.html' },
+  { path: '/blog/profound-ai-alternative-pricing', waitForSelector: 'h1', validateText: ['Profound', 'Alternative'], outputPath: 'blog/profound-ai-alternative-pricing/index.html' },
+  
+  // Resources/Blog posts
   { path: '/resources/understanding-ai-search-optimization', waitForSelector: 'h1', validateText: ['AI Search'], outputPath: 'resources/understanding-ai-search-optimization/index.html' },
   { path: '/resources/choosing-ai-visibility-tools', waitForSelector: 'h1', validateText: ['Visibility'], outputPath: 'resources/choosing-ai-visibility-tools/index.html' },
   { path: '/resources/ai-search-best-practices', waitForSelector: 'h1', validateText: ['Best Practices'], outputPath: 'resources/ai-search-best-practices/index.html' },
   { path: '/resources/google-ai-overviews-optimization-guide', waitForSelector: 'h1', validateText: ['Google', 'AI'], outputPath: 'resources/google-ai-overviews-optimization-guide/index.html' },
   { path: '/resources/introducing-llumos-free-tier', waitForSelector: 'h1', validateText: ['Free'], outputPath: 'resources/introducing-llumos-free-tier/index.html' },
+  { path: '/resources/getting-found-in-ai-search-beginners-guide', waitForSelector: 'h1', validateText: ['Beginner'], outputPath: 'resources/getting-found-in-ai-search-beginners-guide/index.html' },
+  { path: '/resources/measuring-ai-search-visibility', waitForSelector: 'h1', validateText: ['Measuring'], outputPath: 'resources/measuring-ai-search-visibility/index.html' },
+  { path: '/resources/audit-your-brand-in-ai', waitForSelector: 'h1', validateText: ['Audit'], outputPath: 'resources/audit-your-brand-in-ai/index.html' },
+  { path: '/resources/chatgpt-perplexity-claude-visibility-comparison', waitForSelector: 'h1', validateText: ['Comparison'], outputPath: 'resources/chatgpt-perplexity-claude-visibility-comparison/index.html' },
+  { path: '/resources/competitor-analysis-ai-search', waitForSelector: 'h1', validateText: ['Competitor'], outputPath: 'resources/competitor-analysis-ai-search/index.html' },
+  { path: '/resources/ai-search-content-strategy', waitForSelector: 'h1', validateText: ['Content Strategy'], outputPath: 'resources/ai-search-content-strategy/index.html' },
+  { path: '/resources/local-business-ai-search-visibility', waitForSelector: 'h1', validateText: ['Local'], outputPath: 'resources/local-business-ai-search-visibility/index.html' },
+  { path: '/resources/content-studio-aeo-geo-guide', waitForSelector: 'h1', validateText: ['Content Studio'], outputPath: 'resources/content-studio-aeo-geo-guide/index.html' },
+  
+  // Solution pages
+  { path: '/solutions/saas', waitForSelector: 'h1', validateText: ['SaaS'], outputPath: 'solutions/saas/index.html' },
+  { path: '/solutions/ecommerce', waitForSelector: 'h1', validateText: ['Ecommerce', 'E-commerce'], outputPath: 'solutions/ecommerce/index.html' },
+  { path: '/solutions/agencies', waitForSelector: 'h1', validateText: ['Agencies'], outputPath: 'solutions/agencies/index.html' },
+  
+  // Other pages
+  { path: '/compare/chatgpt-vs-perplexity', waitForSelector: 'h1', validateText: ['ChatGPT', 'Perplexity'], outputPath: 'compare/chatgpt-vs-perplexity/index.html' },
+  { path: '/knowledge/geo-guide', waitForSelector: 'h1', validateText: ['GEO', 'Generative'], outputPath: 'knowledge/geo-guide/index.html' },
+  { path: '/tools/ai-competitor-finder', waitForSelector: 'h1', validateText: ['Competitor', 'Finder'], outputPath: 'tools/ai-competitor-finder/index.html' },
+  { path: '/score-results', waitForSelector: 'h1', validateText: ['Score', 'Results', 'Visibility'], outputPath: 'score-results/index.html' },
 ];
 
 let serverProcess = null;

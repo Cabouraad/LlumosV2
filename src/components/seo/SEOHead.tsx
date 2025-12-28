@@ -7,7 +7,7 @@ interface SEOHeadProps {
   ogImage?: string;
 }
 
-const BASE_URL = 'https://llumos.ai';
+const BASE_URL = 'https://llumos.app';
 
 /**
  * SEOHead - A streamlined component for AI crawler-friendly metadata
