@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2, Search } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Clock, CheckCircle } from 'lucide-react';
 import { MockChatInterface } from './MockChatInterface';
+import { LiveStats } from './LiveStats';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -143,27 +144,28 @@ export function HeroSection() {
                     </>
                   ) : (
                     <>
-                      Analyze Visibility
+                      Get Your Free Score
                       <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
                 </Button>
               </div>
+              
+              {/* Trust indicators */}
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-2">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Free instant analysis
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-violet-400" />
+                  Results in 30 seconds
+                </span>
+              </div>
             </form>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <p className="text-sm text-muted-foreground">
-                Trusted by 500+ brands • Free analysis
-              </p>
-              <a 
-                href="https://calendly.com/llumos-info/llumos-demo" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sm text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-4"
-              >
-                Or book a live demo →
-              </a>
-            </div>
+            {/* Live stats */}
+            <LiveStats />
           </motion.div>
 
           {/* Right content - Mock Chat */}

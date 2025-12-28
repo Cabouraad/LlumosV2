@@ -7,9 +7,11 @@ import { HeroSection } from '@/components/landing/HeroSection';
 import { ProblemSection } from '@/components/landing/ProblemSection';
 import { SolutionSection } from '@/components/landing/SolutionSection';
 import { SocialProofSection } from '@/components/landing/SocialProofSection';
+import { TestimonialSection } from '@/components/landing/TestimonialSection';
 import { FinalCTASection } from '@/components/landing/FinalCTASection';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { ExitIntentPopup } from '@/components/home/ExitIntentPopup';
+import { StickyBottomCTA } from '@/components/landing/StickyBottomCTA';
 import { OrganizationSchema } from '@/components/seo/OrganizationSchema';
 import { WebSiteSchema } from '@/components/seo/WebSiteSchema';
 import { ProductSchema } from '@/components/seo/ProductSchema';
@@ -91,12 +93,14 @@ const Index = () => {
       {/* Force dark mode for landing page */}
       <div className="dark min-h-screen bg-background text-foreground">
         <ExitIntentPopup />
+        <StickyBottomCTA />
         <LandingNavbar />
         <main>
           <HeroSection />
           <ProblemSection />
           <SolutionSection />
           <SocialProofSection />
+          <TestimonialSection />
           <FinalCTASection />
         </main>
         <LandingFooter />
