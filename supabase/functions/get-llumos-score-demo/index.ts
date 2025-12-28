@@ -61,10 +61,21 @@ Deno.serve(async (req) => {
 
     // Fetch website content with improved error handling and multiple strategies
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    const SERPAPI_KEY = Deno.env.get('SERPAPI_KEY');
+
+    const firecrawlConfigured = !!FIRECRAWL_API_KEY;
+    const serpApiConfigured = !!SERPAPI_KEY;
+
+    console.log(`[Analyzer] Secrets configured: firecrawl=${firecrawlConfigured} serpapi=${serpApiConfigured}`);
 
     let websiteContent = '';
     let fetchError: string | null = null;
-    let contentSource: 'direct' | 'firecrawl' | 'none' = 'none';
+    let contentSource: 'direct' | 'firecrawl' | 'firecrawl-search' | 'serpapi' | 'none' = 'none';
+
+    let firecrawlAttempted = false;
+    let serpApiAttempted = false;
+    let firecrawlError: string | null = null;
+    let serpApiError: string | null = null;
 
     let metaData = {
       title: '',
@@ -217,7 +228,8 @@ Deno.serve(async (req) => {
     }
 
     // 2) If blocked/timeout, fall back to Firecrawl (more reliable against bot protection)
-    if ((websiteContent.length < 300 || fetchError) && FIRECRAWL_API_KEY) {
+    if ((websiteContent.length < 300 || fetchError) && firecrawlConfigured) {
+      firecrawlAttempted = true;
       try {
         const startTime = Date.now();
         const url = `https://${cleanDomain}`;
@@ -225,7 +237,7 @@ Deno.serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-        console.log(`[Firecrawl] Scraping ${url}...`);
+        console.log(`[Firecrawl] Scrape: ${url}`);
 
         const fcResp = await fetch('https://api.firecrawl.dev/v1/scrape', {
           method: 'POST',
@@ -245,7 +257,7 @@ Deno.serve(async (req) => {
 
         const fcJson = await fcResp.json().catch(() => ({}));
         if (!fcResp.ok) {
-          const err = (fcJson as any)?.error || `Firecrawl error (HTTP ${fcResp.status})`;
+          const err = (fcJson as any)?.error || `Firecrawl scrape error (HTTP ${fcResp.status})`;
           throw new Error(err);
         }
 
@@ -286,19 +298,131 @@ Deno.serve(async (req) => {
           }
 
           fetchError = null;
+          firecrawlError = null;
           contentSource = 'firecrawl';
-          console.log(`[Firecrawl] Success: ${websiteContent.length} chars, ${metaData.wordCount} words`);
+          console.log(`[Firecrawl] Scrape success: ${websiteContent.length} chars, ${metaData.wordCount} words`);
         }
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : 'Unknown Firecrawl error';
-        console.log(`[Firecrawl] Failed: ${msg}`);
-        // Keep prior fetchError (direct fetch) if it exists; otherwise store Firecrawl error.
-        fetchError = fetchError || msg;
+        firecrawlError = e instanceof Error ? e.message : 'Unknown Firecrawl error';
+        console.log(`[Firecrawl] Scrape failed: ${firecrawlError}`);
       }
     }
 
-    if (fetchError) {
-      console.log(`All fetch attempts failed for ${cleanDomain}: ${fetchError}`);
+    // 3) If homepage scrape didn’t yield enough, try Firecrawl search + scrape top pages
+    if (websiteContent.length < 300 && firecrawlConfigured) {
+      firecrawlAttempted = true;
+      try {
+        const query = `site:${cleanDomain} ${cleanDomain}`;
+        console.log(`[Firecrawl] Search: ${query}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        const searchResp = await fetch('https://api.firecrawl.dev/v1/search', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            query,
+            limit: 5,
+            scrapeOptions: {
+              formats: ['markdown'],
+            },
+          }),
+        });
+
+        clearTimeout(timeoutId);
+
+        const searchJson = await searchResp.json().catch(() => ({}));
+        if (!searchResp.ok) {
+          const err = (searchJson as any)?.error || `Firecrawl search error (HTTP ${searchResp.status})`;
+          throw new Error(err);
+        }
+
+        const results = ((searchJson as any)?.data ?? searchJson) as any;
+        const items: any[] = Array.isArray(results?.data) ? results.data : Array.isArray(results) ? results : [];
+
+        const combined = items
+          .map((r) => {
+            const url = r?.url ? `URL: ${r.url}` : '';
+            const title = r?.title ? `TITLE: ${r.title}` : '';
+            const desc = r?.description ? `DESC: ${r.description}` : '';
+            const md = r?.markdown ? `CONTENT: ${r.markdown}` : '';
+            return [url, title, desc, md].filter(Boolean).join('\n');
+          })
+          .filter(Boolean)
+          .join('\n\n---\n\n');
+
+        const normalized = normalizeText(combined);
+
+        if (normalized.length > 300) {
+          websiteContent = normalized;
+          metaData.wordCount = computeWordCount(websiteContent);
+          contentSource = 'firecrawl-search';
+          fetchError = null;
+          firecrawlError = null;
+          console.log(`[Firecrawl] Search success: ${websiteContent.length} chars, ${metaData.wordCount} words`);
+        }
+      } catch (e: unknown) {
+        firecrawlError = firecrawlError || (e instanceof Error ? e.message : 'Unknown Firecrawl error');
+        console.log(`[Firecrawl] Search failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        fetchError = fetchError || firecrawlError;
+      }
+    }
+
+    // 4) Last resort: SERP API snippets (still gives page-level signals even if crawling is blocked)
+    if (websiteContent.length < 300 && serpApiConfigured) {
+      serpApiAttempted = true;
+      try {
+        const q = `site:${cleanDomain}`;
+        console.log(`[SerpAPI] Query: ${q}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const serpUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(q)}&num=6&api_key=${encodeURIComponent(SERPAPI_KEY!)}`;
+        const serpResp = await fetch(serpUrl, { signal: controller.signal });
+
+        clearTimeout(timeoutId);
+
+        const serpJson = await serpResp.json().catch(() => ({}));
+        if (!serpResp.ok) {
+          throw new Error((serpJson as any)?.error || `SerpAPI error (HTTP ${serpResp.status})`);
+        }
+
+        const organic: any[] = Array.isArray((serpJson as any)?.organic_results) ? (serpJson as any).organic_results : [];
+        const combined = organic
+          .slice(0, 6)
+          .map((r) => {
+            const url = r?.link ? `URL: ${r.link}` : '';
+            const title = r?.title ? `TITLE: ${r.title}` : '';
+            const snippet = r?.snippet ? `SNIPPET: ${r.snippet}` : '';
+            return [url, title, snippet].filter(Boolean).join('\n');
+          })
+          .filter(Boolean)
+          .join('\n\n---\n\n');
+
+        const normalized = normalizeText(combined);
+        if (normalized.length > 300) {
+          websiteContent = normalized;
+          metaData.wordCount = computeWordCount(websiteContent);
+          contentSource = 'serpapi';
+          fetchError = null;
+          serpApiError = null;
+          console.log(`[SerpAPI] Success: ${websiteContent.length} chars, ${metaData.wordCount} words`);
+        }
+      } catch (e: unknown) {
+        serpApiError = e instanceof Error ? e.message : 'Unknown SerpAPI error';
+        console.log(`[SerpAPI] Failed: ${serpApiError}`);
+        fetchError = fetchError || serpApiError;
+      }
+    }
+
+    if (websiteContent.length < 100 && fetchError) {
+      console.log(`All content extraction attempts failed for ${cleanDomain}: ${fetchError}`);
       contentSource = 'none';
     }
 
@@ -487,8 +611,15 @@ Return ONLY valid JSON (no markdown code blocks):
       },
       metadata: {
         contentFetched: contentAvailable,
+        contentSource,
+        firecrawlConfigured,
+        firecrawlAttempted,
+        firecrawlError,
+        serpApiConfigured,
+        serpApiAttempted,
+        serpApiError,
         responseTime: metaData.responseTime,
-        hasSSL: metaData.hasSSL
+        hasSSL: metaData.hasSSL,
       }
     };
 
