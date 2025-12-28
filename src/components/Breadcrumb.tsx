@@ -61,7 +61,7 @@ export function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
       "@type": "ListItem",
       "position": index + 1,
       "name": item.name,
-      "item": `https://llumos.ai${item.path}`
+      "item": `https://llumos.app${item.path}`
     }))
   };
 

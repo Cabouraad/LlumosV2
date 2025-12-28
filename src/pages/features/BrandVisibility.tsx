@@ -25,8 +25,8 @@ const BrandVisibility = () => {
         <meta name="description" content="Monitor your brand's visibility across AI search platforms like ChatGPT, Gemini, and Perplexity. Real-time tracking with visibility scoring and sentiment analysis." />
         <meta property="og:title" content="Brand Visibility Monitoring - Track Your AI Search Presence" />
         <meta property="og:description" content="Real-time brand tracking across all major AI platforms with visibility scoring and sentiment analysis." />
-        <meta property="og:image" content={brandVisibilityHero} />
-        <link rel="canonical" href="https://llumos.ai/features/brand-visibility" />
+        <meta property="og:image" content="https://llumos.app/og-home.png" />
+        <link rel="canonical" href="https://llumos.app/features/brand-visibility" />
       </Helmet>
 
       {/* Header */}
@@ -66,8 +66,7 @@ const BrandVisibility = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
-                Brand Visibility
-                <span className="text-primary block">Monitoring</span>
+                Brand Visibility Monitoring for AI Search
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
                 Know exactly when, where, and how your brand appears in AI search results. Real-time monitoring across all major AI platforms with actionable insights.

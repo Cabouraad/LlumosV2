@@ -22,8 +22,7 @@ export default function CitationAnalysisFeature() {
           </div>
           
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Discover What AI Models
-            <span className="text-primary block mt-2">Actually Cite</span>
+            AI Citation Analysis - Discover What AI Models Cite
           </h1>
           
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">

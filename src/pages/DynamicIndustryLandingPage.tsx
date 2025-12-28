@@ -88,19 +88,19 @@ const generateBreadcrumbSchema = (industryName: string, industrySlug: string) =>
       "@type": "ListItem",
       "position": 1,
       "name": "Home",
-      "item": "https://llumos.ai"
+      "item": "https://llumos.app"
     },
     {
       "@type": "ListItem",
       "position": 2,
       "name": "Industries",
-      "item": "https://llumos.ai/industries"
+      "item": "https://llumos.app/industries"
     },
     {
       "@type": "ListItem",
       "position": 3,
       "name": industryName,
-      "item": `https://llumos.ai/industries/${industrySlug}`
+      "item": `https://llumos.app/industries/${industrySlug}`
     }
   ]
 });
@@ -139,7 +139,7 @@ const DynamicIndustryLandingPage = ({ industryOverride }: DynamicIndustryLanding
 
   const pageTitle = `AI Search Visibility & GEO for ${industry.name} Companies | Llumos`;
   const metaDescription = `Don't let your ${industry.name} brand disappear in the AI era. Llumos helps ${industry.name} companies track and optimize their presence on Perplexity and Gemini.`;
-  const canonicalUrl = `https://llumos.ai/industries/${industry.slug}`;
+  const canonicalUrl = `https://llumos.app/industries/${industry.slug}`;
   const keywords = `AI SEO for ${industry.name}, ${industry.name} brand reputation management, ChatGPT marketing for ${industry.name}`;
 
   return (

@@ -228,7 +228,7 @@ export const structuredDataGenerators = {
       name: "Llumos",
       logo: {
         "@type": "ImageObject",
-        url: "https://llumos.ai/logo.png"
+        url: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png"
       }
     }
   }),
@@ -257,7 +257,7 @@ export const structuredDataGenerators = {
     "@type": "BlogPosting",
     headline: props.title,
     description: props.description,
-    image: props.image || "https://llumos.ai/og-image.png",
+    image: props.image || "https://llumos.app/og-image.png",
     datePublished: props.publishedDate,
     dateModified: props.modifiedDate || props.publishedDate,
     author: {

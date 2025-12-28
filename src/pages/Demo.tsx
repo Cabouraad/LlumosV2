@@ -21,13 +21,13 @@ export default function Demo() {
           "@type": "VideoObject",
           name: "Llumos Product Demo",
           description: "Comprehensive walkthrough of Llumos AI Search Visibility Platform",
-          thumbnailUrl: "https://llumos.ai/og-demo.png",
+          thumbnailUrl: "https://llumos.app/og-demo.png",
           uploadDate: "2024-11-01",
           embedUrl: "https://www.loom.com/embed/f37c9294260a4e039b07805c1162c1e4",
           publisher: {
             "@type": "Organization",
             name: "Llumos",
-            logo: { "@type": "ImageObject", url: "https://llumos.ai/logo.png" }
+            logo: { "@type": "ImageObject", url: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png" }
           }
         }}
       />

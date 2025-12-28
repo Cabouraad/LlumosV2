@@ -26,8 +26,8 @@ const CompetitiveAnalysis = () => {
         <meta name="description" content="Analyze competitors' AI search performance across ChatGPT, Gemini, and Perplexity. Identify gaps, benchmark performance, and discover untapped opportunities." />
         <meta property="og:title" content="Competitive Analysis - AI Search Intelligence" />
         <meta property="og:description" content="See exactly where competitors dominate AI search results and identify opportunities to outrank them." />
-        <meta property="og:image" content={competitiveAnalysisHero} />
-        <link rel="canonical" href="https://llumos.ai/features/competitive-analysis" />
+        <meta property="og:image" content="https://llumos.app/og-home.png" />
+        <link rel="canonical" href="https://llumos.app/features/competitive-analysis" />
       </Helmet>
 
       {/* Header */}
@@ -67,8 +67,7 @@ const CompetitiveAnalysis = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
-                Competitive
-                <span className="text-primary block">Analysis</span>
+                AI Search Competitive Analysis
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
                 See exactly where competitors dominate AI search results and identify untapped opportunities to outrank them. Strategic intelligence for AI search optimization.

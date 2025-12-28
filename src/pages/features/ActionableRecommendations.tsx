@@ -26,7 +26,7 @@ const ActionableRecommendations = () => {
         <meta name="description" content="Get specific, prioritized recommendations to improve your AI search rankings. AI-powered insights with implementation tracking and impact scoring." />
         <meta property="og:title" content="Actionable Recommendations - AI Search Optimization Guide" />
         <meta property="og:description" content="Skip the guesswork. Get specific, prioritized actions you can implement today to improve your AI search rankings." />
-        <meta property="og:image" content={actionableRecommendationsHero} />
+        <meta property="og:image" content="https://llumos.app/og-home.png" />
         <link rel="canonical" href="https://llumos.app/features/actionable-recommendations" />
       </Helmet>
 
@@ -67,8 +67,7 @@ const ActionableRecommendations = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6 leading-tight">
-                Actionable
-                <span className="text-primary block">Recommendations</span>
+                Actionable AI Search Optimization Recommendations
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
                 Skip the guesswork. Get specific, prioritized actions you can implement today to improve your AI search rankings. Every recommendation is backed by data.

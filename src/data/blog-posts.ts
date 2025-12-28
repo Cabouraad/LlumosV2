@@ -15,16 +15,16 @@ export interface BlogPost {
 export const blogPosts: BlogPost[] = [
   {
     slug: "understanding-ai-search-optimization",
-    title: "Understanding AI Search Optimization: A Complete Guide for 2024",
+    title: "Understanding AI Search Optimization: A Complete Guide for 2025",
     description: "Learn how AI-powered search engines like ChatGPT, Claude, and Perplexity are changing brand visibility, and discover proven strategies to optimize your content for better AI search performance.",
     keywords: "AI search optimization, ChatGPT SEO, Claude search, Perplexity optimization, AI visibility tracking, brand mentions AI",
     category: "AI Search",
     tags: ["AI SEO", "Brand Visibility", "Search Optimization"],
-    publishedAt: "2024-03-15T10:00:00Z",
-    updatedAt: "2024-03-15T10:00:00Z",
+    publishedAt: "2024-11-15T10:00:00Z",
+    updatedAt: "2024-12-28T10:00:00Z",
     readTime: 9,
     featured: true,
-    content: `# Understanding AI Search Optimization: A Complete Guide for 2024
+    content: `# Understanding AI Search Optimization: A Complete Guide for 2025
 
 The way people search for information is fundamentally changing. Instead of typing keywords into Google, more users are having conversations with AI assistants like ChatGPT, Claude, and Perplexity. For businesses, this shift creates both challenges and opportunities.
 
@@ -124,8 +124,8 @@ The best AI search optimization doesn't feel like optimization at all – it fee
     keywords: "AI visibility tools, brand monitoring software, AI search tracking, ChatGPT monitoring, competitor analysis tools, AI search analytics",
     category: "Tools & Software",  
     tags: ["Tool Selection", "AI Monitoring", "ROI"],
-    publishedAt: "2024-02-08T14:30:00Z",
-    updatedAt: "2024-02-08T14:30:00Z", 
+    publishedAt: "2024-10-08T14:30:00Z",
+    updatedAt: "2024-12-28T14:30:00Z", 
     readTime: 8,
     content: `# How to Choose the Right AI Visibility Tracking Tools
 
@@ -272,8 +272,8 @@ The goal isn't to find the perfect tool immediately – it's to start measuring 
     keywords: "AI search best practices, brand visibility strategies, ChatGPT optimization, AI SEO tactics, competitor analysis AI search, brand authority building",
     category: "Strategy",
     tags: ["Best Practices", "Strategy", "Case Studies"],
-    publishedAt: "2024-01-22T16:45:00Z", 
-    updatedAt: "2024-01-22T16:45:00Z",
+    publishedAt: "2024-09-22T16:45:00Z", 
+    updatedAt: "2024-12-28T16:45:00Z",
     readTime: 10,
     content: `# AI Search Best Practices: What Leading Brands Do Differently
 
@@ -443,8 +443,8 @@ Then do it again for the next problem.
     keywords: "AI search for beginners, getting found online, brand visibility, ChatGPT marketing, AI search optimization basics, small business AI strategy",
     category: "AI Search",
     tags: ["Getting Found Online", "Basics", "Playbook"],
-    publishedAt: "2024-04-05T09:00:00Z",
-    updatedAt: "2024-04-05T09:00:00Z",
+    publishedAt: "2024-10-05T09:00:00Z",
+    updatedAt: "2024-12-28T09:00:00Z",
     readTime: 8,
     content: `# Getting Found in AI Search: A Beginner's Guide (With Real Examples)
 
@@ -611,8 +611,8 @@ The brands winning in AI search aren't the biggest or most well-funded – they'
     keywords: "AI search metrics, Share of Voice AI, brand visibility tracking, AI search analytics, competitor benchmarking, AI search KPIs, visibility measurement",
     category: "Analytics",
     tags: ["Metrics", "Share of Voice", "Dashboards"],
-    publishedAt: "2024-04-19T11:00:00Z",
-    updatedAt: "2024-04-19T11:00:00Z",
+    publishedAt: "2024-10-19T11:00:00Z",
+    updatedAt: "2024-12-28T11:00:00Z",
     readTime: 9,
     content: `# Measuring AI Search Visibility: Metrics, Benchmarks, and Dashboards
 
@@ -848,8 +848,8 @@ Start with the basics: Share of Voice and coverage rate. Once you have those bas
     keywords: "AI brand audit, ChatGPT brand analysis, AI search audit, competitor analysis AI, brand reputation audit, AI visibility assessment, brand monitoring AI",
     category: "Strategy",
     tags: ["Audit", "Competitor Analysis", "Brand Safety"],
-    publishedAt: "2024-05-03T14:00:00Z",
-    updatedAt: "2024-05-03T14:00:00Z",
+    publishedAt: "2024-11-03T14:00:00Z",
+    updatedAt: "2024-12-28T14:00:00Z",
     readTime: 11,
     content: `# How to Audit Your Brand in ChatGPT, Claude, and Perplexity (Step-by-Step)
 
@@ -2751,7 +2751,7 @@ Content Studio transforms visibility gaps into actionable content blueprints opt
     category: "News",
     tags: ["Product Updates", "Free Tier", "AI Visibility"],
     publishedAt: "2024-12-09T10:00:00Z",
-    updatedAt: "2024-12-09T10:00:00Z",
+    updatedAt: "2024-12-28T10:00:00Z",
     readTime: 5,
     featured: true,
     content: `# Introducing the Llumos Free Tier: Track Your AI Visibility for Free
@@ -2817,7 +2817,7 @@ When you're ready for more insights, upgrading is seamless — and you can alway
 
 Getting started with the Free plan takes less than 2 minutes:
 
-1. **Sign up** at llumos.ai/signup — no credit card required
+1. **Sign up** at llumos.app/signup — no credit card required
 2. **Add your brand** and verify your domain
 3. **Select up to 5 prompts** to track
 4. **View your first results** within 24 hours

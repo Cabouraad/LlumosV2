@@ -144,7 +144,7 @@ export default function FreeChecker() {
             "@type": "WebPage",
             name: "Free AI Visibility Score Checker",
             description: "Check how often AI models mention your brand vs. competitors",
-            url: "https://llumos.ai/free-checker"
+            url: "https://llumos.app/free-checker"
           }
         ]}
       />
