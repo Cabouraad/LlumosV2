@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Loader2, TrendingUp, TrendingDown, Check, X, ArrowRight, 
-  Mail, Building, User, Sparkles, BarChart3, Target, Zap
+  Mail, Building, User, Sparkles, BarChart3, Target, Zap, Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -511,6 +511,24 @@ export default function ScoreResults() {
                         {' '}and{' '}
                         <a href="/privacy" className="underline hover:text-foreground">Privacy Policy</a>
                       </p>
+
+                      {/* Meet with Us Section */}
+                      <div className="mt-8 pt-6 border-t border-border/50">
+                        <div className="text-center">
+                          <h3 className="font-semibold mb-2">Prefer a Personal Consultation?</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Meet with our AI visibility experts to discuss your results and get personalized recommendations.
+                          </p>
+                          <Button
+                            variant="outline"
+                            className="gap-2 w-full"
+                            onClick={() => window.open('https://calendly.com/llumos-info/llumos-demo', '_blank')}
+                          >
+                            <Calendar className="h-4 w-4" />
+                            Meet with Us
+                          </Button>
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>
