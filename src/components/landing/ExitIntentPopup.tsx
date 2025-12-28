@@ -89,6 +89,17 @@ export function ExitIntentPopup() {
               size="lg" 
               variant="outline" 
               className="w-full"
+              asChild
+            >
+              <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer" onClick={() => setIsOpen(false)}>
+                Book a Live Demo
+              </a>
+            </Button>
+            
+            <Button 
+              size="lg" 
+              variant="ghost" 
+              className="w-full text-muted-foreground"
               onClick={() => setIsOpen(false)}
             >
               No Thanks, I&apos;ll Pass

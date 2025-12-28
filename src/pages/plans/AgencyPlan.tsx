@@ -140,11 +140,11 @@ export default function AgencyPlan() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/contact-sales">
-                <Button size="lg" className="text-lg px-8">
-                  Contact Sales <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
+              <Button size="lg" className="text-lg px-8" asChild>
+                <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" />
+                </a>
+              </Button>
               <Link to="/demo">
                 <Button size="lg" variant="outline" className="text-lg px-8">
                   Watch Demo
@@ -250,11 +250,11 @@ export default function AgencyPlan() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/contact-sales">
-                  <Button size="lg" className="px-8">
-                    Contact Sales <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
+                <Button size="lg" className="px-8" asChild>
+                  <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                    Book a Demo <ArrowRight className="ml-2 h-5 w-5" />
+                  </a>
+                </Button>
                 <Link to="/pricing">
                   <Button size="lg" variant="outline">Compare All Plans</Button>
                 </Link>
