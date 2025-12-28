@@ -59,95 +59,147 @@ Deno.serve(async (req) => {
 
     console.log('Analyzing domain:', cleanDomain);
 
-    // Fetch website content with improved error handling
+    // Fetch website content with improved error handling and multiple strategies
     let websiteContent = '';
     let fetchError: string | null = null;
     let metaData = {
       title: '',
       description: '',
       hasSSL: false,
-      responseTime: 0
+      responseTime: 0,
+      headings: [] as string[],
+      links: 0,
+      images: 0,
+      wordCount: 0,
+      hasStructuredData: false,
+      ogTags: {} as Record<string, string>,
     };
-    
-    try {
-      const startTime = Date.now();
-      const url = `https://${cleanDomain}`;
-      
-      // Use a more generous timeout for mobile users (15 seconds)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LlumosBot/1.0; +https://llumos.app)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-        },
-        signal: controller.signal,
-        redirect: 'follow',
-      });
-      
-      clearTimeout(timeoutId);
-      metaData.responseTime = Date.now() - startTime;
-      metaData.hasSSL = url.startsWith('https');
-      
-      if (response.ok) {
-        const html = await response.text();
+
+    // User agents to try - some sites block bots but allow browsers
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    ];
+
+    for (const userAgent of userAgents) {
+      try {
+        const startTime = Date.now();
+        const url = `https://${cleanDomain}`;
         
-        // Extract meta title
-        const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-        metaData.title = titleMatch ? titleMatch[1].trim() : '';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // Increased to 20s
         
-        // Extract meta description
-        const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
-                         html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
-        metaData.description = descMatch ? descMatch[1].trim() : '';
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+          signal: controller.signal,
+          redirect: 'follow',
+        });
         
-        // Extract main content more intelligently
-        let contentHtml = html;
+        clearTimeout(timeoutId);
+        metaData.responseTime = Date.now() - startTime;
+        metaData.hasSSL = url.startsWith('https');
         
-        // Remove script, style, nav, footer, header tags first
-        contentHtml = contentHtml
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-          .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
-          .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
-          .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
-          .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '');
-        
-        // Try to find main content area
-        const mainMatch = contentHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
-                         contentHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                         contentHtml.match(/<div[^>]*class=["'][^"']*content[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        
-        const contentToAnalyze = mainMatch ? mainMatch[1] : contentHtml;
-        
-        // Extract clean text
-        websiteContent = contentToAnalyze
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 10000); // Limit to 10000 chars for better analysis
-        
-        console.log(`Fetched ${websiteContent.length} chars from ${cleanDomain} in ${metaData.responseTime}ms`);
-      } else {
-        fetchError = `HTTP ${response.status}: ${response.statusText}`;
-        console.log(`Failed to fetch ${cleanDomain}: ${fetchError}`);
+        if (response.ok) {
+          const html = await response.text();
+          
+          // Extract meta title
+          const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+          metaData.title = titleMatch ? titleMatch[1].trim().slice(0, 200) : '';
+          
+          // Extract meta description
+          const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
+                           html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
+          metaData.description = descMatch ? descMatch[1].trim().slice(0, 500) : '';
+          
+          // Extract OG tags for better context
+          const ogMatches = html.matchAll(/<meta[^>]*property=["']og:([^"']+)["'][^>]*content=["']([^"']*)["']/gi);
+          for (const match of ogMatches) {
+            metaData.ogTags[match[1]] = match[2].slice(0, 200);
+          }
+          
+          // Extract headings for content structure analysis
+          const h1Matches = html.matchAll(/<h1[^>]*>([^<]*)<\/h1>/gi);
+          const h2Matches = html.matchAll(/<h2[^>]*>([^<]*)<\/h2>/gi);
+          for (const match of h1Matches) {
+            if (match[1].trim()) metaData.headings.push(`H1: ${match[1].trim().slice(0, 100)}`);
+          }
+          for (const match of h2Matches) {
+            if (match[1].trim() && metaData.headings.length < 10) {
+              metaData.headings.push(`H2: ${match[1].trim().slice(0, 100)}`);
+            }
+          }
+          
+          // Count links and images
+          metaData.links = (html.match(/<a\s/gi) || []).length;
+          metaData.images = (html.match(/<img\s/gi) || []).length;
+          
+          // Check for structured data
+          metaData.hasStructuredData = html.includes('application/ld+json') || 
+                                        html.includes('itemtype="http://schema.org');
+          
+          // Extract main content more intelligently
+          let contentHtml = html;
+          
+          // Remove script, style, nav, footer, header tags
+          contentHtml = contentHtml
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+            .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
+            .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
+            .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
+            .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '')
+            .replace(/<!--[\s\S]*?-->/g, '');
+          
+          // Try to find main content area
+          const mainMatch = contentHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+                           contentHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                           contentHtml.match(/<div[^>]*class=["'][^"']*(?:content|main|body)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+          
+          const contentToAnalyze = mainMatch ? mainMatch[1] : contentHtml;
+          
+          // Extract clean text
+          websiteContent = contentToAnalyze
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 15000); // Increased limit for better analysis
+          
+          metaData.wordCount = websiteContent.split(/\s+/).filter(w => w.length > 2).length;
+          
+          console.log(`Fetched ${websiteContent.length} chars, ${metaData.wordCount} words from ${cleanDomain} in ${metaData.responseTime}ms with UA: ${userAgent.slice(0, 30)}...`);
+          fetchError = null;
+          break; // Success, exit loop
+        } else {
+          fetchError = `HTTP ${response.status}: ${response.statusText}`;
+          console.log(`Failed to fetch ${cleanDomain} with UA ${userAgent.slice(0, 20)}...: ${fetchError}`);
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.includes('aborted')) {
+          fetchError = 'Request timeout - website took too long to respond';
+        } else {
+          fetchError = errorMessage;
+        }
+        console.log(`Error fetching with UA ${userAgent.slice(0, 20)}...: ${fetchError}`);
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMessage.includes('aborted')) {
-        fetchError = 'Request timeout - website took too long to respond';
-      } else {
-        fetchError = errorMessage;
-      }
-      console.error('Error fetching website:', fetchError);
+    }
+
+    if (fetchError) {
+      console.log(`All fetch attempts failed for ${cleanDomain}: ${fetchError}`);
     }
 
     // If we couldn't fetch content, use AI with just domain info
@@ -158,45 +210,71 @@ Deno.serve(async (req) => {
 
     const contentAvailable = websiteContent.length > 100;
     
-    const analysisPrompt = contentAvailable 
-      ? `Analyze this website's AI search visibility potential. Domain: ${cleanDomain}
-
-WEBSITE METADATA:
+    // Build comprehensive metadata summary
+    const metadataSummary = `
+DOMAIN: ${cleanDomain}
+METADATA:
 - Title: ${metaData.title || 'Not found'}
 - Description: ${metaData.description || 'Not found'}
 - SSL: ${metaData.hasSSL ? 'Yes' : 'No'}
 - Response Time: ${metaData.responseTime}ms
+- Word Count: ${metaData.wordCount}
+- Links: ${metaData.links}
+- Images: ${metaData.images}
+- Structured Data: ${metaData.hasStructuredData ? 'Yes' : 'No'}
+${metaData.ogTags['title'] ? `- OG Title: ${metaData.ogTags['title']}` : ''}
+${metaData.ogTags['description'] ? `- OG Description: ${metaData.ogTags['description']}` : ''}
+${metaData.ogTags['type'] ? `- OG Type: ${metaData.ogTags['type']}` : ''}
 
-WEBSITE CONTENT:
+HEADINGS:
+${metaData.headings.length > 0 ? metaData.headings.join('\n') : 'No headings found'}`;
+
+    const analysisPrompt = contentAvailable 
+      ? `Analyze this website's AI search visibility potential for appearing in AI-generated responses.
+
+${metadataSummary}
+
+WEBSITE CONTENT (first ${metaData.wordCount} words):
 ${websiteContent}
 
 SCORING CRITERIA (total 100 points, scale to 0-850 final score):
-1. Content Quality & Depth (25 pts): Is content comprehensive, well-structured, and provides value?
-2. Brand Clarity & Messaging (20 pts): Is the brand identity clear? Is the value proposition obvious?
-3. SEO Elements & Structure (20 pts): Title tags, meta descriptions, heading hierarchy, clean URLs
-4. Authority Signals (15 pts): Trust indicators, credentials, testimonials, industry expertise
-5. Topic Relevance & Expertise (20 pts): Demonstrates expertise in their domain? Topical authority?
+1. Content Quality & Depth (25 pts): Is content comprehensive, well-structured, informative, and unique? Does it demonstrate E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)?
+2. Brand Clarity & Messaging (20 pts): Is the brand identity clear? Is the value proposition obvious? Is messaging consistent?
+3. SEO Elements & Structure (20 pts): Title tags, meta descriptions, heading hierarchy (H1, H2s), structured data, clean URLs
+4. Authority Signals (15 pts): Trust indicators, credentials, testimonials, industry expertise, backlink-worthy content
+5. Topic Relevance & Expertise (20 pts): Demonstrates expertise in their domain? Topical authority? Depth of coverage?
+
+ANALYSIS GUIDELINES:
+- Be specific about what you found (mention actual page content, headings, topics)
+- Reference specific elements from the metadata and content
+- Provide actionable, specific recommendations based on what's missing
+- Score fairly - most sites score between 500-700
 
 Return ONLY valid JSON (no markdown code blocks):
 {
   "score": <400-850>,
   "composite": <0-100>,
   "tier": "<Excellent|Very Good|Good|Fair|Needs Improvement>",
-  "analysis": "<3-4 sentences: Start with visibility assessment, explain key factors, mention specific observations, contextualize the tier>",
-  "strengths": ["<20-word strength with specific detail>", "<20-word different strength>", "<20-word third strength>"],
-  "improvements": ["<20-word actionable recommendation with 'why'>", "<20-word different recommendation>", "<20-word third recommendation>"]
+  "analysis": "<3-4 sentences: Specific visibility assessment mentioning actual content found, explain key factors affecting their score, note specific strengths or gaps observed>",
+  "strengths": ["<specific strength with detail from the actual content>", "<another specific strength>", "<third strength if applicable>"],
+  "improvements": ["<specific actionable recommendation based on what's missing>", "<another specific recommendation>", "<third recommendation if applicable>"]
 }`
       : `Estimate AI search visibility for domain: ${cleanDomain}
 
-IMPORTANT: Website content could not be fully fetched. Error: ${fetchError}
-${metaData.title ? `Title found: ${metaData.title}` : ''}
-${metaData.description ? `Description found: ${metaData.description}` : ''}
+IMPORTANT: Website content could not be fully fetched after multiple attempts.
+Error: ${fetchError}
 
-Provide a CONSERVATIVE estimate (450-600 range) based on:
-- Domain name professionalism and memorability
-- Whether domain appears to be a legitimate business
-- Any metadata that was captured
-- General accessibility issues
+${metaData.title ? `Title found: ${metaData.title}` : 'No title could be retrieved.'}
+${metaData.description ? `Description found: ${metaData.description}` : 'No description could be retrieved.'}
+${Object.keys(metaData.ogTags).length > 0 ? `OG Tags found: ${JSON.stringify(metaData.ogTags)}` : ''}
+
+Based on the domain name "${cleanDomain}", provide analysis considering:
+- Domain professionalism and brandability
+- Industry the domain appears to target
+- Whether domain suggests a legitimate business
+- Common reasons for fetch failures (bot blocking, slow servers, security measures)
+
+Provide a CONSERVATIVE score (450-600 range) since we cannot verify content.
 
 Return ONLY valid JSON (no markdown code blocks):
 {
@@ -204,8 +282,8 @@ Return ONLY valid JSON (no markdown code blocks):
   "composite": <30-50>,
   "tier": "Fair",
   "analysis": "We could not fully analyze ${cleanDomain} due to: ${fetchError}. This preliminary score is based on domain characteristics and limited accessible data. For an accurate visibility assessment, please ensure your website is publicly accessible and try again.",
-  "strengths": ["Domain is registered and configured"],
-  "improvements": ["Ensure website is publicly accessible for full analysis", "Check if website blocks automated requests"]
+  "strengths": ["<strength based on domain name characteristics>", "<another observation if applicable>"],
+  "improvements": ["<recommendation about accessibility>", "<recommendation about content visibility>", "<another recommendation>"]
 }`;
 
     console.log('Calling Lovable AI for analysis...');
