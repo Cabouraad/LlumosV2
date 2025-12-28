@@ -2849,7 +2849,7 @@ Have questions about the Free plan or want to learn more about upgrading? Check 
     updatedAt: "2025-01-02T10:00:00Z",
     readTime: 18,
     featured: true,
-    content: \`# 2025 State of AI Search Visibility: Comprehensive Benchmark Report
+    content: `# 2025 State of AI Search Visibility: Comprehensive Benchmark Report
 
 *Last Updated: January 2025*
 
@@ -3172,7 +3172,7 @@ This report synthesizes data from:
 - [DemandSage: ChatGPT Statistics](https://www.demandsage.com/chatgpt-statistics/)
 - [TechCrunch: Google AI Overviews](https://techcrunch.com/2025/07/23/googles-ai-overviews-have-2b-monthly-users-ai-mode-100m-in-the-us-and-india/)
 
-*Want to track your brand's AI visibility? [Get your free AI visibility score](/free-checker) and see where you stand against competitors.*\`
+*Want to track your brand's AI visibility? [Get your free AI visibility score](/free-checker) and see where you stand against competitors.*`
   },
   {
     slug: "ai-visibility-saas-companies-guide",
@@ -3185,7 +3185,7 @@ This report synthesizes data from:
     updatedAt: "2025-01-02T12:00:00Z",
     readTime: 15,
     featured: true,
-    content: \`# AI Visibility for SaaS Companies: Complete AEO Strategy Guide
+    content: `# AI Visibility for SaaS Companies: Complete AEO Strategy Guide
 
 *Last Updated: January 2025*
 
@@ -3566,7 +3566,7 @@ Start with the audit, build your content foundation, and measure relentlessly. T
 - [Conductor AEO/GEO Benchmarks](https://www.conductor.com/academy/aeo-geo-benchmarks-report/) — Industry benchmark data
 - [Profound Citation Analysis](https://www.tryprofound.com/blog/ai-platform-citation-patterns) — What AI platforms cite
 
-*Ready to track your SaaS brand's AI visibility? [Get your free visibility score](/free-checker) and see how you compare to competitors.*\`
+*Ready to track your SaaS brand's AI visibility? [Get your free visibility score](/free-checker) and see how you compare to competitors.*`
   }
 ];
 
