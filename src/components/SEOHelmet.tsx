@@ -113,11 +113,18 @@ export function SEOHelmet({
       {/* Canonical URL */}
       <link rel="canonical" href={fullUrl} />
       
+      {/* Language & Locale */}
+      <meta property="og:locale" content="en_US" />
+      <link rel="alternate" hrefLang="en" href={fullUrl} />
+      <link rel="alternate" hrefLang="x-default" href={fullUrl} />
+      
       {/* Open Graph */}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:url" content={fullUrl} />
       <meta property="og:image" content={fullOgImage} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
       <meta property="og:type" content={ogType} />
       <meta property="og:site_name" content="Llumos" />
       
@@ -139,8 +146,8 @@ export function SEOHelmet({
       <meta name="twitter:image" content={fullOgImage} />
       <meta name="twitter:site" content="@llumos_ai" />
       
-      {/* Robots */}
-      <meta name="robots" content="index, follow" />
+      {/* Robots - Enhanced for rich snippets */}
+      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
 
       {/* JSON-LD Structured Data */}
       {allStructuredData && (
@@ -185,21 +192,25 @@ export const structuredDataGenerators = {
   softwareApplication: () => ({
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
+    "@id": "https://llumos.app/#software",
     name: "Llumos",
     applicationCategory: "BusinessApplication",
+    applicationSubCategory: "AI Search Optimization",
     operatingSystem: "Web",
     offers: {
       "@type": "AggregateOffer",
-      lowPrice: "39",
-      highPrice: "250",
+      lowPrice: "0",
+      highPrice: "599",
       priceCurrency: "USD",
-      offerCount: "3"
+      offerCount: "5"
     },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "4.8",
-      ratingCount: "50"
-    }
+    featureList: [
+      "AI Search Visibility Tracking",
+      "ChatGPT, Gemini, Perplexity Monitoring",
+      "Competitive Analysis",
+      "Citation Tracking",
+      "LLMs.txt Generation"
+    ]
   }),
 
   faqPage: (faqs: Array<{ question: string; answer: string }>) => ({

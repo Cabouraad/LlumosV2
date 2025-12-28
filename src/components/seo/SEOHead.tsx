@@ -33,6 +33,11 @@ export function SEOHead({
       {/* Canonical URL */}
       <link rel="canonical" href={fullUrl} />
       
+      {/* Language & Locale */}
+      <meta property="og:locale" content="en_US" />
+      <link rel="alternate" hrefLang="en" href={fullUrl} />
+      <link rel="alternate" hrefLang="x-default" href={fullUrl} />
+      
       {/* Open Graph / Facebook */}
       <meta property="og:type" content="website" />
       <meta property="og:url" content={fullUrl} />
@@ -52,7 +57,7 @@ export function SEOHead({
       <meta name="twitter:site" content="@llumos_ai" />
       
       {/* Robots */}
-      <meta name="robots" content="index, follow" />
+      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     </Helmet>
   );
 }
