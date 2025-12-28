@@ -71,11 +71,12 @@ export async function getOrgQuotaInfo(supabase: any, userId: string, orgId: stri
     .maybeSingle();
 
   if (!subscriber) {
+    // No subscriber record - treat as Free tier (not Starter)
     return {
-      tier: 'starter' as PlanTier,
-      quotas: getQuotasForTier('starter'),
-      hasAccess: false,
-      reason: 'No subscription found'
+      tier: 'free' as PlanTier,
+      quotas: getQuotasForTier('free'),
+      hasAccess: true, // Free tier has limited access
+      reason: 'Free tier - limited features'
     };
   }
 

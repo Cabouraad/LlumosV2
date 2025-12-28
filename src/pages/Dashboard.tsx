@@ -368,6 +368,7 @@ export default function Dashboard() {
               reason={appAccess.reason || ''}
               isTrialExpired={appAccess.isTrialExpired}
               daysRemainingInTrial={appAccess.daysRemainingInTrial}
+              isFreeTier={limits.isFreeTier}
             />
           </div>
         </div>

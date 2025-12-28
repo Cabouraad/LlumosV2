@@ -9,15 +9,56 @@ interface UpgradePromptProps {
   reason: string;
   isTrialExpired?: boolean;
   daysRemainingInTrial?: number;
+  isFreeTier?: boolean;
 }
 
-export function UpgradePrompt({ feature, reason, isTrialExpired, daysRemainingInTrial }: UpgradePromptProps) {
+export function UpgradePrompt({ feature, reason, isTrialExpired, daysRemainingInTrial, isFreeTier }: UpgradePromptProps) {
   const navigate = useNavigate();
   
   const handleUpgrade = () => {
     // Navigate to pricing page or trigger checkout
     navigate('/pricing');
   };
+
+  // Free tier specific prompt
+  if (isFreeTier) {
+    return (
+      <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Zap className="w-5 h-5 text-blue-600" />
+            <CardTitle className="text-lg text-blue-800 dark:text-blue-300">
+              Unlock More Features
+            </CardTitle>
+            <Badge variant="outline" className="ml-auto border-blue-600 text-blue-700 dark:text-blue-300">
+              Free Plan
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-blue-700 dark:text-blue-300 mb-4">
+            {reason}
+          </p>
+          <div className="text-sm text-blue-600 dark:text-blue-400 mb-4">
+            Upgrade to Starter for just $39/month to unlock:
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>25 prompts tracked daily (vs 5 weekly)</li>
+              <li>ChatGPT + Perplexity tracking</li>
+              <li>Real-time updates</li>
+              <li>7-day free trial included</li>
+            </ul>
+          </div>
+          <Button 
+            onClick={handleUpgrade}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Start Free Trial
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isTrialExpired) {
     return (

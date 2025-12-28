@@ -3,14 +3,16 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getStrictCorsHeaders } from "../_shared/cors.ts";
 
 interface RequestBody {
-  tier: 'starter' | 'growth' | 'pro';
+  tier: 'starter' | 'growth' | 'pro' | 'agency';
   billingCycle: 'monthly' | 'yearly';
 }
 
+// ALIGNED WITH PRICING PAGE - CRITICAL: Keep in sync with src/pages/Pricing.tsx
 const TIER_PRICES = {
-  starter: { monthly: 3900, yearly: 39000 }, // $39/mo, $390/year
-  growth: { monthly: 8900, yearly: 89000 }, // $89/mo, $890/year  
-  pro: { monthly: 25000, yearly: 250000 }, // $250/mo, $2500/year
+  starter: { monthly: 3900, yearly: 39000 },   // $39/mo, $390/year
+  growth: { monthly: 8900, yearly: 89000 },    // $89/mo, $890/year  
+  pro: { monthly: 19900, yearly: 199000 },     // $199/mo, $1990/year (FIXED from $250)
+  agency: { monthly: 39900, yearly: 399000 },  // $399/mo, $3990/year
 };
 
 const generateIdempotencyKey = (userId: string, intent: string): string => {
