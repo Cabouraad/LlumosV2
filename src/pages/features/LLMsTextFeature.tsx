@@ -22,8 +22,7 @@ export default function LLMsTextFeature() {
           </div>
           
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-            Make Your Website
-            <span className="text-primary block mt-2">AI-Readable</span>
+            llms.txt Generator - Make Your Website AI-Readable
           </h1>
           
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">

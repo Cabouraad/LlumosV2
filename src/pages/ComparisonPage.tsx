@@ -55,7 +55,7 @@ const ComparisonPage = () => {
             "@type": "WebPage",
             name: "Llumos vs Enterprise Tools Comparison",
             description: "Compare Llumos with expensive enterprise AI visibility tools",
-            url: "https://llumos.ai/vs-competitors"
+            url: "https://llumos.app/vs-competitors"
           }
         ]}
       />

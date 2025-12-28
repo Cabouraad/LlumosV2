@@ -47,16 +47,16 @@ const Index = () => {
             "@context": "https://schema.org",
             "@type": "Organization",
             name: "Llumos",
-            url: "https://llumos.ai",
-            logo: "https://llumos.ai/logo.png",
+            url: "https://llumos.app",
+            logo: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
             description: "Track and improve your brand's visibility on AI-powered search engines like ChatGPT, Gemini, and Perplexity",
-            sameAs: ["https://twitter.com/llumos_ai"]
+            sameAs: ["https://twitter.com/llumos_ai", "https://linkedin.com/company/llumos"]
           },
           {
             "@context": "https://schema.org",
             "@type": "WebSite",
             name: "Llumos",
-            url: "https://llumos.ai",
+            url: "https://llumos.app",
             description: "AI Search Visibility Tracking Platform"
           },
           {
@@ -66,12 +66,12 @@ const Index = () => {
             applicationCategory: "BusinessApplication",
             operatingSystem: "Cloud/Web",
             description: "AI Search Visibility & GEO Tracking Platform. Track your brand visibility across AI-powered search engines like ChatGPT, Claude, Perplexity, and Google AI Overviews.",
-            url: "https://llumos.ai",
-            image: "https://llumos.ai/og-home.png",
+            url: "https://llumos.app",
+            image: "https://llumos.app/og-home.png",
             author: {
               "@type": "Organization",
               name: "Llumos",
-              url: "https://llumos.ai"
+              url: "https://llumos.app"
             },
             offers: {
               "@type": "Offer",
@@ -79,7 +79,7 @@ const Index = () => {
               priceCurrency: LLUMOS_PRICING.starter.currency,
               priceValidUntil: "2025-12-31",
               availability: "https://schema.org/InStock",
-              url: "https://llumos.ai/pricing"
+              url: "https://llumos.app/pricing"
             },
             featureList: [
               "AI Search Visibility Tracking",

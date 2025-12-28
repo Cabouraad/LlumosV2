@@ -24,7 +24,7 @@ export default function Security() {
       <SEOHead
         title="Security & Trust - Llumos"
         description="Enterprise-grade security for your brand data. Learn about our authentication, data protection, and compliance measures."
-        canonicalUrl="https://llumos.ai/security"
+        canonicalUrl="/security"
       />
 
       {/* Header */}

@@ -55,21 +55,21 @@ export const SoftwareApplicationSchema = ({
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Cloud/Web",
     "description": "AI Search Visibility & GEO Tracking Platform. Track your brand visibility across AI-powered search engines like ChatGPT, Claude, Perplexity, and Google AI Overviews.",
-    "url": "https://llumos.ai",
-    "image": "https://llumos.ai/og-home.png",
-    "screenshot": "https://llumos.ai/screenshot-dashboard.png",
+    "url": "https://llumos.app",
+    "image": "https://llumos.app/og-home.png",
+    "screenshot": "https://llumos.app/screenshot-dashboard.png",
     "author": {
       "@type": "Organization",
       "name": "Llumos",
-      "url": "https://llumos.ai"
+      "url": "https://llumos.app"
     },
     "publisher": {
       "@type": "Organization",
       "name": "Llumos",
-      "url": "https://llumos.ai",
+      "url": "https://llumos.app",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://llumos.ai/logo.png"
+        "url": "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png"
       }
     },
     "offers": {
@@ -78,7 +78,7 @@ export const SoftwareApplicationSchema = ({
       "priceCurrency": currency,
       "priceValidUntil": priceValidUntil,
       "availability": "https://schema.org/InStock",
-      "url": "https://llumos.ai/pricing"
+      "url": "https://llumos.app/pricing"
     },
     "featureList": [
       "AI Search Visibility Tracking",
@@ -126,8 +126,8 @@ export const OrganizationSchema = () => {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Llumos",
-    "url": "https://llumos.ai",
-    "logo": "https://llumos.ai/logo.png",
+    "url": "https://llumos.app",
+    "logo": "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
     "description": "AI Search Visibility & GEO Tracking Platform",
     "foundingDate": "2024",
     "sameAs": [
@@ -137,7 +137,7 @@ export const OrganizationSchema = () => {
     "contactPoint": {
       "@type": "ContactPoint",
       "contactType": "Customer Support",
-      "email": "support@llumos.ai"
+      "email": "support@llumos.app"
     }
   };
 
@@ -159,13 +159,13 @@ export const WebSiteSchema = () => {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Llumos",
-    "url": "https://llumos.ai",
+    "url": "https://llumos.app",
     "description": "Track your brand visibility across AI-powered search engines",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://llumos.ai/search?q={search_term_string}"
+        "urlTemplate": "https://llumos.app/search?q={search_term_string}"
       },
       "query-input": "required name=search_term_string"
     }

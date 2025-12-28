@@ -62,7 +62,7 @@ export const HowToSchema = ({
   tool = 'Llumos AI Visibility Checker',
   estimatedCost = '0',
   currency = 'USD',
-  image = 'https://llumos.ai/og-home.png',
+  image = 'https://llumos.app/og-home.png',
   url,
 }: HowToSchemaProps) => {
   const schema = {
@@ -115,17 +115,17 @@ export const CheckAIScoreHowTo = () => {
     {
       name: 'Enter your domain',
       text: 'Navigate to the Llumos homepage and enter your website domain in the AI Score Checker tool.',
-      imageUrl: 'https://llumos.ai/howto/step1-enter-domain.png'
+      imageUrl: 'https://llumos.app/howto/step1-enter-domain.png'
     },
     {
       name: 'Wait for AI analysis',
       text: 'Llumos queries multiple AI platforms including ChatGPT, Perplexity, and Gemini to analyze your brand visibility.',
-      imageUrl: 'https://llumos.ai/howto/step2-analysis.png'
+      imageUrl: 'https://llumos.app/howto/step2-analysis.png'
     },
     {
       name: 'Review your visibility score',
       text: 'View your AI visibility score and see how often AI search engines recommend your brand vs competitors.',
-      imageUrl: 'https://llumos.ai/howto/step3-results.png'
+      imageUrl: 'https://llumos.app/howto/step3-results.png'
     }
   ];
 
@@ -135,7 +135,7 @@ export const CheckAIScoreHowTo = () => {
       description="Learn how to check your brand's visibility across AI-powered search engines like ChatGPT, Perplexity, and Gemini in under 2 minutes."
       steps={steps}
       totalTime="PT2M"
-      url="https://llumos.ai"
+      url="https://llumos.app"
     />
   );
 };
@@ -169,7 +169,7 @@ export const ImproveAIVisibilityHowTo = () => {
       description="A step-by-step guide to increasing your brand's visibility in AI-powered search engines like ChatGPT and Perplexity."
       steps={steps}
       totalTime="PT30M"
-      url="https://llumos.ai/resources"
+      url="https://llumos.app/resources"
     />
   );
 };
@@ -208,7 +208,7 @@ export const SetupLlumosHowTo = () => {
       steps={steps}
       totalTime="PT5M"
       tool="Llumos Platform"
-      url="https://llumos.ai/signup"
+      url="https://llumos.app/signup"
     />
   );
 };

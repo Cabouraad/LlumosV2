@@ -167,7 +167,7 @@ const ComparisonLandingPage = () => {
   
   const pageTitle = `Llumos vs ${competitor.name}: The Modern Alternative for AI Visibility`;
   const metaDescription = `Compare Llumos against ${competitor.name}. Get the same data for 1/10th of the price. See the full feature breakdown and why marketers are switching.`;
-  const canonicalUrl = `https://llumos.ai/vs/${competitor.slug}`;
+  const canonicalUrl = `https://llumos.app/vs/${competitor.slug}`;
 
   return (
     <>
