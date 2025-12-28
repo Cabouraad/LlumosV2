@@ -107,11 +107,18 @@ export default function GrowthPlan() {
                 <Badge variant="secondary" className="mt-2">Save 17%</Badge>
               </div>
             </div>
-            <Link to="/signup">
-              <Button size="lg" className="text-lg px-8">
-                Get Started <ArrowRight className="ml-2 h-5 w-5" />
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" className="text-lg px-8" asChild>
+                <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" />
+                </a>
               </Button>
-            </Link>
+              <Link to="/signup">
+                <Button size="lg" variant="outline" className="text-lg px-8">
+                  Start Free Trial
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Key Features */}

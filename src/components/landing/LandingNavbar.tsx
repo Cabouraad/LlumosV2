@@ -46,8 +46,18 @@ export function LandingNavbar() {
             </Link>
           </nav>
 
-          {/* CTA Button */}
-          <div className="hidden md:block">
+          {/* CTA Buttons */}
+          <div className="hidden md:flex items-center gap-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-white/20 hover:bg-white/5"
+              asChild
+            >
+              <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                Book a Demo
+              </a>
+            </Button>
             <Button
               size="sm"
               className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 transition-all"
@@ -93,6 +103,16 @@ export function LandingNavbar() {
             >
               Login
             </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-fit"
+              asChild
+            >
+              <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer" onClick={() => setIsMenuOpen(false)}>
+                Book a Demo
+              </a>
+            </Button>
             <Button
               size="sm"
               className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 w-fit"

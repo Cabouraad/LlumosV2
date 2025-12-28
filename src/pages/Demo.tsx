@@ -106,16 +106,27 @@ export default function Demo() {
               <p className="text-xl">
                 Ready to get started with Llumos?
               </p>
-              <Button 
-                size="lg" 
-                asChild
-                className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/25"
-              >
-                <Link to="/signup">
-                  Start 7-Day Free Trial
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button 
+                  size="lg" 
+                  asChild
+                  className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/25"
+                >
+                  <Link to="/signup">
+                    Start 7-Day Free Trial
+                    <ArrowRight className="ml-2 w-4 h-4" />
+                  </Link>
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  asChild
+                >
+                  <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                    Book a Live Demo
+                  </a>
+                </Button>
+              </div>
             </motion.div>
           </div>
         </div>

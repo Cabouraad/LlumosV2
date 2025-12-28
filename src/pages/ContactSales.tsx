@@ -221,6 +221,18 @@ export default function ContactSales() {
                     </ul>
                   </CardContent>
                 </Card>
+
+                <Card className="border-violet-500/20 bg-violet-500/5">
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-3">Prefer to talk now?</p>
+                    <Button size="lg" className="w-full" asChild>
+                      <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                        Book a Demo Call
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Right Column - Form */}

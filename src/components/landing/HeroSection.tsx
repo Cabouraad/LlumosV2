@@ -151,9 +151,19 @@ export function HeroSection() {
               </div>
             </form>
 
-            <p className="text-sm text-muted-foreground">
-              Trusted by 500+ brands • Free analysis • No credit card required
-            </p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                Trusted by 500+ brands • Free analysis
+              </p>
+              <a 
+                href="https://calendly.com/llumos-info/llumos-demo" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-4"
+              >
+                Or book a live demo →
+              </a>
+            </div>
           </motion.div>
 
           {/* Right content - Mock Chat */}

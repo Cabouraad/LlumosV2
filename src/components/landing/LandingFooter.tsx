@@ -32,6 +32,9 @@ export function LandingFooter() {
               <Link to="/demo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Demo
               </Link>
+              <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Book a Demo
+              </a>
               <Link to="/resources" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Resources
               </Link>
