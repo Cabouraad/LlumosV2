@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileText, Bot, Zap, CheckCircle2, Code, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 export default function LLMsTextFeature() {
   return (
@@ -297,6 +298,9 @@ productivity tools, workflow automation`}
             <Link to="/llms-txt">Get Started</Link>
           </Button>
         </section>
+
+        {/* Related Features */}
+        <RelatedFeatures currentFeature="/features/llms-txt" />
       </div>
     </Layout>
   );

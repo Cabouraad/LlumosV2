@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import actionableRecommendationsHero from '@/assets/actionable-recommendations-hero.jpg';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 const ActionableRecommendations = () => {
   return (
@@ -418,6 +419,9 @@ const ActionableRecommendations = () => {
           </p>
         </div>
       </section>
+
+      {/* Related Features */}
+      <RelatedFeatures currentFeature="/features/actionable-recommendations" />
 
       {/* Footer */}
       <footer className="py-12 px-4 border-t bg-background">

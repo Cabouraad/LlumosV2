@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import competitiveAnalysisHero from '@/assets/competitive-analysis-hero.jpg';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 const CompetitiveAnalysis = () => {
   return (
@@ -413,6 +414,9 @@ const CompetitiveAnalysis = () => {
           </p>
         </div>
       </section>
+
+      {/* Related Features */}
+      <RelatedFeatures currentFeature="/features/competitive-analysis" />
 
       {/* Footer */}
       <footer className="py-12 px-4 border-t bg-background">
