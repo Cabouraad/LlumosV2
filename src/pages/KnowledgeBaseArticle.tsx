@@ -29,12 +29,12 @@ interface TocItem {
 const articleSEO: ArticleSEOProps = {
   title: "What is GEO? The Complete Guide to Generative Engine Optimization (2025)",
   metaDescription: "Learn how to rank in AI search engines like ChatGPT, Perplexity, and Gemini. A comprehensive guide to Generative Engine Optimization (GEO) for modern brands.",
-  canonicalUrl: "https://llumos.ai/knowledge/geo-guide",
+  canonicalUrl: "https://llumos.app/knowledge/geo-guide",
   keywords: "Generative Engine Optimization, GEO, AEO marketing, AI search ranking factors, Optimize for ChatGPT, Google SGE strategy",
   author: "Llumos Team",
   publishedDate: "2025-01-01",
   modifiedDate: "2025-06-05",
-  ogImage: "https://llumos.ai/og-geo-guide.png"
+  ogImage: "https://llumos.app/og-geo-guide.png"
 };
 
 // Key takeaways
@@ -69,14 +69,14 @@ const generateArticleSchema = (seo: ArticleSEOProps) => ({
   "author": {
     "@type": "Organization",
     "name": seo.author || "Llumos",
-    "url": "https://llumos.ai"
+    "url": "https://llumos.app"
   },
   "publisher": {
     "@type": "Organization",
     "name": "Llumos",
     "logo": {
       "@type": "ImageObject",
-      "url": "https://llumos.ai/logo.png"
+      "url": "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png"
     }
   },
   "datePublished": seo.publishedDate,

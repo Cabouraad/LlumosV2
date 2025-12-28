@@ -114,19 +114,19 @@ const breadcrumbData = {
       "@type": "ListItem",
       "position": 1,
       "name": "Home",
-      "item": "https://llumos.ai"
+      "item": "https://llumos.app"
     },
     {
       "@type": "ListItem",
       "position": 2,
       "name": "Features",
-      "item": "https://llumos.ai/features"
+      "item": "https://llumos.app/features"
     },
     {
       "@type": "ListItem",
       "position": 3,
       "name": "Content Studio",
-      "item": "https://llumos.ai/features/content-studio"
+      "item": "https://llumos.app/features/content-studio"
     }
   ]
 };
@@ -236,18 +236,18 @@ export default function ContentStudioFeature() {
         <title>Content Studio for AEO & GEO | AI Search Content Optimization | Llumos</title>
         <meta name="description" content="Create AI-optimized content with Llumos Content Studio. Features inline AI editing, real-time SEO scoring, WordPress integration, content templates, and auto-save. Master Answer Engine Optimization (AEO) and Generative Engine Optimization (GEO)." />
         <meta name="keywords" content="AEO, Answer Engine Optimization, GEO, Generative Engine Optimization, AI content, AI search optimization, ChatGPT SEO, AI visibility, content studio, AI content strategy, WordPress publishing, SEO scoring, content templates" />
-        <link rel="canonical" href="https://llumos.ai/features/content-studio" />
+        <link rel="canonical" href="https://llumos.app/features/content-studio" />
         
         <meta property="og:title" content="Content Studio for AEO & GEO | AI Search Content Optimization" />
         <meta property="og:description" content="Create content that ranks in AI search engines. Features inline AI editing, real-time SEO scoring, WordPress integration, and more. Master Answer Engine Optimization and Generative Engine Optimization with Llumos Content Studio." />
-        <meta property="og:url" content="https://llumos.ai/features/content-studio" />
+        <meta property="og:url" content="https://llumos.app/features/content-studio" />
         <meta property="og:type" content="website" />
-        <meta property="og:image" content="https://llumos.ai/og-content-studio.png" />
+        <meta property="og:image" content="https://llumos.app/og-content-studio.png" />
         
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Content Studio for AEO & GEO | Llumos" />
         <meta name="twitter:description" content="Create AI-optimized content with inline editing, SEO scoring, WordPress integration, and content templates." />
-        <meta name="twitter:image" content="https://llumos.ai/og-content-studio.png" />
+        <meta name="twitter:image" content="https://llumos.app/og-content-studio.png" />
         
         <meta name="robots" content="index, follow" />
         

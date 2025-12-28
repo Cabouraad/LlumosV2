@@ -27,7 +27,7 @@ export function SEOHelmet({
   schemaType,
   structuredData
 }: SEOHelmetProps) {
-  const baseUrl = 'https://llumos.ai';
+  const baseUrl = 'https://llumos.app';
   const fullUrl = `${baseUrl}${canonicalPath}`;
   const fullTitle = `${title} | Llumos - AI Search Visibility Tracking`;
   const fullOgImage = ogImage.startsWith('http') ? ogImage : `${baseUrl}${ogImage}`;
@@ -55,12 +55,12 @@ export function SEOHelmet({
             "@type": "Organization",
             name: "Llumos",
             logo: {
-              "@type": "ImageObject",
-              url: `${baseUrl}/logo.png`,
-              width: 200,
-              height: 60
-            }
-          },
+            "@type": "ImageObject",
+            url: `${baseUrl}/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png`,
+            width: 200,
+            height: 60
+          }
+        },
           mainEntityOfPage: {
             "@type": "WebPage",
             "@id": fullUrl
@@ -158,8 +158,8 @@ export const structuredDataGenerators = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Llumos",
-    url: "https://llumos.ai",
-    logo: "https://llumos.ai/logo.png",
+    url: "https://llumos.app",
+    logo: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
     description: "Track and improve your brand's visibility on AI-powered search engines like ChatGPT, Gemini, and Perplexity",
     sameAs: [
       "https://twitter.com/llumos_ai"
@@ -170,14 +170,14 @@ export const structuredDataGenerators = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Llumos",
-    url: "https://llumos.ai",
+    url: "https://llumos.app",
     description: "AI Search Visibility Tracking Platform",
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: "https://llumos.ai/search?q={search_term_string}"
-      },
+          urlTemplate: "https://llumos.app/search?q={search_term_string}"
+        },
       "query-input": "required name=search_term_string"
     }
   }),
@@ -240,7 +240,7 @@ export const structuredDataGenerators = {
       "@type": "ListItem",
       position: index + 1,
       name: item.name,
-      item: `https://llumos.ai${item.url}`
+      item: `https://llumos.app${item.url}`
     }))
   }),
 
@@ -263,14 +263,14 @@ export const structuredDataGenerators = {
     author: {
       "@type": "Person",
       name: props.authorName || "Llumos",
-      url: "https://llumos.ai"
+      url: "https://llumos.app"
     },
     publisher: {
       "@type": "Organization",
       name: "Llumos",
       logo: {
         "@type": "ImageObject",
-        url: "https://llumos.ai/logo.png",
+        url: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
         width: 200,
         height: 60
       }

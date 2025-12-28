@@ -27,7 +27,7 @@ export function generateMetaTags({
   articleSection,
   articleTags = []
 }: MetaTagsProps) {
-  const baseUrl = "https://llumos.ai";
+  const baseUrl = "https://llumos.app";
   const fullCanonicalUrl = canonicalUrl ? `${baseUrl}${canonicalUrl}` : baseUrl;
   const fullOgImage = ogImage.startsWith('http') ? ogImage : `${baseUrl}${ogImage}`;
 
@@ -89,7 +89,7 @@ export function generateStructuredData(type: 'Article' | 'Organization' | 'WebSi
           name: "Llumos",
           logo: {
             "@type": "ImageObject",
-            url: "https://llumos.ai/logo.png"
+            url: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png"
           }
         },
         datePublished: data.datePublished,
@@ -104,8 +104,8 @@ export function generateStructuredData(type: 'Article' | 'Organization' | 'WebSi
       return {
         ...baseStructuredData,
         name: "Llumos",
-        url: "https://llumos.ai",
-        logo: "https://llumos.ai/logo.png",
+        url: "https://llumos.app",
+        logo: "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
         description: "The simplest way to track and increase your brand visibility on AI-powered search engines",
         sameAs: [
           "https://twitter.com/llumos_ai"
@@ -116,13 +116,13 @@ export function generateStructuredData(type: 'Article' | 'Organization' | 'WebSi
       return {
         ...baseStructuredData,
         name: "Llumos",
-        url: "https://llumos.ai",
+        url: "https://llumos.app",
         description: "Track your brand visibility across AI-powered search engines like ChatGPT, Claude, and Perplexity",
         potentialAction: {
           "@type": "SearchAction",
           target: {
             "@type": "EntryPoint",
-            urlTemplate: "https://llumos.ai/search?q={search_term_string}"
+            urlTemplate: "https://llumos.app/search?q={search_term_string}"
           },
           "query-input": "required name=search_term_string"
         }
@@ -141,7 +141,7 @@ export function createBreadcrumbStructuredData(items: Array<{name: string, url: 
       "@type": "ListItem",
       position: index + 1,
       name: item.name,
-      item: `https://llumos.ai${item.url}`
+      item: `https://llumos.app${item.url}`
     }))
   };
 }

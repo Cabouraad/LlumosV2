@@ -27,7 +27,7 @@ const ActionableRecommendations = () => {
         <meta property="og:title" content="Actionable Recommendations - AI Search Optimization Guide" />
         <meta property="og:description" content="Skip the guesswork. Get specific, prioritized actions you can implement today to improve your AI search rankings." />
         <meta property="og:image" content={actionableRecommendationsHero} />
-        <link rel="canonical" href="https://llumos.ai/features/actionable-recommendations" />
+        <link rel="canonical" href="https://llumos.app/features/actionable-recommendations" />
       </Helmet>
 
       {/* Header */}
