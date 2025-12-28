@@ -1,19 +1,29 @@
 import { Helmet } from 'react-helmet-async';
 
-// Pricing configuration - can be imported from a central config
+// Pricing configuration - centralized for use across the app
 export const LLUMOS_PRICING = {
+  free: {
+    price: 0,
+    currency: 'USD',
+    period: 'month',
+  },
   starter: {
     price: 39,
     currency: 'USD',
     period: 'month',
   },
   growth: {
-    price: 99,
+    price: 89,
+    currency: 'USD',
+    period: 'month',
+  },
+  pro: {
+    price: 199,
     currency: 'USD',
     period: 'month',
   },
   agency: {
-    price: 149,
+    price: 399,
     currency: 'USD',
     period: 'month',
   },
@@ -118,88 +128,22 @@ export const SoftwareApplicationSchema = ({
 };
 
 /**
- * Organization Schema Component
- * Helps establish Llumos as a recognized entity
- */
-export const OrganizationSchema = () => {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Llumos",
-    "url": "https://llumos.app",
-    "logo": "https://llumos.app/lovable-uploads/a3631033-2657-4c97-8fd8-079913859ab0.png",
-    "description": "AI Search Visibility & GEO Tracking Platform",
-    "foundingDate": "2024",
-    "sameAs": [
-      "https://twitter.com/llumos_ai",
-      "https://linkedin.com/company/llumos"
-    ],
-    "contactPoint": {
-      "@type": "ContactPoint",
-      "contactType": "Customer Support",
-      "email": "support@llumos.app"
-    }
-  };
-
-  return (
-    <Helmet>
-      <script type="application/ld+json">
-        {JSON.stringify(schema)}
-      </script>
-    </Helmet>
-  );
-};
-
-/**
- * WebSite Schema Component
- * Helps with sitelinks search box in Google
- */
-export const WebSiteSchema = () => {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "Llumos",
-    "url": "https://llumos.app",
-    "description": "Track your brand visibility across AI-powered search engines",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": {
-        "@type": "EntryPoint",
-        "urlTemplate": "https://llumos.app/search?q={search_term_string}"
-      },
-      "query-input": "required name=search_term_string"
-    }
-  };
-
-  return (
-    <Helmet>
-      <script type="application/ld+json">
-        {JSON.stringify(schema)}
-      </script>
-    </Helmet>
-  );
-};
-
-/**
  * Combined Landing Page Schema
  * Use this on the main landing page for comprehensive SEO
+ * Note: Organization and WebSite schemas are now separate components for better reusability
  */
 export const LandingPageSchema = () => {
   return (
-    <>
-      <SoftwareApplicationSchema 
-        price={LLUMOS_PRICING.starter.price}
-        currency={LLUMOS_PRICING.starter.currency}
-        priceValidUntil="2025-12-31"
-        // Uncomment when you have verified reviews:
-        // aggregateRating={{
-        //   ratingValue: 4.8,
-        //   reviewCount: 127,
-        // }}
-      />
-      <OrganizationSchema />
-      <WebSiteSchema />
-    </>
+    <SoftwareApplicationSchema 
+      price={LLUMOS_PRICING.starter.price}
+      currency={LLUMOS_PRICING.starter.currency}
+      priceValidUntil="2025-12-31"
+      // Uncomment when you have verified reviews:
+      // aggregateRating={{
+      //   ratingValue: 4.8,
+      //   reviewCount: 127,
+      // }}
+    />
   );
 };
 

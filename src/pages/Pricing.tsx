@@ -15,6 +15,7 @@ import { FeatureComparisonTable } from '@/components/pricing/FeatureComparisonTa
 import { SEOHelmet } from '@/components/SEOHelmet';
 import { Footer } from '@/components/Footer';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { ProductSchema } from '@/components/seo/ProductSchema';
 import { Play } from 'lucide-react';
 
 export default function Pricing() {
@@ -176,29 +177,19 @@ export default function Pricing() {
         structuredData={[
           {
             "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            name: "Llumos",
-            applicationCategory: "BusinessApplication",
-            operatingSystem: "Web",
-            offers: [
-              { "@type": "Offer", name: "Starter", price: "39", priceCurrency: "USD", description: "For small companies tracking AI visibility" },
-              { "@type": "Offer", name: "Growth", price: "89", priceCurrency: "USD", description: "For growing companies needing deeper insights" },
-              { "@type": "Offer", name: "Pro", price: "199", priceCurrency: "USD", description: "For teams managing multiple brands" },
-              { "@type": "Offer", name: "Agency", price: "399", priceCurrency: "USD", description: "For agencies and enterprises" }
-            ]
-          },
-          {
-            "@context": "https://schema.org",
             "@type": "FAQPage",
             mainEntity: [
               { "@type": "Question", name: "Do you offer a free trial?", acceptedAnswer: { "@type": "Answer", text: "Yes! The Starter plan includes a 7-day free trial. You'll need to provide a payment method, but you won't be charged until your trial period ends." } },
               { "@type": "Question", name: "Can I change plans anytime?", acceptedAnswer: { "@type": "Answer", text: "Yes! You can upgrade or downgrade your plan at any time. Changes take effect at your next billing cycle." } },
               { "@type": "Question", name: "What AI providers do you support?", acceptedAnswer: { "@type": "Answer", text: "We support OpenAI (ChatGPT), Perplexity AI, Google Gemini, and Google AI Overviews." } },
-              { "@type": "Question", name: "How do I cancel my subscription?", acceptedAnswer: { "@type": "Answer", text: "You can cancel anytime from your account settings. If you cancel during your trial, you won't be charged at all." } }
+              { "@type": "Question", name: "How do I cancel my subscription?", acceptedAnswer: { "@type": "Answer", text: "You can cancel anytime from your account settings. If you cancel during your trial, you won't be charged at all." } },
+              { "@type": "Question", name: "Is there a free plan?", acceptedAnswer: { "@type": "Answer", text: "Yes! Our Free plan lets you track 5 prompts weekly with basic visibility data on ChatGPT. It's perfect for exploring how AI recommends your brand." } },
+              { "@type": "Question", name: "What payment methods do you accept?", acceptedAnswer: { "@type": "Answer", text: "We accept all major credit cards including Visa, MasterCard, American Express, and Discover. Payments are processed securely through Stripe." } }
             ]
           }
         ]}
       />
+      <ProductSchema />
       <div className="min-h-screen bg-gradient-bg">
       {/* Standalone Header */}
       <header className="border-b border-border/30 bg-card/30 backdrop-blur-sm">
