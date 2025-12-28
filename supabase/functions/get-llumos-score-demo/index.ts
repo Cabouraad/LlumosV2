@@ -60,8 +60,12 @@ Deno.serve(async (req) => {
     console.log('Analyzing domain:', cleanDomain);
 
     // Fetch website content with improved error handling and multiple strategies
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+
     let websiteContent = '';
     let fetchError: string | null = null;
+    let contentSource: 'direct' | 'firecrawl' | 'none' = 'none';
+
     let metaData = {
       title: '',
       description: '',
@@ -75,6 +79,15 @@ Deno.serve(async (req) => {
       ogTags: {} as Record<string, string>,
     };
 
+    const normalizeText = (text: string, limit = 15000) =>
+      text
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, limit);
+
+    const computeWordCount = (text: string) =>
+      text.split(/\s+/).filter((w) => w.length > 2).length;
+
     // User agents to try - some sites block bots but allow browsers
     const userAgents = [
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -82,14 +95,15 @@ Deno.serve(async (req) => {
       'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     ];
 
+    // 1) Try direct fetch first (fastest)
     for (const userAgent of userAgents) {
       try {
         const startTime = Date.now();
         const url = `https://${cleanDomain}`;
-        
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // Increased to 20s
-        
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s
+
         const response = await fetch(url, {
           headers: {
             'User-Agent': userAgent,
@@ -102,30 +116,32 @@ Deno.serve(async (req) => {
           signal: controller.signal,
           redirect: 'follow',
         });
-        
+
         clearTimeout(timeoutId);
         metaData.responseTime = Date.now() - startTime;
         metaData.hasSSL = url.startsWith('https');
-        
+
         if (response.ok) {
           const html = await response.text();
-          
+
           // Extract meta title
           const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
           metaData.title = titleMatch ? titleMatch[1].trim().slice(0, 200) : '';
-          
+
           // Extract meta description
-          const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
-                           html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
+          const descMatch =
+            html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
+            html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
           metaData.description = descMatch ? descMatch[1].trim().slice(0, 500) : '';
-          
+
           // Extract OG tags for better context
           const ogMatches = html.matchAll(/<meta[^>]*property=["']og:([^"']+)["'][^>]*content=["']([^"']*)["']/gi);
           for (const match of ogMatches) {
             metaData.ogTags[match[1]] = match[2].slice(0, 200);
           }
-          
+
           // Extract headings for content structure analysis
+          metaData.headings = [];
           const h1Matches = html.matchAll(/<h1[^>]*>([^<]*)<\/h1>/gi);
           const h2Matches = html.matchAll(/<h2[^>]*>([^<]*)<\/h2>/gi);
           for (const match of h1Matches) {
@@ -136,18 +152,17 @@ Deno.serve(async (req) => {
               metaData.headings.push(`H2: ${match[1].trim().slice(0, 100)}`);
             }
           }
-          
+
           // Count links and images
           metaData.links = (html.match(/<a\s/gi) || []).length;
           metaData.images = (html.match(/<img\s/gi) || []).length;
-          
+
           // Check for structured data
-          metaData.hasStructuredData = html.includes('application/ld+json') || 
-                                        html.includes('itemtype="http://schema.org');
-          
+          metaData.hasStructuredData = html.includes('application/ld+json') || html.includes('itemtype="http://schema.org');
+
           // Extract main content more intelligently
           let contentHtml = html;
-          
+
           // Remove script, style, nav, footer, header tags
           contentHtml = contentHtml
             .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -157,31 +172,34 @@ Deno.serve(async (req) => {
             .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
             .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '')
             .replace(/<!--[\s\S]*?-->/g, '');
-          
+
           // Try to find main content area
-          const mainMatch = contentHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
-                           contentHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                           contentHtml.match(/<div[^>]*class=["'][^"']*(?:content|main|body)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-          
+          const mainMatch =
+            contentHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+            contentHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+            contentHtml.match(/<div[^>]*class=["'][^"']*(?:content|main|body)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+
           const contentToAnalyze = mainMatch ? mainMatch[1] : contentHtml;
-          
+
           // Extract clean text
-          websiteContent = contentToAnalyze
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 15000); // Increased limit for better analysis
-          
-          metaData.wordCount = websiteContent.split(/\s+/).filter(w => w.length > 2).length;
-          
-          console.log(`Fetched ${websiteContent.length} chars, ${metaData.wordCount} words from ${cleanDomain} in ${metaData.responseTime}ms with UA: ${userAgent.slice(0, 30)}...`);
+          websiteContent = normalizeText(
+            contentToAnalyze
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+          );
+
+          metaData.wordCount = computeWordCount(websiteContent);
+
+          console.log(
+            `Fetched ${websiteContent.length} chars, ${metaData.wordCount} words from ${cleanDomain} in ${metaData.responseTime}ms with UA: ${userAgent.slice(0, 30)}...`
+          );
           fetchError = null;
+          contentSource = 'direct';
           break; // Success, exit loop
         } else {
           fetchError = `HTTP ${response.status}: ${response.statusText}`;
@@ -198,8 +216,90 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 2) If blocked/timeout, fall back to Firecrawl (more reliable against bot protection)
+    if ((websiteContent.length < 300 || fetchError) && FIRECRAWL_API_KEY) {
+      try {
+        const startTime = Date.now();
+        const url = `https://${cleanDomain}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        console.log(`[Firecrawl] Scraping ${url}...`);
+
+        const fcResp = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            url,
+            formats: ['markdown', 'html'],
+            onlyMainContent: true,
+          }),
+        });
+
+        clearTimeout(timeoutId);
+
+        const fcJson = await fcResp.json().catch(() => ({}));
+        if (!fcResp.ok) {
+          const err = (fcJson as any)?.error || `Firecrawl error (HTTP ${fcResp.status})`;
+          throw new Error(err);
+        }
+
+        const fcData = (fcJson as any)?.data ?? fcJson;
+        const markdown = (fcData?.markdown as string | undefined) || '';
+        const html = (fcData?.html as string | undefined) || '';
+        const fcMeta = (fcData?.metadata as Record<string, any> | undefined) || {};
+
+        const rawText = markdown
+          ? markdown.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+          : html.replace(/<[^>]+>/g, ' ');
+
+        const normalized = normalizeText(rawText);
+
+        if (normalized.length > 300) {
+          websiteContent = normalized;
+          metaData.responseTime = Date.now() - startTime;
+          metaData.title = (fcMeta.title || metaData.title || '').toString().slice(0, 200);
+          metaData.description = (fcMeta.description || metaData.description || '').toString().slice(0, 500);
+          metaData.wordCount = computeWordCount(websiteContent);
+
+          // Basic link/image counts from markdown (best-effort)
+          metaData.links = markdown ? (markdown.match(/\]\((https?:\/\/[^)]+)\)/g) || []).length : metaData.links;
+          metaData.images = markdown ? (markdown.match(/!\[[^\]]*\]\(([^)]+)\)/g) || []).length : metaData.images;
+
+          // Headings from markdown
+          metaData.headings = [];
+          if (markdown) {
+            const headingLines = markdown
+              .split('\n')
+              .map((l) => l.trim())
+              .filter((l) => /^#{1,2}\s+/.test(l))
+              .slice(0, 10);
+            for (const h of headingLines) {
+              const level = h.startsWith('##') ? 'H2' : 'H1';
+              metaData.headings.push(`${level}: ${h.replace(/^#{1,2}\s+/, '').slice(0, 100)}`);
+            }
+          }
+
+          fetchError = null;
+          contentSource = 'firecrawl';
+          console.log(`[Firecrawl] Success: ${websiteContent.length} chars, ${metaData.wordCount} words`);
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Unknown Firecrawl error';
+        console.log(`[Firecrawl] Failed: ${msg}`);
+        // Keep prior fetchError (direct fetch) if it exists; otherwise store Firecrawl error.
+        fetchError = fetchError || msg;
+      }
+    }
+
     if (fetchError) {
       console.log(`All fetch attempts failed for ${cleanDomain}: ${fetchError}`);
+      contentSource = 'none';
     }
 
     // If we couldn't fetch content, use AI with just domain info
@@ -209,10 +309,11 @@ Deno.serve(async (req) => {
     }
 
     const contentAvailable = websiteContent.length > 100;
-    
+
     // Build comprehensive metadata summary
     const metadataSummary = `
 DOMAIN: ${cleanDomain}
+CONTENT SOURCE: ${contentSource}
 METADATA:
 - Title: ${metaData.title || 'Not found'}
 - Description: ${metaData.description || 'Not found'}
