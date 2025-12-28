@@ -6,3 +6,5 @@ export { ProductSchema } from './ProductSchema';
 export { HowToSchema } from './HowToSchema';
 export { default as FAQSection } from './FAQSection';
 export { SEOHead } from './SEOHead';
+export { RelatedFeatures } from './RelatedFeatures';
+export { RelatedArticles } from './RelatedArticles';

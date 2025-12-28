@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import brandVisibilityHero from '@/assets/brand-visibility-hero.jpg';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 const BrandVisibility = () => {
   return (
@@ -361,7 +362,8 @@ const BrandVisibility = () => {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Related Features */}
+      <RelatedFeatures currentFeature="/features/brand-visibility" />
       <footer className="py-12 px-4 border-t bg-background">
         <div className="container mx-auto max-w-4xl text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">

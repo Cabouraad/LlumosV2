@@ -31,6 +31,7 @@ import {
   LayoutTemplate,
   Save
 } from 'lucide-react';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -755,6 +756,9 @@ export default function ContentStudioFeature() {
             </div>
           </div>
         </section>
+
+        {/* Related Features */}
+        <RelatedFeatures currentFeature="/features/content-studio" />
 
         {/* Footer */}
         <footer className="py-12 px-4 border-t border-border">

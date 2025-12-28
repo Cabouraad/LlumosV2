@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Target, TrendingUp, FileText, BarChart3, Globe, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 
 export default function CitationAnalysisFeature() {
   return (
@@ -261,6 +262,9 @@ export default function CitationAnalysisFeature() {
             <Link to="/signup">Get Started Free</Link>
           </Button>
         </section>
+
+        {/* Related Features */}
+        <RelatedFeatures currentFeature="/features/citation-analysis" />
       </div>
     </Layout>
   );
