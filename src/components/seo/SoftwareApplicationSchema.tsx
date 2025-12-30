@@ -8,17 +8,17 @@ export const LLUMOS_PRICING = {
     period: 'month',
   },
   starter: {
-    price: 39,
+    price: 49,
     currency: 'USD',
     period: 'month',
   },
   growth: {
-    price: 89,
+    price: 99,
     currency: 'USD',
     period: 'month',
   },
   pro: {
-    price: 199,
+    price: 225,
     currency: 'USD',
     period: 'month',
   },

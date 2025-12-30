@@ -87,18 +87,18 @@ export function FeatureComparisonTable() {
                 </th>
                 <th className="text-center p-4 font-semibold">
                   <div>Starter</div>
-                  <Badge variant="outline" className="mt-1 text-xs">$39/mo</Badge>
+                  <Badge variant="outline" className="mt-1 text-xs">$49/mo</Badge>
                 </th>
                 <th className="text-center p-4 font-semibold bg-primary/5">
                   <div>Growth</div>
                   <div className="flex items-center justify-center gap-1 mt-1">
                     <Badge className="text-xs">Most Popular</Badge>
-                    <Badge variant="outline" className="text-xs">$89/mo</Badge>
+                    <Badge variant="outline" className="text-xs">$99/mo</Badge>
                   </div>
                 </th>
                 <th className="text-center p-4 font-semibold">
                   <div>Pro</div>
-                  <Badge variant="outline" className="mt-1 text-xs">$199/mo</Badge>
+                  <Badge variant="outline" className="mt-1 text-xs">$225/mo</Badge>
                 </th>
                 <th className="text-center p-4 font-semibold">
                   <div>Agency</div>

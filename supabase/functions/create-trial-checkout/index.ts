@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
               name: "Llumos Starter Plan",
               description: "Starter tier subscription for Llumos AI Search Optimization"
             },
-            unit_amount: 3900, // $39/month
+            unit_amount: 4900, // $49/month
             recurring: { 
               interval: 'month'
             },

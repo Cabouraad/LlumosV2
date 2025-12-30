@@ -50,7 +50,7 @@ export default function StarterPlan() {
     <>
       <SEOHelmet
         title="Starter Plan - AI Search Visibility for Small Businesses"
-        description="Start tracking your AI search visibility with our Starter plan. Monitor ChatGPT and Perplexity AI with 25 daily prompts. $39/month with 7-day free trial."
+        description="Start tracking your AI search visibility with our Starter plan. Monitor ChatGPT and Perplexity AI with 25 daily prompts. $49/month with 7-day free trial."
         keywords="starter plan, AI search tracking, ChatGPT monitoring, small business AI SEO"
         canonicalPath="/plans/starter"
       />
@@ -82,12 +82,12 @@ export default function StarterPlan() {
             </p>
             <div className="flex items-center justify-center gap-4 mb-8">
               <div className="text-center">
-                <div className="text-5xl font-bold">$39</div>
+                <div className="text-5xl font-bold">$49</div>
                 <div className="text-muted-foreground">per month</div>
               </div>
               <div className="text-muted-foreground">or</div>
               <div className="text-center">
-                <div className="text-5xl font-bold">$390</div>
+                <div className="text-5xl font-bold">$490</div>
                 <div className="text-muted-foreground">per year</div>
                 <Badge variant="secondary" className="mt-2">Save 17%</Badge>
               </div>

@@ -79,7 +79,7 @@ export function CompetitorComparison() {
                 Free<span className="text-base font-normal text-muted-foreground"> to start</span>
               </div>
               <p className="text-sm text-primary font-semibold">
-                Paid plans from $39/mo
+                Paid plans from $49/mo
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
