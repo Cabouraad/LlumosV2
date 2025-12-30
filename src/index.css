@@ -237,65 +237,52 @@
 }
 
 /* HubSpot form styling */
-.hubspot-form-container,
-.hubspot-embedded-form {
+.hubspot-form-container {
   min-height: 150px;
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  background: hsl(var(--card) / 0.96);
+  border: 1px solid hsl(var(--border) / 0.7);
 }
 
-.hubspot-form-container form,
-.hubspot-embedded-form form {
+.hubspot-form-container form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.hubspot-form-container .hs-form-field,
-.hubspot-embedded-form .hs-form-field {
+.hubspot-form-container .hs-form-field {
   margin-bottom: 0.75rem;
 }
 
-/* Ensure HubSpot embed doesn't inject light-on-dark dimmed defaults */
-.hubspot-form-container .hs-form *,
-.hubspot-embedded-form .hs-form * {
-  text-shadow: none;
-  color: hsl(0 0% 100%) !important;
+/* Prefer dark text (HubSpot defaults) since we're rendering on a light surface */
+.hubspot-form-container .hs-form-field > label,
+.hubspot-form-container .hs-form-field label,
+.hubspot-form-container .hs-form label,
+.hubspot-form-container .hs-form legend,
+.hubspot-form-container .hs-richtext,
+.hubspot-form-container .hs-richtext * {
+  color: hsl(var(--foreground)) !important;
   opacity: 1 !important;
 }
 
-/* Keep form controls readable */
-.hubspot-form-container .hs-form input,
-.hubspot-form-container .hs-form textarea,
-.hubspot-form-container .hs-form select,
-.hubspot-embedded-form .hs-form input,
-.hubspot-embedded-form .hs-form textarea,
-.hubspot-embedded-form .hs-form select {
-  color: hsl(var(--foreground)) !important;
-}
-
-.hubspot-form-container .hs-form input::placeholder,
-.hubspot-form-container .hs-form textarea::placeholder,
-.hubspot-embedded-form .hs-form input::placeholder,
-.hubspot-embedded-form .hs-form textarea::placeholder {
-  color: hsl(var(--muted-foreground)) !important;
-}
-
-.hubspot-form-container .hs-richtext,
-.hubspot-embedded-form .hs-richtext {
+.hubspot-form-container .hs-richtext {
   font-weight: 600;
 }
 
-.hubspot-form-container .hs-form-required,
-.hubspot-embedded-form .hs-form-required {
+.hubspot-form-container .hs-form-required {
   color: hsl(var(--destructive)) !important;
 }
 
-.hubspot-form-container .hs-error-msgs,
-.hubspot-form-container .hs-error-msgs *,
-.hubspot-embedded-form .hs-error-msgs,
-.hubspot-embedded-form .hs-error-msgs * {
-  color: hsl(var(--destructive)) !important;
+.hubspot-form-container .hs-error-msgs {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: hsl(var(--destructive));
 }
 
+.hubspot-form-container .hs-error-msgs li {
+  list-style: none;
+}
 
 .hubspot-form-container input[type="text"],
 .hubspot-form-container input[type="email"],
@@ -341,16 +328,6 @@
 .hubspot-form-container .hs-button:hover {
   opacity: 0.9;
   transform: translateY(-1px);
-}
-
-.hubspot-form-container .hs-error-msgs {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: hsl(var(--destructive));
-}
-
-.hubspot-form-container .hs-error-msgs li {
-  list-style: none;
 }
 
 .hubspot-form-container .submitted-message {
