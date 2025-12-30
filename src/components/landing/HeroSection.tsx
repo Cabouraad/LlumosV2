@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { LiveStats } from './LiveStats';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { HubSpotForm, HUBSPOT_CONFIG } from '@/components/hubspot/HubSpotForm';
+import { HubSpotForm, HUBSPOT_CONFIG, preloadHubSpotForms } from '@/components/hubspot/HubSpotForm';
 
 export function HeroSection() {
   const [url, setUrl] = useState('');
@@ -16,6 +16,11 @@ export function HeroSection() {
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
   const [cleanedDomain, setCleanedDomain] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Preload HubSpot so the gated form appears quickly
+    preloadHubSpotForms();
+  }, []);
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +214,7 @@ export function HeroSection() {
             <HubSpotForm
               portalId={HUBSPOT_CONFIG.portalId}
               formId={HUBSPOT_CONFIG.forms.hero}
+              region={HUBSPOT_CONFIG.region}
               onFormSubmit={handleHubSpotSubmit}
               className="hubspot-form-container"
             />

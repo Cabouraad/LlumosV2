@@ -131,6 +131,7 @@ export function ExitIntentPopup() {
               <HubSpotForm
                 portalId={HUBSPOT_CONFIG.portalId}
                 formId={HUBSPOT_CONFIG.forms.exitIntent}
+                region={HUBSPOT_CONFIG.region}
                 onFormSubmit={handleFormSubmit}
                 className="hubspot-form-container"
               />
