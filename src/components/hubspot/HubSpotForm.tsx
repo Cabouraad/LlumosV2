@@ -108,7 +108,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
         window.addEventListener('message', onMessage);
 
         window.hbspt.forms.create({
-          region: 'na1',
+          region: 'na2',
           portalId,
           formId,
           target: `#${targetId}`,
@@ -173,9 +173,10 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
 // HubSpot configuration
 export const HUBSPOT_CONFIG = {
   portalId: '244723281',
+  region: 'na2',
   forms: {
-    hero: '2pfAKlk66RO-kqYPOtdRdHQ41p9ox',
-    exitIntent: '2pFUJhbtWQ8qtnErWelgFlQ',
+    hero: 'a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d',
+    exitIntent: '', // TODO: Add exit intent form UUID
   },
 } as const;
 
