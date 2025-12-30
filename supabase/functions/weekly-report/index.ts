@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         .from('prompt_provider_responses')
         .select('org_id')
         .gte('run_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
-        .eq('status', 'success');
+        .eq('status', 'completed');
 
       if (orgsError) {
         logStep('Error fetching active organizations', { error: orgsError.message });
@@ -486,8 +486,10 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
     .eq('org_id', orgId)
     .gte('run_at', weekStart + 'T00:00:00Z')
     .lte('run_at', weekEnd + 'T23:59:59Z')
-    .eq('status', 'success')
+    .eq('status', 'completed')
     .order('run_at', { ascending: false });
+
+  logStep('DIAGNOSTIC: Main responses query', { orgId, weekStart, weekEnd, responseCount: 0 });
 
   // Filter by brand_id if provided
   if (brandId) {
@@ -500,6 +502,13 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
     throw new Error(`Failed to fetch responses: ${responsesError.message}`);
   }
 
+  logStep('DIAGNOSTIC: Responses fetched', { 
+    orgId, 
+    responseCount: responses?.length || 0,
+    weekStart,
+    weekEnd
+  });
+
   // Phase 1 Enhancement: Collect citation data
   logStep('Collecting citation analytics data', { orgId });
   let citationQuery = supabase
@@ -508,7 +517,7 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
     .eq('org_id', orgId)
     .gte('run_at', weekStart + 'T00:00:00Z')
     .lte('run_at', weekEnd + 'T23:59:59Z')
-    .eq('status', 'success')
+    .eq('status', 'completed')
     .not('citations_json', 'is', null);
 
   if (brandId) {
@@ -597,7 +606,12 @@ async function generateReportData(supabase: any, orgId: string, weekStart: strin
     .eq('org_id', orgId)
     .gte('run_at', eightWeeksAgo.toISOString())
     .lt('run_at', weekStart + 'T00:00:00Z')
-    .eq('status', 'success');
+    .eq('status', 'completed');
+
+  logStep('DIAGNOSTIC: Historical responses fetched', { 
+    orgId, 
+    historicalCount: historicalResponses?.length || 0 
+  });
 
   // Process historical data by week
   const weeklyData = new Map<string, { scores: number[]; brandPresent: number; total: number }>();
