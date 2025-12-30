@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2, Search, Clock, CheckCircle, X } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Clock, CheckCircle } from 'lucide-react';
 import { MockChatInterface } from './MockChatInterface';
 import { LiveStats } from './LiveStats';
 import { useNavigate } from 'react-router-dom';
