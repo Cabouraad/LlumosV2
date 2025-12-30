@@ -251,26 +251,28 @@
   margin-bottom: 0.75rem;
 }
 
+/* Ensure HubSpot embed doesn't inject light-on-dark dimmed defaults */
+.hubspot-form-container .hs-form * {
+  text-shadow: none;
+}
+
 /* Higher-contrast HubSpot labels + rich text */
 .hubspot-form-container .hs-form-field > label,
 .hubspot-form-container .hs-form-field label,
-.hubspot-form-container .hs-form-field legend,
+.hubspot-form-container .hs-form label,
+.hubspot-form-container .hs-form legend,
 .hubspot-form-container .hs-richtext,
-.hubspot-form-container .hs-richtext p,
-.hubspot-form-container .hs-richtext h1,
-.hubspot-form-container .hs-richtext h2,
-.hubspot-form-container .hs-richtext h3,
-.hubspot-form-container .hs-richtext h4 {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-bottom: 0.375rem;
+.hubspot-form-container .hs-richtext * {
   color: hsl(var(--foreground)) !important;
+  opacity: 1 !important;
 }
 
-.hubspot-form-container .hs-form-field label span,
-.hubspot-form-container .hs-richtext span {
-  color: hsl(var(--foreground)) !important;
+.hubspot-form-container .hs-richtext {
+  font-weight: 600;
+}
+
+.hubspot-form-container .hs-form-required {
+  color: hsl(var(--destructive)) !important;
 }
 
 

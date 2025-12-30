@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 interface HubSpotFormProps {
   portalId: string;
   formId: string;
+  region?: string;
   onFormSubmit?: () => void;
   className?: string;
 }
@@ -17,6 +18,8 @@ declare global {
           portalId: string;
           formId: string;
           target: string;
+          css?: string;
+          cssClass?: string;
           onFormSubmit?: () => void;
           onFormReady?: () => void;
         }) => void;
@@ -55,15 +58,20 @@ function ensureHubSpotScript(): Promise<void> {
   });
 }
 
-export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: HubSpotFormProps) {
-  const targetId = useMemo(() => `hubspot-form-${portalId}-${formId}-${Math.random().toString(36).slice(2)}`, [portalId, formId]);
+export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, className = '' }: HubSpotFormProps) {
+  const targetId = useMemo(
+    () => `hubspot-form-${portalId}-${formId}-${Math.random().toString(36).slice(2)}`,
+    [portalId, formId]
+  );
   const createdRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasRenderedForm, setHasRenderedForm] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     createdRef.current = false;
     setIsLoading(true);
+    setHasRenderedForm(false);
     setLoadError(null);
 
     let timeoutId: number | undefined;
@@ -78,8 +86,12 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
           throw new Error('HubSpot target container not found.');
         }
 
+        const detectRendered = () =>
+          Boolean(container.querySelector('form, .hs-form, input, textarea, select, iframe'));
+
         const markLoaded = () => {
           setIsLoading(false);
+          setHasRenderedForm(true);
           setLoadError(null);
           if (timeoutId) window.clearTimeout(timeoutId);
         };
@@ -87,9 +99,9 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
         // Clean slate (important for dialogs/remounts)
         container.innerHTML = '';
 
-        // Observe DOM changes: HubSpot sometimes renders without firing onFormReady
+        // Observe DOM changes: HubSpot sometimes renders without firing callbacks
         observer = new MutationObserver(() => {
-          if (container.querySelector('form, .hs-form')) {
+          if (detectRendered()) {
             markLoaded();
           }
         });
@@ -101,17 +113,17 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
         // Fallback timeout so we don’t spin forever
         timeoutId = window.setTimeout(() => {
           // If the form is actually present, don't show an error
-          if (container.querySelector('form, .hs-form')) {
+          if (detectRendered()) {
             markLoaded();
             return;
           }
 
-          console.error('[HubSpotForm] Load timeout', { portalId, formId, targetId });
+          console.error('[HubSpotForm] Load timeout', { portalId, formId, targetId, region });
           setIsLoading(false);
           setLoadError(
             'Form failed to load. This usually means the HubSpot Form ID is incorrect (it should look like a UUID) or the form is unpublished.'
           );
-        }, 9000);
+        }, 12000);
 
         // Listen for hsFormCallback messages as an additional “ready” signal
         const onMessage = (event: MessageEvent) => {
@@ -127,11 +139,25 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
         };
         window.addEventListener('message', onMessage);
 
+        const hsCss = `
+          .hs-form, .hs-form * { font-family: inherit; }
+          .hs-richtext, .hs-richtext * { color: hsl(210 40% 98%) !important; opacity: 1 !important; }
+          label, .hs-form-field > label, .hs-form-field label, legend {
+            color: hsl(210 40% 98%) !important;
+            opacity: 1 !important;
+            font-weight: 600 !important;
+          }
+          .hs-form-required { color: hsl(0 84% 65%) !important; }
+          .hs-error-msgs, .hs-error-msgs * { color: hsl(0 84% 65%) !important; }
+        `;
+
         window.hbspt.forms.create({
-          region: 'na2',
+          region,
           portalId,
           formId,
           target: `#${targetId}`,
+          css: hsCss,
+          cssClass: 'hubspot-embedded-form',
           onFormReady: () => {
             markLoaded();
           },
@@ -139,6 +165,16 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
             onFormSubmit?.();
           },
         });
+
+        // Extra: if an iframe is used, treat iframe load as loaded
+        const iframeTimer = window.setInterval(() => {
+          const iframe = container.querySelector('iframe') as HTMLIFrameElement | null;
+          if (iframe) {
+            iframe.addEventListener('load', markLoaded, { once: true });
+            window.clearInterval(iframeTimer);
+          }
+        }, 200);
+        window.setTimeout(() => window.clearInterval(iframeTimer), 8000);
 
         return () => {
           window.removeEventListener('message', onMessage);
@@ -161,14 +197,14 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
       if (container) container.innerHTML = '';
       void cleanupPromise;
     };
-  }, [portalId, formId, onFormSubmit, targetId]);
+  }, [portalId, formId, region, onFormSubmit, targetId]);
 
   return (
     <div className={className}>
       <div className="relative">
         <div id={targetId} />
 
-        {isLoading && (
+        {isLoading && !hasRenderedForm && (
           <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/30 backdrop-blur-sm">
             <div className="flex items-center gap-2 py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -177,7 +213,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
           </div>
         )}
 
-        {loadError && (
+        {loadError && !hasRenderedForm && (
           <div className="mt-3 rounded-lg border border-border bg-card p-3">
             <p className="text-sm text-foreground">{loadError}</p>
             <p className="mt-2 text-xs text-muted-foreground">
@@ -199,4 +235,13 @@ export const HUBSPOT_CONFIG = {
     exitIntent: 'a4550985-bb56-43ca-ad9c-4ad67a580595',
   },
 } as const;
+
+export async function preloadHubSpotForms() {
+  if (typeof window === 'undefined') return;
+  try {
+    await ensureHubSpotScript();
+  } catch (e) {
+    console.warn('[HubSpotForm] Preload failed', e);
+  }
+}
 
