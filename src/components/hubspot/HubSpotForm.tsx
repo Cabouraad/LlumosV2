@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface HubSpotFormProps {
   portalId: string;
@@ -12,10 +13,12 @@ declare global {
     hbspt?: {
       forms: {
         create: (options: {
+          region?: string;
           portalId: string;
           formId: string;
           target: string;
           onFormSubmit?: () => void;
+          onFormReady?: () => void;
         }) => void;
       };
     };
@@ -24,53 +27,98 @@ declare global {
 
 export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: HubSpotFormProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const formCreated = useRef(false);
+  const formCreatedRef = useRef(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const uniqueId = useRef(`hubspot-form-${formId}-${Date.now()}`);
 
   useEffect(() => {
-    // Load HubSpot script if not already loaded
-    const existingScript = document.querySelector('script[src*="js.hsforms.net"]');
-    
+    // Reset on mount
+    formCreatedRef.current = false;
+    setIsLoading(true);
+
     const createForm = () => {
-      if (window.hbspt && containerRef.current && !formCreated.current) {
-        formCreated.current = true;
-        window.hbspt.forms.create({
-          portalId,
-          formId,
-          target: `#hubspot-form-${formId}`,
-          onFormSubmit: () => {
-            onFormSubmit?.();
-          },
-        });
+      if (window.hbspt && containerRef.current && !formCreatedRef.current) {
+        formCreatedRef.current = true;
+        
+        try {
+          window.hbspt.forms.create({
+            region: 'na1',
+            portalId,
+            formId,
+            target: `#${uniqueId.current}`,
+            onFormReady: () => {
+              setIsLoading(false);
+            },
+            onFormSubmit: () => {
+              onFormSubmit?.();
+            },
+          });
+        } catch (error) {
+          console.error('Error creating HubSpot form:', error);
+          setIsLoading(false);
+        }
       }
     };
 
-    if (!existingScript) {
-      const script = document.createElement('script');
-      script.src = 'https://js.hsforms.net/forms/v2.js';
-      script.async = true;
-      script.onload = createForm;
-      document.head.appendChild(script);
+    // Check if script already exists
+    const existingScript = document.querySelector('script[src*="js.hsforms.net"]');
+    
+    if (existingScript && window.hbspt) {
+      // Script loaded and hbspt available
+      createForm();
+    } else if (existingScript) {
+      // Script exists but hbspt not ready yet - wait for it
+      const checkHbspt = setInterval(() => {
+        if (window.hbspt) {
+          clearInterval(checkHbspt);
+          createForm();
+        }
+      }, 100);
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkHbspt);
+        setIsLoading(false);
+      }, 5000);
     } else {
-      // Script already exists, just create form
-      if (window.hbspt) {
-        createForm();
-      } else {
-        // Wait for script to load
-        existingScript.addEventListener('load', createForm);
-      }
+      // Load the script
+      const script = document.createElement('script');
+      script.src = 'https://js.hsforms.net/forms/embed/v2.js';
+      script.charset = 'utf-8';
+      script.async = true;
+      
+      script.onload = () => {
+        // Wait a bit for hbspt to initialize
+        setTimeout(createForm, 100);
+      };
+      
+      script.onerror = () => {
+        console.error('Failed to load HubSpot forms script');
+        setIsLoading(false);
+      };
+      
+      document.head.appendChild(script);
     }
 
     return () => {
-      formCreated.current = false;
+      formCreatedRef.current = false;
     };
   }, [portalId, formId, onFormSubmit]);
 
   return (
-    <div 
-      ref={containerRef}
-      id={`hubspot-form-${formId}`}
-      className={className}
-    />
+    <div className={className}>
+      {isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading form...</span>
+        </div>
+      )}
+      <div 
+        ref={containerRef}
+        id={uniqueId.current}
+        style={{ display: isLoading ? 'none' : 'block' }}
+      />
+    </div>
   );
 }
 
