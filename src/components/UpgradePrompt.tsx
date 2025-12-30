@@ -40,7 +40,7 @@ export function UpgradePrompt({ feature, reason, isTrialExpired, daysRemainingIn
             {reason}
           </p>
           <div className="text-sm text-blue-600 dark:text-blue-400 mb-4">
-            Upgrade to Starter for just $39/month to unlock:
+            Upgrade to Starter for just $49/month to unlock:
             <ul className="list-disc list-inside mt-2 space-y-1">
               <li>25 prompts tracked daily (vs 5 weekly)</li>
               <li>ChatGPT + Perplexity tracking</li>

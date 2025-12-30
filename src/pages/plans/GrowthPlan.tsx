@@ -65,7 +65,7 @@ export default function GrowthPlan() {
     <>
       <SEOHelmet
         title="Growth Plan - Advanced AI Search Visibility Tracking"
-        description="Scale your AI visibility with our Growth plan. Monitor all 4 AI platforms, track competitors, and get AI-powered recommendations. $89/month with full team access."
+        description="Scale your AI visibility with our Growth plan. Monitor all 4 AI platforms, track competitors, and get AI-powered recommendations. $99/month with full team access."
         keywords="growth plan, AI search optimization, competitor tracking, team collaboration, AI SEO"
         canonicalPath="/plans/growth"
       />
@@ -97,12 +97,12 @@ export default function GrowthPlan() {
             </p>
             <div className="flex items-center justify-center gap-4 mb-8">
               <div className="text-center">
-                <div className="text-5xl font-bold">$89</div>
+                <div className="text-5xl font-bold">$99</div>
                 <div className="text-muted-foreground">per month</div>
               </div>
               <div className="text-muted-foreground">or</div>
               <div className="text-center">
-                <div className="text-5xl font-bold">$890</div>
+                <div className="text-5xl font-bold">$990</div>
                 <div className="text-muted-foreground">per year</div>
                 <Badge variant="secondary" className="mt-2">Save 17%</Badge>
               </div>

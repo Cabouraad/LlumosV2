@@ -220,11 +220,6 @@ export function PricingCard({
           Most Popular
         </Badge>
       )}
-      {tier === 'starter' && (
-        <Badge className={`absolute ${isPopular ? '-top-3 right-4' : '-top-3 left-1/2 -translate-x-1/2'} bg-primary/10 text-primary border-primary/20`}>
-          🎉 Black Friday: $99/year
-        </Badge>
-      )}
       {isFreeTier && (
         <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-muted text-muted-foreground border-muted-foreground/20">
           Forever Free

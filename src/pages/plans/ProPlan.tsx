@@ -110,12 +110,12 @@ export default function ProPlan() {
             </p>
             <div className="flex items-center justify-center gap-4 mb-8">
               <div className="text-center">
-                <div className="text-5xl font-bold">$250</div>
+                <div className="text-5xl font-bold">$225</div>
                 <div className="text-muted-foreground">per month</div>
               </div>
               <div className="text-muted-foreground">or</div>
               <div className="text-center">
-                <div className="text-5xl font-bold">$2,500</div>
+                <div className="text-5xl font-bold">$2,250</div>
                 <div className="text-muted-foreground">per year</div>
                 <Badge variant="secondary" className="mt-2">Save 17%</Badge>
               </div>

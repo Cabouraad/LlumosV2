@@ -139,7 +139,7 @@ export default function TierComparison() {
                 <CardTitle>Starter</CardTitle>
                 <CardDescription>Perfect for individuals and small businesses</CardDescription>
                 <div className="pt-4">
-                  <div className="text-3xl font-bold">$39</div>
+                  <div className="text-3xl font-bold">$49</div>
                   <div className="text-sm text-muted-foreground">per month</div>
                 </div>
               </CardHeader>
@@ -173,7 +173,7 @@ export default function TierComparison() {
                 <CardTitle>Pro</CardTitle>
                 <CardDescription>Enterprise-grade features for large teams</CardDescription>
                 <div className="pt-4">
-                  <div className="text-3xl font-bold">$199</div>
+                  <div className="text-3xl font-bold">$225</div>
                   <div className="text-sm text-muted-foreground">per month</div>
                 </div>
               </CardHeader>

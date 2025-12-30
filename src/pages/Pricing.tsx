@@ -98,8 +98,8 @@ export default function Pricing() {
       tier: 'starter' as const,
       title: 'Starter',
       description: 'For small companies tracking AI visibility',
-      monthlyPrice: 39,
-      yearlyPrice: 390,
+      monthlyPrice: 49,
+      yearlyPrice: 490,
       features: [
         '1 user account',
         '25 prompts tracked daily',
@@ -113,8 +113,8 @@ export default function Pricing() {
       tier: 'growth' as const,
       title: 'Growth',
       description: 'For growing companies needing deeper insights',
-      monthlyPrice: 89,
-      yearlyPrice: 890,
+      monthlyPrice: 99,
+      yearlyPrice: 990,
       features: [
         'Up to 3 user accounts',
         '100 prompts tracked daily',
@@ -131,8 +131,8 @@ export default function Pricing() {
       tier: 'pro' as const,
       title: 'Pro',
       description: 'For teams managing multiple brands',
-      monthlyPrice: 199,
-      yearlyPrice: 1990,
+      monthlyPrice: 225,
+      yearlyPrice: 2250,
       features: [
         'Up to 5 user accounts',
         '200 prompts tracked daily',
@@ -170,7 +170,7 @@ export default function Pricing() {
     <>
       <SEOHelmet
         title="Pricing Plans - AI Search Visibility Tracking"
-        description="Choose the perfect Llumos plan for your business. Track AI search visibility across ChatGPT, Perplexity, Gemini and more. Plans start at $39/month with a 7-day free trial."
+        description="Choose the perfect Llumos plan for your business. Track AI search visibility across ChatGPT, Perplexity, Gemini and more. Plans start at $49/month with a 7-day free trial."
         keywords="AI search pricing, ChatGPT tracking pricing, Perplexity monitoring cost, AI SEO pricing, brand visibility pricing"
         canonicalPath="/pricing"
         ogImage="/og-pricing.png"
@@ -272,21 +272,6 @@ export default function Pricing() {
           </div>
         )}
 
-        {/* End of Year Promo */}
-        <Card className="mb-8 border-2 border-primary/20 bg-card/50">
-          <CardHeader className="text-center">
-            <Badge variant="secondary" className="mb-2 bg-primary/10 text-primary border-primary/20">End of Year</Badge>
-            <CardTitle className="text-3xl">One Year Starter — $99</CardTitle>
-            <CardDescription>Limited-time deal. Save over 60% for a full year.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center">
-            <Link to="/black-friday">
-              <Button size="lg">
-                Claim End of Year Deal
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
@@ -357,7 +342,7 @@ export default function Pricing() {
                   <div>
                     <p className="font-semibold mb-1">Day 7: Trial Ends</p>
                     <p className="text-sm text-muted-foreground">
-                      If you haven&apos;t canceled, your subscription begins at $39/month. If you cancel before day 7, you won&apos;t be charged anything.
+                      If you haven&apos;t canceled, your subscription begins at $49/month. If you cancel before day 7, you won&apos;t be charged anything.
                     </p>
                   </div>
                 </div>
