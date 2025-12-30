@@ -176,7 +176,7 @@ export const HUBSPOT_CONFIG = {
   region: 'na2',
   forms: {
     hero: 'a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d',
-    exitIntent: '', // TODO: Add exit intent form UUID
+    exitIntent: 'a4550985-bb56-43ca-ad9c-4ad67a580595',
   },
 } as const;
 
