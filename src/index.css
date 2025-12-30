@@ -237,41 +237,53 @@
 }
 
 /* HubSpot form styling */
-.hubspot-form-container {
+.hubspot-form-container,
+.hubspot-embedded-form {
   min-height: 150px;
 }
 
-.hubspot-form-container form {
+.hubspot-form-container form,
+.hubspot-embedded-form form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.hubspot-form-container .hs-form-field {
+.hubspot-form-container .hs-form-field,
+.hubspot-embedded-form .hs-form-field {
   margin-bottom: 0.75rem;
 }
 
 /* Ensure HubSpot embed doesn't inject light-on-dark dimmed defaults */
-.hubspot-form-container .hs-form * {
+.hubspot-form-container .hs-form *,
+.hubspot-embedded-form .hs-form * {
   text-shadow: none;
 }
 
-/* Higher-contrast HubSpot labels + rich text */
+/* Force white HubSpot labels + header/rich text for readability */
 .hubspot-form-container .hs-form-field > label,
 .hubspot-form-container .hs-form-field label,
 .hubspot-form-container .hs-form label,
 .hubspot-form-container .hs-form legend,
 .hubspot-form-container .hs-richtext,
-.hubspot-form-container .hs-richtext * {
-  color: hsl(var(--foreground)) !important;
+.hubspot-form-container .hs-richtext *,
+.hubspot-embedded-form .hs-form-field > label,
+.hubspot-embedded-form .hs-form-field label,
+.hubspot-embedded-form .hs-form label,
+.hubspot-embedded-form .hs-form legend,
+.hubspot-embedded-form .hs-richtext,
+.hubspot-embedded-form .hs-richtext * {
+  color: hsl(0 0% 100%) !important;
   opacity: 1 !important;
 }
 
-.hubspot-form-container .hs-richtext {
+.hubspot-form-container .hs-richtext,
+.hubspot-embedded-form .hs-richtext {
   font-weight: 600;
 }
 
-.hubspot-form-container .hs-form-required {
+.hubspot-form-container .hs-form-required,
+.hubspot-embedded-form .hs-form-required {
   color: hsl(var(--destructive)) !important;
 }
 

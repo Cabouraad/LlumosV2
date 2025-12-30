@@ -175,9 +175,10 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
 
         const hsCss = `
           .hs-form, .hs-form * { font-family: inherit; }
-          .hs-richtext, .hs-richtext * { color: hsl(var(--foreground)) !important; opacity: 1 !important; }
+          /* Force bright text because HubSpot can render inside an iframe without our CSS variables */
+          .hs-richtext, .hs-richtext * { color: hsl(0 0% 100%) !important; opacity: 1 !important; }
           label, .hs-form-field > label, .hs-form-field label, legend {
-            color: hsl(var(--foreground)) !important;
+            color: hsl(0 0% 100%) !important;
             opacity: 1 !important;
             font-weight: 650 !important;
           }
