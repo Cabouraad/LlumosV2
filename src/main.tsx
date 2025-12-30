@@ -10,6 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary';
 import { EnvGate } from '@/components/EnvGate';
 import { observeWebVitals } from '@/lib/performance/monitor';
+import { preloadHubSpotForms } from '@/components/hubspot/HubSpotForm';
 import './index.css';
 import App from './App';
 import { QueryAuthBridge } from '@/components/auth/QueryAuthBridge';
@@ -18,6 +19,13 @@ import { QueryAuthBridge } from '@/components/auth/QueryAuthBridge';
 
 // Initialize performance monitoring in all environments
 observeWebVitals();
+
+// Warm HubSpot as early as possible so the gated form renders fast
+if (typeof window !== 'undefined') {
+  window.setTimeout(() => {
+    void preloadHubSpotForms();
+  }, 0);
+}
 
 // Use BrowserRouter for clean SEO-friendly URLs (no hash)
 const Router = BrowserRouter;

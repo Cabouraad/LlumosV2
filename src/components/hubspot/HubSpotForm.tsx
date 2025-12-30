@@ -68,6 +68,24 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
   const [hasRenderedForm, setHasRenderedForm] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // If HubSpot renders without firing callbacks, still treat it as loaded and hide any timeout error.
+  const domHasRenderedForm = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const container = document.getElementById(targetId);
+    if (!container) return false;
+    return Boolean(
+      container.querySelector('form, .hs-form, .hs-form-frame, .hs-form-iframe, input, textarea, select, iframe')
+    );
+  }, [targetId, isLoading, loadError, hasRenderedForm]);
+
+  useEffect(() => {
+    if (domHasRenderedForm && !hasRenderedForm) {
+      setIsLoading(false);
+      setHasRenderedForm(true);
+      setLoadError(null);
+    }
+  }, [domHasRenderedForm, hasRenderedForm]);
+
   useEffect(() => {
     createdRef.current = false;
     setIsLoading(true);
@@ -75,6 +93,7 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
     setLoadError(null);
 
     let timeoutId: number | undefined;
+    let pollId: number | undefined;
     let observer: MutationObserver | null = null;
 
     const init = async () => {
@@ -86,14 +105,19 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
           throw new Error('HubSpot target container not found.');
         }
 
-        const detectRendered = () =>
-          Boolean(container.querySelector('form, .hs-form, input, textarea, select, iframe'));
+        const detectRendered = () => {
+          if (container.childElementCount > 0) return true;
+          return Boolean(
+            container.querySelector('form, .hs-form, .hs-form-frame, .hs-form-iframe, input, textarea, select, iframe')
+          );
+        };
 
         const markLoaded = () => {
           setIsLoading(false);
           setHasRenderedForm(true);
           setLoadError(null);
           if (timeoutId) window.clearTimeout(timeoutId);
+          if (pollId) window.clearInterval(pollId);
         };
 
         // Clean slate (important for dialogs/remounts)
@@ -106,6 +130,16 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
           }
         });
         observer.observe(container, { childList: true, subtree: true });
+
+        // Poll as a permanent fallback: if a timeout error is shown, clear it once the form finally appears
+        pollId = window.setInterval(() => {
+          if (detectRendered()) {
+            markLoaded();
+          }
+        }, 250);
+        window.setTimeout(() => {
+          if (pollId) window.clearInterval(pollId);
+        }, 15000);
 
         if (!window.hbspt || createdRef.current) return;
         createdRef.current = true;
@@ -141,14 +175,14 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
 
         const hsCss = `
           .hs-form, .hs-form * { font-family: inherit; }
-          .hs-richtext, .hs-richtext * { color: hsl(210 40% 98%) !important; opacity: 1 !important; }
+          .hs-richtext, .hs-richtext * { color: hsl(var(--foreground)) !important; opacity: 1 !important; }
           label, .hs-form-field > label, .hs-form-field label, legend {
-            color: hsl(210 40% 98%) !important;
+            color: hsl(var(--foreground)) !important;
             opacity: 1 !important;
-            font-weight: 600 !important;
+            font-weight: 650 !important;
           }
-          .hs-form-required { color: hsl(0 84% 65%) !important; }
-          .hs-error-msgs, .hs-error-msgs * { color: hsl(0 84% 65%) !important; }
+          .hs-form-required { color: hsl(var(--destructive)) !important; }
+          .hs-error-msgs, .hs-error-msgs * { color: hsl(var(--destructive)) !important; }
         `;
 
         window.hbspt.forms.create({
