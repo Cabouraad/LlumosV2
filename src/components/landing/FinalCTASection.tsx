@@ -46,12 +46,16 @@ export function FinalCTASection() {
             <Button
               size="lg"
               className="h-14 px-8 text-lg bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all duration-300 group"
-              asChild
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setTimeout(() => {
+                  const input = document.querySelector('input[placeholder="Enter your website URL"]') as HTMLInputElement;
+                  input?.focus();
+                }, 500);
+              }}
             >
-              <Link to="/signup">
-                Get Your Free Score Now
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              Get Your Free Score Now
+              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
             <Button
               size="lg"
