@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface HubSpotFormProps {
@@ -25,99 +25,147 @@ declare global {
   }
 }
 
+function ensureHubSpotScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.hbspt) return resolve();
+
+    const existing = document.querySelector('script[src*="js.hsforms.net/forms/"]') as HTMLScriptElement | null;
+    if (existing) {
+      const start = Date.now();
+      const timer = window.setInterval(() => {
+        if (window.hbspt) {
+          window.clearInterval(timer);
+          resolve();
+        }
+        if (Date.now() - start > 8000) {
+          window.clearInterval(timer);
+          reject(new Error('HubSpot script present but window.hbspt not available (timeout).'));
+        }
+      }, 100);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://js.hsforms.net/forms/v2.js';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load HubSpot forms script.'));
+    document.head.appendChild(script);
+  });
+}
+
 export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: HubSpotFormProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const formCreatedRef = useRef(false);
+  const targetId = useMemo(() => `hubspot-form-${portalId}-${formId}-${Math.random().toString(36).slice(2)}`, [portalId, formId]);
+  const createdRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
-  const uniqueId = useRef(`hubspot-form-${formId}-${Date.now()}`);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reset on mount
-    formCreatedRef.current = false;
+    createdRef.current = false;
     setIsLoading(true);
+    setLoadError(null);
 
-    const createForm = () => {
-      if (window.hbspt && containerRef.current && !formCreatedRef.current) {
-        formCreatedRef.current = true;
-        
-        try {
-          window.hbspt.forms.create({
-            region: 'na1',
-            portalId,
-            formId,
-            target: `#${uniqueId.current}`,
-            onFormReady: () => {
-              setIsLoading(false);
-            },
-            onFormSubmit: () => {
-              onFormSubmit?.();
-            },
-          });
-        } catch (error) {
-          console.error('Error creating HubSpot form:', error);
-          setIsLoading(false);
+    let timeoutId: number | undefined;
+
+    const init = async () => {
+      try {
+        await ensureHubSpotScript();
+
+        const container = document.getElementById(targetId);
+        if (!container) {
+          throw new Error('HubSpot target container not found.');
         }
+
+        // Clean slate (important for dialogs/remounts)
+        container.innerHTML = '';
+
+        if (!window.hbspt || createdRef.current) return;
+        createdRef.current = true;
+
+        // Fallback timeout so we don’t spin forever
+        timeoutId = window.setTimeout(() => {
+          console.error('[HubSpotForm] Load timeout', { portalId, formId, targetId });
+          setIsLoading(false);
+          setLoadError(
+            'Form failed to load. This usually means the HubSpot Form ID is incorrect (it should look like a UUID) or the form is unpublished.'
+          );
+        }, 9000);
+
+        // Listen for hsFormCallback messages as an additional “ready” signal
+        const onMessage = (event: MessageEvent) => {
+          const data: any = event.data;
+          if (data?.type === 'hsFormCallback' && data?.id === formId) {
+            if (data.eventName === 'onFormReady') {
+              setIsLoading(false);
+              window.clearTimeout(timeoutId);
+            }
+            if (data.eventName === 'onFormSubmit') {
+              onFormSubmit?.();
+            }
+          }
+        };
+        window.addEventListener('message', onMessage);
+
+        window.hbspt.forms.create({
+          region: 'na1',
+          portalId,
+          formId,
+          target: `#${targetId}`,
+          onFormReady: () => {
+            setIsLoading(false);
+            if (timeoutId) window.clearTimeout(timeoutId);
+          },
+          onFormSubmit: () => {
+            onFormSubmit?.();
+          },
+        });
+
+        return () => {
+          window.removeEventListener('message', onMessage);
+        };
+      } catch (e: any) {
+        console.error('[HubSpotForm] Init error', e);
+        setIsLoading(false);
+        setLoadError(e?.message || 'Failed to load form.');
       }
     };
 
-    // Check if script already exists
-    const existingScript = document.querySelector('script[src*="js.hsforms.net"]');
-    
-    if (existingScript && window.hbspt) {
-      // Script loaded and hbspt available
-      createForm();
-    } else if (existingScript) {
-      // Script exists but hbspt not ready yet - wait for it
-      const checkHbspt = setInterval(() => {
-        if (window.hbspt) {
-          clearInterval(checkHbspt);
-          createForm();
-        }
-      }, 100);
-      
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        clearInterval(checkHbspt);
-        setIsLoading(false);
-      }, 5000);
-    } else {
-      // Load the script
-      const script = document.createElement('script');
-      script.src = 'https://js.hsforms.net/forms/embed/v2.js';
-      script.charset = 'utf-8';
-      script.async = true;
-      
-      script.onload = () => {
-        // Wait a bit for hbspt to initialize
-        setTimeout(createForm, 100);
-      };
-      
-      script.onerror = () => {
-        console.error('Failed to load HubSpot forms script');
-        setIsLoading(false);
-      };
-      
-      document.head.appendChild(script);
-    }
+    const cleanupPromise = init();
 
     return () => {
-      formCreatedRef.current = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      createdRef.current = false;
+      // Best-effort cleanup
+      const container = document.getElementById(targetId);
+      if (container) container.innerHTML = '';
+      void cleanupPromise;
     };
-  }, [portalId, formId, onFormSubmit]);
+  }, [portalId, formId, onFormSubmit, targetId]);
 
   return (
     <div className={className}>
-      {isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading form...</span>
-        </div>
-      )}
-      <div 
-        ref={containerRef}
-        id={uniqueId.current}
-        style={{ display: isLoading ? 'none' : 'block' }}
-      />
+      <div className="relative">
+        <div id={targetId} />
+
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/30 backdrop-blur-sm">
+            <div className="flex items-center gap-2 py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading form...</span>
+            </div>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="mt-3 rounded-lg border border-border bg-card p-3">
+            <p className="text-sm text-foreground">{loadError}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Current config: portalId={portalId}, formId={formId}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -130,3 +178,4 @@ export const HUBSPOT_CONFIG = {
     exitIntent: '2pFUJhbtWQ8qtnErWelgFlQ',
   },
 } as const;
+
