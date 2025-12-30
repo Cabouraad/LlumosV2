@@ -67,6 +67,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
     setLoadError(null);
 
     let timeoutId: number | undefined;
+    let observer: MutationObserver | null = null;
 
     const init = async () => {
       try {
@@ -77,14 +78,34 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
           throw new Error('HubSpot target container not found.');
         }
 
+        const markLoaded = () => {
+          setIsLoading(false);
+          setLoadError(null);
+          if (timeoutId) window.clearTimeout(timeoutId);
+        };
+
         // Clean slate (important for dialogs/remounts)
         container.innerHTML = '';
+
+        // Observe DOM changes: HubSpot sometimes renders without firing onFormReady
+        observer = new MutationObserver(() => {
+          if (container.querySelector('form, .hs-form')) {
+            markLoaded();
+          }
+        });
+        observer.observe(container, { childList: true, subtree: true });
 
         if (!window.hbspt || createdRef.current) return;
         createdRef.current = true;
 
         // Fallback timeout so we don’t spin forever
         timeoutId = window.setTimeout(() => {
+          // If the form is actually present, don't show an error
+          if (container.querySelector('form, .hs-form')) {
+            markLoaded();
+            return;
+          }
+
           console.error('[HubSpotForm] Load timeout', { portalId, formId, targetId });
           setIsLoading(false);
           setLoadError(
@@ -97,8 +118,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
           const data: any = event.data;
           if (data?.type === 'hsFormCallback' && data?.id === formId) {
             if (data.eventName === 'onFormReady') {
-              setIsLoading(false);
-              window.clearTimeout(timeoutId);
+              markLoaded();
             }
             if (data.eventName === 'onFormSubmit') {
               onFormSubmit?.();
@@ -113,8 +133,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
           formId,
           target: `#${targetId}`,
           onFormReady: () => {
-            setIsLoading(false);
-            if (timeoutId) window.clearTimeout(timeoutId);
+            markLoaded();
           },
           onFormSubmit: () => {
             onFormSubmit?.();
@@ -135,6 +154,7 @@ export function HubSpotForm({ portalId, formId, onFormSubmit, className = '' }: 
 
     return () => {
       if (timeoutId) window.clearTimeout(timeoutId);
+      if (observer) observer.disconnect();
       createdRef.current = false;
       // Best-effort cleanup
       const container = document.getElementById(targetId);
