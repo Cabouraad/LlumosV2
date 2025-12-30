@@ -241,7 +241,8 @@
   min-height: 150px;
   border-radius: var(--radius);
   padding: 1.25rem;
-  background: hsl(var(--card) / 0.96);
+  /* Much brighter surface regardless of light/dark theme */
+  background: hsl(0 0% 100% / 0.98);
   border: 1px solid hsl(var(--border) / 0.7);
 }
 

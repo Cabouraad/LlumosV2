@@ -174,12 +174,16 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
         window.addEventListener('message', onMessage);
 
         const hsCss = `
-          /* Render the embedded form on a light surface so HubSpot's default dark text is readable */
-          body { background: hsl(0 0% 100%) !important; }
+          /* Force a bright form surface (HubSpot sometimes renders with a transparent/dark background) */
+          html, body { background: hsl(0 0% 100%) !important; }
           .hs-form, .hs-form * { font-family: inherit; }
-          .hs-form { background: hsl(0 0% 100%) !important; padding: 16px !important; }
+          .hs-form {
+            background: hsl(0 0% 100%) !important;
+            padding: 20px !important;
+            border-radius: 12px !important;
+          }
 
-          /* Ensure headings + labels are dark and fully opaque */
+          /* Keep all text dark on the light surface */
           .hs-richtext, .hs-richtext * { color: hsl(222.2 84% 4.9%) !important; opacity: 1 !important; }
           label, .hs-form-field > label, .hs-form-field label, legend {
             color: hsl(222.2 84% 4.9%) !important;
