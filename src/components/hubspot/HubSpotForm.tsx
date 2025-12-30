@@ -174,26 +174,26 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
         window.addEventListener('message', onMessage);
 
         const hsCss = `
+          /* Render the embedded form on a light surface so HubSpot's default dark text is readable */
+          body { background: hsl(0 0% 100%) !important; }
           .hs-form, .hs-form * { font-family: inherit; }
+          .hs-form { background: hsl(0 0% 100%) !important; padding: 16px !important; }
 
-          /* Make ALL non-input text bright white for readability on dark backgrounds */
-          .hs-form * { color: hsl(0 0% 100%) !important; opacity: 1 !important; }
+          /* Ensure headings + labels are dark and fully opaque */
+          .hs-richtext, .hs-richtext * { color: hsl(222.2 84% 4.9%) !important; opacity: 1 !important; }
+          label, .hs-form-field > label, .hs-form-field label, legend {
+            color: hsl(222.2 84% 4.9%) !important;
+            opacity: 1 !important;
+            font-weight: 650 !important;
+          }
 
-          /* Keep form controls readable (dark text on light fields) */
-          .hs-form input,
-          .hs-form textarea,
-          .hs-form select,
-          .hs-form option {
+          /* Inputs stay light with dark text */
+          input, textarea, select, option {
             color: hsl(222.2 84% 4.9%) !important;
             background-color: hsl(0 0% 100%) !important;
           }
-          .hs-form input::placeholder,
-          .hs-form textarea::placeholder {
-            color: hsl(215.4 16.3% 46.9%) !important;
-          }
+          input::placeholder, textarea::placeholder { color: hsl(215.4 16.3% 46.9%) !important; }
 
-          /* Emphasis + required/errors */
-          .hs-richtext, .hs-richtext * { font-weight: 600 !important; }
           .hs-form-required { color: hsl(0 84.2% 60.2%) !important; }
           .hs-error-msgs, .hs-error-msgs * { color: hsl(0 84.2% 60.2%) !important; }
         `;
