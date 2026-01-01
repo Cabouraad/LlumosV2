@@ -776,6 +776,56 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_email_sequences: {
+        Row: {
+          created_at: string
+          email_key: string
+          error_message: string | null
+          id: string
+          lead_id: string
+          metadata: Json | null
+          scheduled_at: string
+          sent_at: string | null
+          sequence_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email_key: string
+          error_message?: string | null
+          id?: string
+          lead_id: string
+          metadata?: Json | null
+          scheduled_at: string
+          sent_at?: string | null
+          sequence_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email_key?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string
+          metadata?: Json | null
+          scheduled_at?: string
+          sent_at?: string | null
+          sequence_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_email_sequences_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           created_at: string
