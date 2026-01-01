@@ -13,6 +13,7 @@ import {
   ErrorCode 
 } from '../_shared/error-responses.ts';
 import { validateSubscription, createSubscriptionErrorResponse } from '../_shared/subscription-validator.ts';
+import { triggerAsyncValidation } from '../_shared/citation-validator.ts';
 
 const ORIGIN = Deno.env.get("APP_ORIGIN") ?? "https://llumos.app";
 
@@ -221,7 +222,7 @@ Deno.serve(async (req) => {
               ? 'google-aio'
               : 'gemini-2.0-flash-lite';
 
-          const { error: pprError } = await supabase
+          const { data: pprData, error: pprError } = await supabase
             .from('prompt_provider_responses')
             .insert({
               org_id: orgId,
@@ -244,9 +245,19 @@ Deno.serve(async (req) => {
                 detection_metadata: detectionResult.metadata
               },
               citations_json: response.citations || null
-            });
+            })
+            .select('id')
+            .single();
+
         if (pprError) {
           console.error('Failed to insert prompt_provider_responses:', pprError);
+        } else if (pprData?.id && response.citations?.citations?.length > 0) {
+          // Trigger async citation validation (non-blocking)
+          triggerAsyncValidation(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+            pprData.id
+          );
         }
 
         if (run) {

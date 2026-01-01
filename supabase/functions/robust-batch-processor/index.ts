@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
+import { validateAndUpdateCitations } from '../_shared/citation-validator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -379,7 +380,15 @@ async function processTask(
       throw new Error('Database insert succeeded but returned no data');
     }
 
-    console.log(`✅ [${provider.name}] Response saved to database: ${insertedResponse[0].id}`);
+    const responseId = insertedResponse[0].id;
+    console.log(`✅ [${provider.name}] Response saved to database: ${responseId}`);
+
+    // Validate citations inline (non-blocking for performance)
+    if (citationsData?.citations?.length > 0) {
+      validateAndUpdateCitations(supabase, responseId, citationsData)
+        .catch(err => console.warn(`[${provider.name}] Citation validation failed:`, err.message));
+    }
+
     return true;
   } catch (error: any) {
     console.error(`❌ [${provider.name}] Task failed:`, error.message);
