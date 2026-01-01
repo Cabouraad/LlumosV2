@@ -1,9 +1,8 @@
 import React from 'react';
-import { ExternalLink, FileText, Video, File, CheckCircle, Clock, XCircle, AlertTriangle, Zap, Users } from 'lucide-react';
+import { ExternalLink, FileText, Video, File, CheckCircle, Clock, XCircle, AlertTriangle, Users, ShieldCheck, ShieldAlert, ShieldQuestion, Link2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
 
 export interface Citation {
   url: string;
@@ -19,15 +18,21 @@ export interface Citation {
     type: 'known' | 'heuristic' | 'unknown';
   };
   is_competitor?: boolean;
+  // Quality indicators from validation
+  is_accessible?: boolean;
+  validation_status_code?: number;
+  validated_at?: string;
+  validation_error?: string;
 }
 
 interface CitationsDisplayProps {
   citations?: Citation[];
   provider: string;
   isCompact?: boolean;
+  showQualityIndicators?: boolean;
 }
 
-export function CitationsDisplay({ citations, provider, isCompact = false }: CitationsDisplayProps) {
+export function CitationsDisplay({ citations, provider, isCompact = false, showQualityIndicators = true }: CitationsDisplayProps) {
   if (!citations || citations.length === 0) {
     // Show provider-specific messaging for OpenAI
     if (provider.toLowerCase() === 'openai') {
@@ -47,18 +52,30 @@ export function CitationsDisplay({ citations, provider, isCompact = false }: Cit
 
   const visibleCitations = isCompact ? citations.slice(0, 10) : citations;
   const remainingCount = isCompact ? Math.max(0, citations.length - 10) : 0;
+  
+  // Calculate quality stats
+  const validatedCount = citations.filter(c => c.validated_at).length;
+  const accessibleCount = citations.filter(c => c.is_accessible === true).length;
+  const hasValidation = validatedCount > 0;
 
   return (
     <TooltipProvider>
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <ExternalLink className="h-4 w-4" />
-          Sources ({citations.length})
+          <span>Sources ({citations.length})</span>
+          {showQualityIndicators && hasValidation && (
+            <CitationQualitySummary 
+              total={citations.length}
+              validated={validatedCount}
+              accessible={accessibleCount}
+            />
+          )}
         </div>
         
         <div className={`flex flex-wrap gap-2 ${isCompact ? 'max-h-20 overflow-hidden' : ''}`}>
           {visibleCitations.map((citation, index) => (
-            <CitationChip key={index} citation={citation} />
+            <CitationChip key={index} citation={citation} showQuality={showQualityIndicators} />
           ))}
           
           {remainingCount > 0 && (
@@ -72,7 +89,43 @@ export function CitationsDisplay({ citations, provider, isCompact = false }: Cit
   );
 }
 
-function CitationChip({ citation }: { citation: Citation }) {
+function CitationQualitySummary({ total, validated, accessible }: { total: number; validated: number; accessible: number }) {
+  const qualityScore = validated > 0 ? Math.round((accessible / validated) * 100) : null;
+  
+  if (qualityScore === null) return null;
+  
+  const getQualityColor = () => {
+    if (qualityScore >= 80) return 'text-green-600 bg-green-50 border-green-200';
+    if (qualityScore >= 50) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    return 'text-red-600 bg-red-50 border-red-200';
+  };
+  
+  const getQualityIcon = () => {
+    if (qualityScore >= 80) return <ShieldCheck className="h-3 w-3" />;
+    if (qualityScore >= 50) return <ShieldQuestion className="h-3 w-3" />;
+    return <ShieldAlert className="h-3 w-3" />;
+  };
+  
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={`text-xs ${getQualityColor()}`}>
+          {getQualityIcon()}
+          <span className="ml-1">{qualityScore}% verified</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="text-xs space-y-1">
+          <p><strong>Citation Quality Score</strong></p>
+          <p>{accessible} of {validated} validated links are accessible</p>
+          <p className="text-muted-foreground">Higher scores indicate more reliable sources</p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function CitationChip({ citation, showQuality = true }: { citation: Citation; showQuality?: boolean }) {
   const getSourceIcon = () => {
     switch (citation.source_type) {
       case 'pdf':
@@ -128,6 +181,47 @@ function CitationChip({ citation }: { citation: Citation }) {
     }
   };
 
+  const getQualityIndicator = () => {
+    if (!showQuality || citation.validated_at === undefined) {
+      return null; // Not validated yet
+    }
+    
+    if (citation.is_accessible === true) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center">
+              <Link2 className="h-3 w-3 text-green-500" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Link verified accessible</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    
+    if (citation.is_accessible === false) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center">
+              <XCircle className="h-3 w-3 text-orange-400" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">Link may be inaccessible</p>
+            {citation.validation_error && (
+              <p className="text-xs text-muted-foreground">{citation.validation_error}</p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    
+    return null;
+  };
+
   const getDisplayName = () => {
     if (citation.resolved_brand) {
       const name = citation.resolved_brand.brand;
@@ -137,13 +231,31 @@ function CitationChip({ citation }: { citation: Citation }) {
     return citation.domain;
   };
 
+  // Visual styling based on validation status
+  const getCardClasses = () => {
+    const base = 'p-2 cursor-pointer hover:bg-muted/50 transition-colors max-w-xs';
+    
+    if (citation.is_competitor) {
+      return `${base} border-red-200 bg-red-50/30`;
+    }
+    
+    if (showQuality && citation.validated_at) {
+      if (citation.is_accessible === true) {
+        return `${base} border-green-200/50`;
+      }
+      if (citation.is_accessible === false) {
+        return `${base} border-orange-200/50 opacity-75`;
+      }
+    }
+    
+    return base;
+  };
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Card 
-          className={`p-2 cursor-pointer hover:bg-muted/50 transition-colors max-w-xs ${
-            citation.is_competitor ? 'border-red-200 bg-red-50/30' : ''
-          }`}
+          className={getCardClasses()}
           onClick={() => window.open(citation.url, '_blank', 'noopener,noreferrer')}
         >
           <div className="flex items-start gap-2">
@@ -155,6 +267,7 @@ function CitationChip({ citation }: { citation: Citation }) {
                 <div className="font-medium text-sm truncate">
                   {getDisplayName()}
                 </div>
+                {getQualityIndicator()}
                 {citation.is_competitor && (
                   <Tooltip>
                     <TooltipTrigger>
@@ -208,6 +321,18 @@ function CitationChip({ citation }: { citation: Citation }) {
           {citation.brand_mention !== 'unknown' && (
             <div className="text-xs">
               Brand mention confidence: {Math.round(citation.brand_mention_confidence * 100)}%
+            </div>
+          )}
+          {showQuality && citation.validated_at && (
+            <div className="text-xs border-t pt-1 mt-1">
+              <span className={citation.is_accessible ? 'text-green-600' : 'text-orange-500'}>
+                {citation.is_accessible ? '✓ Link verified' : '⚠ Link may be broken'}
+              </span>
+              {citation.validation_status_code && citation.validation_status_code > 0 && (
+                <span className="text-muted-foreground ml-1">
+                  (HTTP {citation.validation_status_code})
+                </span>
+              )}
             </div>
           )}
         </div>
