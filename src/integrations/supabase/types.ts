@@ -1421,6 +1421,76 @@ export type Database = {
           },
         ]
       }
+      report_email_preferences: {
+        Row: {
+          brand_id: string | null
+          created_at: string
+          day_of_week: number | null
+          email: string
+          frequency: string
+          id: string
+          include_pdf: boolean | null
+          include_summary: boolean | null
+          is_active: boolean | null
+          last_sent_at: string | null
+          org_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          email: string
+          frequency?: string
+          id?: string
+          include_pdf?: boolean | null
+          include_summary?: boolean | null
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          org_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          email?: string
+          frequency?: string
+          id?: string
+          include_pdf?: boolean | null
+          include_summary?: boolean | null
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          org_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_email_preferences_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_email_preferences_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "report_email_preferences_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_templates: {
         Row: {
           created_at: string
