@@ -13,9 +13,37 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AudienceToggle } from "@/components/landing/AudienceToggle";
+import { useAudienceToggle } from "@/hooks/useAudienceToggle";
+
+const audienceContent = {
+  marketing: {
+    previewSubtitle: "See how AI search affects your brand and where to focus next.",
+    analyzingItems: [
+      "Which prompts AI uses to recommend brands like yours",
+      "Where your brand appears — and where it doesn't",
+      "Which competitors AI prefers and why",
+      "The sources and citations influencing AI answers",
+      "Opportunities to improve visibility",
+    ],
+  },
+  agency: {
+    previewSubtitle: "See how AI search treats your client and how to explain the gap.",
+    analyzingItems: [
+      "Which prompts AI uses to recommend brands like your client's",
+      "Where the client brand appears — and where it doesn't",
+      "Which competitors AI prefers and why",
+      "The sources and citations influencing AI answers",
+      "Client-ready insights to support your recommendations",
+    ],
+  },
+};
 
 const AIRecommendsThankYou = () => {
   const [dots, setDots] = useState(1);
+  const [audience, setAudience] = useAudienceToggle();
+
+  const content = audienceContent[audience];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -23,14 +51,6 @@ const AIRecommendsThankYou = () => {
     }, 500);
     return () => clearInterval(interval);
   }, []);
-
-  const analyzingItems = [
-    "Which prompts AI uses to recommend brands like yours",
-    "Where your brand appears — and where it doesn't",
-    "Which competitors AI prefers and why",
-    "The sources and citations influencing AI answers",
-    "Opportunities to improve visibility",
-  ];
 
   const previewCards = [
     { icon: Eye, title: "AI Visibility Overview" },
@@ -69,10 +89,21 @@ const AIRecommendsThankYou = () => {
           {/* Hero Section */}
           <section className="py-16 px-6">
             <div className="max-w-3xl mx-auto text-center">
+              {/* Audience Toggle */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="flex justify-center mb-8"
+              >
+                <AudienceToggle audience={audience} onChange={setAudience} />
+              </motion.div>
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
+                key={audience}
               >
                 {/* Success indicator */}
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 mb-8">
@@ -83,9 +114,13 @@ const AIRecommendsThankYou = () => {
                   Your AI Visibility Snapshot Is Being Prepared
                 </h1>
 
-                <p className="text-lg md:text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
+                <p className="text-lg md:text-xl text-gray-400 mb-4 max-w-2xl mx-auto">
                   We're analyzing how AI search engines like ChatGPT, Gemini, and 
                   Perplexity respond to real prompts in your category.
+                </p>
+
+                <p className="text-base text-gray-500 mb-10 max-w-2xl mx-auto">
+                  {content.previewSubtitle}
                 </p>
 
                 {/* Progress indicator */}
@@ -115,6 +150,7 @@ const AIRecommendsThankYou = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
+                key={audience}
               >
                 <h2 className="text-xl md:text-2xl font-semibold mb-6 text-center">
                   What We're Looking At
@@ -123,7 +159,7 @@ const AIRecommendsThankYou = () => {
                 <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
                   <CardContent className="p-6 md:p-8">
                     <ul className="space-y-4">
-                      {analyzingItems.map((item, index) => (
+                      {content.analyzingItems.map((item, index) => (
                         <motion.li
                           key={index}
                           className="flex items-start gap-3"

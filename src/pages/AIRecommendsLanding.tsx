@@ -25,6 +25,8 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { AudienceToggle } from '@/components/landing/AudienceToggle';
+import { useAudienceToggle } from '@/hooks/useAudienceToggle';
 
 // AI Platform logos section
 const aiPlatforms = [
@@ -34,12 +36,53 @@ const aiPlatforms = [
   { name: 'AI Overviews', icon: '🌐' },
 ];
 
+// Audience-specific content
+const audienceContent = {
+  marketing: {
+    headline: "See Why AI Recommends Certain Brands —",
+    headlineHighlight: "and How to Become One",
+    subheadline: "Llumos helps in-house marketing teams understand how AI search engines decide which brands to recommend — and what to change to improve visibility across ChatGPT, Gemini, and Perplexity.",
+    valueBullets: [
+      "Understand how AI search impacts demand",
+      "Identify content gaps that reduce AI visibility",
+      "Prioritize updates that actually influence recommendations",
+      "Track progress over time",
+    ],
+    snapshotExplanation: "Your AI Visibility Snapshot is designed to help marketing teams:",
+    snapshotBullets: [
+      "Make AI visibility part of growth strategy",
+      "Reduce guesswork around content planning",
+      "Align SEO, content, and brand strategy for AI search",
+    ],
+  },
+  agency: {
+    headline: "Show Clients Why AI Recommends",
+    headlineHighlight: "Certain Brands",
+    subheadline: "Llumos gives agencies clear insight into how AI search engines evaluate brands — so you can explain competitive gaps, justify recommendations, and deliver AI visibility reporting to clients.",
+    valueBullets: [
+      "Explain why AI favors certain competitors",
+      "Back recommendations with prompt-level data",
+      "Deliver AI visibility reporting across multiple clients",
+      "Differentiate services beyond traditional SEO",
+    ],
+    snapshotExplanation: "Your AI Visibility Snapshot helps agencies:",
+    snapshotBullets: [
+      "Diagnose client visibility issues in AI search",
+      "Support strategic recommendations with data",
+      "Expand services into AI search optimization",
+    ],
+  },
+};
+
 export default function AIRecommendsLanding() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [isQualified, setIsQualified] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [audience, setAudience] = useAudienceToggle();
+
+  const content = audienceContent[audience];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +110,7 @@ export default function AIRecommendsLanding() {
           company: company.trim(),
           isQualified: isQualified === 'yes',
           landingPage: 'ai-recommends',
+          audienceType: audience,
           timestamp: new Date().toISOString(),
         },
       }).select().single();
@@ -133,22 +177,32 @@ export default function AIRecommendsLanding() {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.02)_1px,transparent_1px)] bg-[size:80px_80px]" />
 
             <div className="container max-w-4xl mx-auto relative z-10">
+              {/* Audience Toggle */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="flex justify-center mb-8"
+              >
+                <AudienceToggle audience={audience} onChange={setAudience} />
+              </motion.div>
+
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
                 className="text-center"
+                key={audience} // Re-trigger animation on toggle
               >
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                  See Why AI Recommends Certain Brands —{' '}
+                  {content.headline}{' '}
                   <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
-                    and How to Become One
+                    {content.headlineHighlight}
                   </span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
-                  AI search engines don't choose brands randomly.<br />
-                  Llumos reveals the prompts, citations, and content signals that cause AI to recommend your competitors — and gives you clear next steps to improve your visibility.
+                  {content.subheadline}
                 </p>
 
                 <Button
@@ -338,22 +392,21 @@ export default function AIRecommendsLanding() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
               >
-                <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">
+                <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">
                   What You Get in Your{' '}
                   <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
                     Free AI Visibility Snapshot
                   </span>
                 </h2>
 
+                <p className="text-center text-muted-foreground mb-8">
+                  {content.snapshotExplanation}
+                </p>
+
                 <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
                   {/* Benefits list */}
-                  <div className="space-y-4">
-                    {[
-                      'Current AI visibility across major platforms',
-                      'Competitive comparison vs AI-recommended brands',
-                      'Key prompts affecting your category',
-                      'Clear, actionable opportunities to improve',
-                    ].map((benefit, index) => (
+                  <div className="space-y-4" key={audience}>
+                    {content.snapshotBullets.map((benefit, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, x: -20 }}
@@ -366,6 +419,17 @@ export default function AIRecommendsLanding() {
                         <span className="text-foreground/90">{benefit}</span>
                       </motion.div>
                     ))}
+                    {/* Common bullets */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: 0.3 }}
+                      className="flex items-center gap-3"
+                    >
+                      <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                      <span className="text-foreground/90">Clear, actionable opportunities to improve</span>
+                    </motion.div>
                   </div>
 
                   {/* Form */}
@@ -436,64 +500,36 @@ export default function AIRecommendsLanding() {
             </div>
           </section>
 
-          {/* Audience Split Section */}
+          {/* Value Props Section (audience-specific) */}
           <section className="py-20 px-4">
-            <div className="container max-w-5xl mx-auto">
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* For In-House Teams */}
-                <motion.div
-                  initial={{ opacity: 0, x: -30 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="p-8 rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-500/5 border border-violet-500/20"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center mb-6">
-                    <Users className="w-6 h-6 text-violet-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">For In-House Marketing Teams</h3>
-                  <ul className="space-y-3">
-                    {[
-                      'Understand how AI search impacts demand',
-                      'Prioritize content updates that matter',
-                      'Track visibility changes over time',
-                      'Make AI visibility part of your growth strategy',
-                    ].map((item, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-violet-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-foreground/80">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
+            <div className="container max-w-4xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+                key={audience}
+              >
+                <h2 className="text-3xl md:text-4xl font-bold mb-10 text-center">
+                  {audience === 'marketing' ? 'Built for Marketing Teams' : 'Built for Agencies & Consultants'}
+                </h2>
 
-                {/* For Agencies */}
-                <motion.div
-                  initial={{ opacity: 0, x: 30 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="p-8 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center mb-6">
-                    <Briefcase className="w-6 h-6 text-blue-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">For Agencies & Consultants</h3>
-                  <ul className="space-y-3">
-                    {[
-                      'Show clients why AI favors competitors',
-                      'Back recommendations with data',
-                      'Differentiate services with AI search insights',
-                      'Monitor AI visibility across multiple brands',
-                    ].map((item, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-foreground/80">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
-              </div>
+                <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                  {content.valueBullets.map((item, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: index * 0.1 }}
+                      className="flex items-start gap-3 p-4 rounded-lg bg-white/[0.02] border border-white/5"
+                    >
+                      <CheckCircle className="w-5 h-5 text-violet-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-foreground/90">{item}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
             </div>
           </section>
 
