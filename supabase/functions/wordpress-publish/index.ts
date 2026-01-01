@@ -155,6 +155,50 @@ serve(async (req) => {
   }
 });
 
+async function decryptPassword(encryptedPassword: string): Promise<string> {
+  // Check if value is encrypted (has prefix)
+  if (!encryptedPassword.startsWith('enc:')) {
+    // Return as-is for backwards compatibility with unencrypted values
+    console.log('[wordpress-publish] Password not encrypted (legacy), using as-is');
+    return encryptedPassword;
+  }
+  
+  const keyHex = Deno.env.get('CMS_ENCRYPTION_KEY');
+  if (!keyHex) {
+    throw new Error('CMS_ENCRYPTION_KEY not configured');
+  }
+  
+  // Convert hex string to bytes
+  const keyBytes = new Uint8Array(keyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  );
+  
+  // Remove prefix and decode base64
+  const base64Data = encryptedPassword.slice(4);
+  const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  
+  // Extract IV (first 12 bytes) and ciphertext
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  
+  // Decrypt
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    ciphertext
+  );
+  
+  // Decode to string
+  const decoder = new TextDecoder();
+  return decoder.decode(decrypted);
+}
+
 async function publishToWordPress(
   connection: any,
   content: any,
@@ -162,6 +206,10 @@ async function publishToWordPress(
   postType: string
 ): Promise<{ id: string; link: string }> {
   const { site_url, username, app_password_encrypted } = connection;
+  
+  // Decrypt the password
+  const decryptedPassword = await decryptPassword(app_password_encrypted);
+  console.log('[wordpress-publish] Password decrypted successfully');
   
   // Build HTML content from outline
   let htmlContent = '';
@@ -192,7 +240,7 @@ async function publishToWordPress(
   // WordPress REST API endpoint
   const apiUrl = `${site_url.replace(/\/$/, '')}/wp-json/wp/v2/${postType}s`;
   
-  const credentials = btoa(`${username}:${app_password_encrypted}`);
+  const credentials = btoa(`${username}:${decryptedPassword}`);
   
   const response = await fetch(apiUrl, {
     method: 'POST',

@@ -44,7 +44,16 @@ export function WordPressConnectDialog({ open, onClose }: WordPressConnectDialog
         throw new Error('Failed to connect. Check your site URL, username, and application password.');
       }
 
-      // Save connection
+      // Encrypt the password using Edge Function
+      const { data: encryptResult, error: encryptError } = await supabase.functions.invoke('cms-encrypt', {
+        body: { password: appPassword },
+      });
+
+      if (encryptError || !encryptResult?.encrypted) {
+        throw new Error('Failed to secure password. Please try again.');
+      }
+
+      // Save connection with encrypted password
       const { error } = await supabase
         .from('cms_connections')
         .insert({
@@ -52,7 +61,7 @@ export function WordPressConnectDialog({ open, onClose }: WordPressConnectDialog
           platform: 'wordpress',
           site_url: siteUrl.replace(/\/$/, ''),
           username,
-          app_password_encrypted: appPassword, // In production, encrypt this
+          app_password_encrypted: encryptResult.encrypted,
           is_active: true,
           last_connected_at: new Date().toISOString(),
         });
