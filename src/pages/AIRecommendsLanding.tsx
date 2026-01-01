@@ -547,9 +547,9 @@ export default function AIRecommendsLanding() {
                   {/* HubSpot Form */}
                   <div className="p-6 rounded-xl bg-white/[0.05] border border-white/10">
                     <HubSpotForm
-                      portalId={HUBSPOT_CONFIG.portalId}
-                      formId={HUBSPOT_CONFIG.forms.hero}
-                      region={HUBSPOT_CONFIG.region}
+                      portalId="244723281"
+                      formId="fada3578-f269-4b9f-8bd1-3ace25fc31af"
+                      region="na2"
                       onFormSubmit={handleHubSpotSubmit}
                       className="hubspot-form-container"
                     />
