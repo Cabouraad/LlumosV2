@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,11 +35,11 @@ const aiPlatforms = [
 ];
 
 export default function AIRecommendsLanding() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [isQualified, setIsQualified] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +73,8 @@ export default function AIRecommendsLanding() {
 
       if (error) throw error;
 
-      setSubmitted(true);
-      toast.success('Request submitted! We\'ll send your AI Visibility Snapshot shortly.');
+      // Redirect to thank you page
+      navigate('/lp/ai-recommends/thank-you');
     } catch (error) {
       console.error('Error submitting lead:', error);
       toast.error('Something went wrong. Please try again.');
@@ -362,78 +363,66 @@ export default function AIRecommendsLanding() {
 
                   {/* Form */}
                   <div className="p-6 rounded-xl bg-white/[0.05] border border-white/10">
-                    {submitted ? (
-                      <div className="text-center py-8">
-                        <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                          <CheckCircle className="w-8 h-8 text-green-500" />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-2">Request Received!</h3>
-                        <p className="text-muted-foreground">
-                          We'll send your AI Visibility Snapshot to your email shortly.
-                        </p>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div>
+                        <Label htmlFor="email" className="text-sm font-medium mb-1.5 block">
+                          Work Email *
+                        </Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="you@company.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          className="bg-white/5 border-white/10 focus:border-violet-500/50"
+                        />
                       </div>
-                    ) : (
-                      <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                          <Label htmlFor="email" className="text-sm font-medium mb-1.5 block">
-                            Work Email *
-                          </Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="you@company.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className="bg-white/5 border-white/10 focus:border-violet-500/50"
-                          />
-                        </div>
 
-                        <div>
-                          <Label htmlFor="company" className="text-sm font-medium mb-1.5 block">
-                            Company *
-                          </Label>
-                          <Input
-                            id="company"
-                            type="text"
-                            placeholder="Your company name"
-                            value={company}
-                            onChange={(e) => setCompany(e.target.value)}
-                            required
-                            className="bg-white/5 border-white/10 focus:border-violet-500/50"
-                          />
-                        </div>
+                      <div>
+                        <Label htmlFor="company" className="text-sm font-medium mb-1.5 block">
+                          Company *
+                        </Label>
+                        <Input
+                          id="company"
+                          type="text"
+                          placeholder="Your company name"
+                          value={company}
+                          onChange={(e) => setCompany(e.target.value)}
+                          required
+                          className="bg-white/5 border-white/10 focus:border-violet-500/50"
+                        />
+                      </div>
 
-                        <div>
-                          <Label className="text-sm font-medium mb-2 block">
-                            Are you responsible for content, SEO, or growth?
-                          </Label>
-                          <RadioGroup
-                            value={isQualified || ''}
-                            onValueChange={setIsQualified}
-                            className="flex gap-4"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="yes" id="yes" />
-                              <Label htmlFor="yes" className="cursor-pointer">Yes</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="no" id="no" />
-                              <Label htmlFor="no" className="cursor-pointer">No</Label>
-                            </div>
-                          </RadioGroup>
-                        </div>
-
-                        <Button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full h-12 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500"
+                      <div>
+                        <Label className="text-sm font-medium mb-2 block">
+                          Are you responsible for content, SEO, or growth?
+                        </Label>
+                        <RadioGroup
+                          value={isQualified || ''}
+                          onValueChange={setIsQualified}
+                          className="flex gap-4"
                         >
-                          {isSubmitting ? 'Submitting...' : 'Get Your Free AI Visibility Snapshot'}
-                          {!isSubmitting && <ArrowRight className="ml-2 w-4 h-4" />}
-                        </Button>
-                      </form>
-                    )}
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="yes" />
+                            <Label htmlFor="yes" className="cursor-pointer">Yes</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="no" />
+                            <Label htmlFor="no" className="cursor-pointer">No</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full h-12 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500"
+                      >
+                        {isSubmitting ? 'Submitting...' : 'Get Your Free AI Visibility Snapshot'}
+                        {!isSubmitting && <ArrowRight className="ml-2 w-4 h-4" />}
+                      </Button>
+                    </form>
                   </div>
                 </div>
               </motion.div>
