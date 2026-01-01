@@ -54,6 +54,7 @@ import ComparisonPage from "./pages/ComparisonPage";
 import DashboardDemo from "./pages/DashboardDemo";
 import ScoreResults from "./pages/ScoreResults";
 import AIRecommendsLanding from "./pages/AIRecommendsLanding";
+import AIRecommendsThankYou from "./pages/AIRecommendsThankYou";
 
 // ============================================
 // LAZY LOADED - Auth Routes
@@ -181,6 +182,7 @@ const App = () => {
         <Route path="/dashboard-demo" element={<DashboardDemo />} />
         <Route path="/score-results" element={<ScoreResults />} />
         <Route path="/lp/ai-recommends" element={<AIRecommendsLanding />} />
+        <Route path="/lp/ai-recommends/thank-you" element={<AIRecommendsThankYou />} />
 
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
