@@ -545,13 +545,13 @@ export default function AIRecommendsLanding() {
                   </div>
 
                   {/* HubSpot Form */}
-                  <div className="p-6 rounded-xl bg-white/[0.05] border border-white/10">
+                  <div className="p-6 rounded-xl bg-white/[0.05] border border-white/10 min-h-[500px]">
                     <HubSpotForm
                       portalId="244723281"
                       formId="fada3578-f269-4b9f-8bd1-3ace25fc31af"
                       region="na2"
                       onFormSubmit={handleHubSpotSubmit}
-                      className="hubspot-form-container"
+                      className="hubspot-form-container [&_form]:min-h-[450px]"
                     />
                   </div>
                 </div>
