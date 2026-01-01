@@ -53,6 +53,7 @@ import FreeChecker from "./pages/FreeChecker";
 import ComparisonPage from "./pages/ComparisonPage";
 import DashboardDemo from "./pages/DashboardDemo";
 import ScoreResults from "./pages/ScoreResults";
+import AIRecommendsLanding from "./pages/AIRecommendsLanding";
 
 // ============================================
 // LAZY LOADED - Auth Routes
@@ -179,7 +180,7 @@ const App = () => {
         <Route path="/vs-competitors" element={<ComparisonPage />} />
         <Route path="/dashboard-demo" element={<DashboardDemo />} />
         <Route path="/score-results" element={<ScoreResults />} />
-        <Route path="/vs-competitors" element={<ComparisonPage />} />
+        <Route path="/lp/ai-recommends" element={<AIRecommendsLanding />} />
 
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
