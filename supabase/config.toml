@@ -230,10 +230,16 @@ verify_jwt = true
 [functions.content-studio-assist]
 verify_jwt = true
 
+[functions.send-weekly-report-email]
+verify_jwt = false
+
 # Scheduled runs - BULLETPROOF CONFIGURATION
 [functions.schedules]
 # === WEEKLY REPORTS ===
 weekly_reports_unified = { schedule = "0 8 * * MON", endpoint = "/weekly-report-scheduler", method = "POST", headers = { "x-cron-secret" = "${CRON_SECRET}" } }
+
+# === WEEKLY REPORT EMAILS (Mondays at 9:00 AM UTC - after reports generated) ===
+weekly_report_emails = { schedule = "0 9 * * MON", endpoint = "/send-weekly-report-email", method = "POST", headers = { "x-cron-secret" = "${CRON_SECRET}" } }
 
 # === SUBSCRIPTION CHECKS ===
 daily_subscription_check = { schedule = "0 2 * * *", endpoint = "/check-subscription-scheduled", method = "POST", headers = { "x-cron-secret" = "${CRON_SECRET}" } }
