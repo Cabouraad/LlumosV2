@@ -60,7 +60,7 @@ export default function AIRecommendsLanding() {
 
     try {
       // Store lead in database
-      const { error } = await supabase.from('leads').insert({
+      const { data: lead, error } = await supabase.from('leads').insert({
         email: email.trim(),
         source: 'ai-recommends-landing',
         metadata: {
@@ -69,9 +69,16 @@ export default function AIRecommendsLanding() {
           landingPage: 'ai-recommends',
           timestamp: new Date().toISOString(),
         },
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Schedule email sequence in background (don't block redirect)
+      if (lead?.id) {
+        supabase.functions.invoke('snapshot-email-sequence', {
+          body: { action: 'schedule', leadId: lead.id }
+        }).catch(err => console.error('Failed to schedule emails:', err));
+      }
 
       // Redirect to thank you page
       navigate('/lp/ai-recommends/thank-you');
