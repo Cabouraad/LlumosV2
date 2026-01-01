@@ -1,10 +1,6 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { SEOHelmet } from '@/components/SEOHelmet';
 import { 
   ArrowRight, 
@@ -25,11 +21,10 @@ import {
   MessageSquare,
   Link as LinkIcon
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { AudienceToggle } from '@/components/landing/AudienceToggle';
 import { useAudienceToggle } from '@/hooks/useAudienceToggle';
+import { HubSpotForm, HUBSPOT_CONFIG } from '@/components/hubspot/HubSpotForm';
 
 // AI Platform logos section
 const aiPlatforms = [
@@ -86,62 +81,13 @@ const valueStripItems = [
 
 export default function AIRecommendsLanding() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [company, setCompany] = useState('');
-  const [isQualified, setIsQualified] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [audience, setAudience] = useAudienceToggle();
 
   const content = audienceContent[audience];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email.trim() || !company.trim()) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Store lead in database
-      const { data: lead, error } = await supabase.from('leads').insert({
-        email: email.trim(),
-        source: 'ai-recommends-landing',
-        metadata: {
-          company: company.trim(),
-          isQualified: isQualified === 'yes',
-          landingPage: 'ai-recommends',
-          audienceType: audience,
-          timestamp: new Date().toISOString(),
-        },
-      }).select().single();
-
-      if (error) throw error;
-
-      // Schedule email sequence in background (don't block redirect)
-      if (lead?.id) {
-        supabase.functions.invoke('snapshot-email-sequence', {
-          body: { action: 'schedule', leadId: lead.id }
-        }).catch(err => console.error('Failed to schedule emails:', err));
-      }
-
-      // Redirect to thank you page
-      navigate('/lp/ai-recommends/thank-you');
-    } catch (error) {
-      console.error('Error submitting lead:', error);
-      toast.error('Something went wrong. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleHubSpotSubmit = () => {
+    // Redirect to thank you page after HubSpot form submission
+    navigate('/lp/ai-recommends/thank-you');
   };
 
   const scrollToForm = () => {
@@ -598,68 +544,15 @@ export default function AIRecommendsLanding() {
                     </motion.div>
                   </div>
 
-                  {/* Form */}
+                  {/* HubSpot Form */}
                   <div className="p-6 rounded-xl bg-white/[0.05] border border-white/10">
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      <div>
-                        <Label htmlFor="email" className="text-sm font-medium mb-1.5 block">
-                          Work Email *
-                        </Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="you@company.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                          className="bg-white/5 border-white/10 focus:border-violet-500/50"
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="company" className="text-sm font-medium mb-1.5 block">
-                          Company *
-                        </Label>
-                        <Input
-                          id="company"
-                          type="text"
-                          placeholder="Your company name"
-                          value={company}
-                          onChange={(e) => setCompany(e.target.value)}
-                          required
-                          className="bg-white/5 border-white/10 focus:border-violet-500/50"
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium mb-2 block">
-                          Are you responsible for content, SEO, or growth?
-                        </Label>
-                        <RadioGroup
-                          value={isQualified || ''}
-                          onValueChange={setIsQualified}
-                          className="flex gap-4"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="yes" id="yes" />
-                            <Label htmlFor="yes" className="cursor-pointer">Yes</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="no" id="no" />
-                            <Label htmlFor="no" className="cursor-pointer">No</Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full h-12 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500"
-                      >
-                        {isSubmitting ? 'Submitting...' : 'Get Your Free AI Visibility Snapshot'}
-                        {!isSubmitting && <ArrowRight className="ml-2 w-4 h-4" />}
-                      </Button>
-                    </form>
+                    <HubSpotForm
+                      portalId={HUBSPOT_CONFIG.portalId}
+                      formId={HUBSPOT_CONFIG.forms.hero}
+                      region={HUBSPOT_CONFIG.region}
+                      onFormSubmit={handleHubSpotSubmit}
+                      className="hubspot-form-container"
+                    />
                   </div>
                 </div>
               </motion.div>
