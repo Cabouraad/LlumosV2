@@ -20,7 +20,10 @@ import {
   Zap,
   Quote,
   Brain,
-  Sparkles
+  Sparkles,
+  X,
+  MessageSquare,
+  Link as LinkIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,6 +76,13 @@ const audienceContent = {
     ],
   },
 };
+
+// Value strip items for scannable above-the-fold context
+const valueStripItems = [
+  { icon: MessageSquare, text: "Prompts AI responds to" },
+  { icon: LinkIcon, text: "Sources AI cites" },
+  { icon: Users, text: "Why competitors are recommended" },
+];
 
 export default function AIRecommendsLanding() {
   const navigate = useNavigate();
@@ -169,7 +179,7 @@ export default function AIRecommendsLanding() {
 
         <main>
           {/* Hero Section */}
-          <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+          <section className="relative pt-32 pb-16 px-4 overflow-hidden">
             {/* Background effects */}
             <div className="absolute inset-0 bg-gradient-to-br from-violet-950/40 via-background to-blue-950/20" />
             <div className="absolute top-20 left-1/4 w-[600px] h-[600px] bg-violet-500/8 rounded-full blur-[120px]" />
@@ -192,14 +202,19 @@ export default function AIRecommendsLanding() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
                 className="text-center"
-                key={audience} // Re-trigger animation on toggle
+                key={audience}
               >
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4">
                   {content.headline}{' '}
                   <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
                     {content.headlineHighlight}
                   </span>
                 </h1>
+
+                {/* Micro-explainer line for clarity */}
+                <p className="text-sm text-violet-400/80 mb-6">
+                  Based on real AI answers, prompts, and citations — not assumptions.
+                </p>
 
                 <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
                   {content.subheadline}
@@ -214,9 +229,29 @@ export default function AIRecommendsLanding() {
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
 
-                <p className="mt-4 text-sm text-muted-foreground">
-                  No demo. No sales call.
+                {/* Meta-friction reduction micro-copy */}
+                <p className="mt-3 text-xs text-muted-foreground/70">
+                  Free snapshot • No demo • No sales outreach
                 </p>
+              </motion.div>
+            </div>
+          </section>
+
+          {/* Scannable Value Strip */}
+          <section className="py-6 px-4">
+            <div className="container max-w-3xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="flex flex-wrap items-center justify-center gap-6 md:gap-10"
+              >
+                {valueStripItems.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <item.icon className="w-4 h-4 text-violet-400" />
+                    <span>{item.text}</span>
+                  </div>
+                ))}
               </motion.div>
             </div>
           </section>
@@ -235,6 +270,137 @@ export default function AIRecommendsLanding() {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+
+          {/* What This Snapshot Is (and Isn't) - Fast Context Section */}
+          <section className="py-16 px-4">
+            <div className="container max-w-4xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              >
+                <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">
+                  What This Snapshot Is{' '}
+                  <span className="text-muted-foreground font-normal">(and Isn't)</span>
+                </h2>
+
+                <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                  {/* Is */}
+                  <div className="p-6 rounded-xl bg-gradient-to-br from-green-500/5 to-green-500/[0.02] border border-green-500/10">
+                    <div className="flex items-center gap-2 mb-4">
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="font-semibold text-green-400">Is</span>
+                    </div>
+                    <ul className="space-y-3">
+                      {[
+                        "A focused analysis of how AI search treats your brand",
+                        "Competitive and prompt-driven",
+                        "Designed to show causes, not just outcomes",
+                      ].map((item, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm text-foreground/80">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500/60 mt-2 shrink-0" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Isn't */}
+                  <div className="p-6 rounded-xl bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <X className="w-5 h-5 text-muted-foreground" />
+                      <span className="font-semibold text-muted-foreground">Isn't</span>
+                    </div>
+                    <ul className="space-y-3">
+                      {[
+                        "A generic SEO audit",
+                        "A sales demo",
+                        "A vanity score",
+                      ].map((item, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 mt-2 shrink-0" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </section>
+
+          {/* Early Visual Anchor - Dashboard Preview */}
+          <section className="py-12 px-4">
+            <div className="container max-w-4xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+                className="relative"
+              >
+                {/* Dashboard Preview Mock */}
+                <div className="relative rounded-xl overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.03] to-white/[0.01] shadow-2xl shadow-violet-500/5">
+                  {/* Mock browser bar */}
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5 bg-white/[0.02]">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500/60" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                      <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                    </div>
+                    <div className="flex-1 mx-4">
+                      <div className="h-6 bg-white/5 rounded-md max-w-xs mx-auto flex items-center justify-center">
+                        <span className="text-xs text-muted-foreground">app.llumos.ai/dashboard</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dashboard content preview */}
+                  <div className="p-6 md:p-8">
+                    <div className="grid md:grid-cols-3 gap-4 mb-6">
+                      {/* Score card */}
+                      <div className="p-4 rounded-lg bg-white/[0.03] border border-white/5">
+                        <p className="text-xs text-muted-foreground mb-1">AI Visibility Score</p>
+                        <div className="flex items-end gap-2">
+                          <span className="text-3xl font-bold text-violet-400">67</span>
+                          <span className="text-xs text-green-400 mb-1">+12</span>
+                        </div>
+                      </div>
+                      {/* Prompts tracked */}
+                      <div className="p-4 rounded-lg bg-white/[0.03] border border-white/5">
+                        <p className="text-xs text-muted-foreground mb-1">Prompts Analyzed</p>
+                        <span className="text-3xl font-bold text-foreground">24</span>
+                      </div>
+                      {/* Competitors */}
+                      <div className="p-4 rounded-lg bg-white/[0.03] border border-white/5">
+                        <p className="text-xs text-muted-foreground mb-1">Competitors Found</p>
+                        <span className="text-3xl font-bold text-foreground">8</span>
+                      </div>
+                    </div>
+
+                    {/* Chart placeholder */}
+                    <div className="h-32 rounded-lg bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-violet-500/5 border border-white/5 flex items-end justify-around px-4 pb-4">
+                      {[40, 55, 35, 70, 60, 75, 65].map((height, i) => (
+                        <div
+                          key={i}
+                          className="w-6 md:w-8 rounded-t bg-gradient-to-t from-violet-500/40 to-violet-400/60"
+                          style={{ height: `${height}%` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating label */}
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+                  <span className="px-3 py-1 text-xs bg-background border border-white/10 rounded-full text-muted-foreground">
+                    Sample dashboard view
+                  </span>
+                </div>
+              </motion.div>
             </div>
           </section>
 
