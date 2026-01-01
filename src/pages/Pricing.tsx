@@ -16,7 +16,8 @@ import { SEOHelmet } from '@/components/SEOHelmet';
 import { Footer } from '@/components/Footer';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ProductSchema } from '@/components/seo/ProductSchema';
-import { Play } from 'lucide-react';
+import { PlanChooserSection } from '@/components/landing/PlanChooserSection';
+import { Play, User, Users, Building2 } from 'lucide-react';
 
 export default function Pricing() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -83,7 +84,7 @@ export default function Pricing() {
     {
       tier: 'free' as const,
       title: 'Free',
-      description: 'For individuals exploring AI visibility',
+      description: 'Explore how AI search mentions your brand — at no cost.',
       monthlyPrice: 0,
       yearlyPrice: 0,
       features: [
@@ -97,7 +98,7 @@ export default function Pricing() {
     {
       tier: 'starter' as const,
       title: 'Starter',
-      description: 'For small companies tracking AI visibility',
+      description: 'For individuals and small teams learning how AI search impacts demand.',
       monthlyPrice: 49,
       yearlyPrice: 490,
       features: [
@@ -112,7 +113,7 @@ export default function Pricing() {
     {
       tier: 'growth' as const,
       title: 'Growth',
-      description: 'For growing companies needing deeper insights',
+      description: 'For growth teams and agencies tracking visibility across brands and competitors.',
       monthlyPrice: 99,
       yearlyPrice: 990,
       features: [
@@ -130,7 +131,7 @@ export default function Pricing() {
     {
       tier: 'pro' as const,
       title: 'Pro',
-      description: 'For teams managing multiple brands',
+      description: 'For teams managing multiple brands with advanced insights and optimization.',
       monthlyPrice: 225,
       yearlyPrice: 2250,
       features: [
@@ -148,7 +149,7 @@ export default function Pricing() {
     {
       tier: 'agency' as const,
       title: 'Agency',
-      description: 'For agencies and enterprises',
+      description: 'For organizations that need custom prompts, reporting, and scale.',
       monthlyPrice: 399,
       yearlyPrice: 3990,
       features: [
@@ -297,6 +298,9 @@ export default function Pricing() {
             </Link>
           </Button>
         </div>
+
+        {/* Which Plan Should I Choose */}
+        <PlanChooserSection />
 
         {/* Feature Comparison Table */}
         <div className="mb-12">

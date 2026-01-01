@@ -3,12 +3,14 @@ import { Navigate } from 'react-router-dom';
 import { SEOHelmet } from '@/components/SEOHelmet';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 
-import { HeroSection } from '@/components/landing/HeroSection';
+import { ConversionHeroSection } from '@/components/landing/ConversionHeroSection';
+import { FreeVisibilityChecker } from '@/components/landing/FreeVisibilityChecker';
 import { ProblemSection } from '@/components/landing/ProblemSection';
 import { SolutionSection } from '@/components/landing/SolutionSection';
-import { SocialProofSection } from '@/components/landing/SocialProofSection';
-import { TestimonialSection } from '@/components/landing/TestimonialSection';
-import { FinalCTASection } from '@/components/landing/FinalCTASection';
+import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
+import { TrustSection } from '@/components/landing/TrustSection';
+import { ConversionFAQSection } from '@/components/landing/ConversionFAQSection';
+import { ConversionFinalCTA } from '@/components/landing/ConversionFinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 import { ExitIntentPopup } from '@/components/home/ExitIntentPopup';
 import { StickyBottomCTA } from '@/components/landing/StickyBottomCTA';
@@ -42,8 +44,8 @@ const Index = () => {
   return (
     <>
       <SEOHelmet
-        title="AI Search Visibility & GEO Platform for Modern Brands"
-        description="Stop guessing if ChatGPT recommends you. Track, measure, and optimize your brand's visibility in AI search engines like Gemini, Perplexity & ChatGPT. Start for free."
+        title="Turn AI Search Mentions Into Revenue | Llumos"
+        description="See how your brand appears in ChatGPT, Gemini, and Perplexity — and get clear actions to improve visibility and win more demand from AI-powered search."
         keywords="AI search visibility, ChatGPT ranking, GEO platform, brand visibility tracking, AI SEO, Gemini search, Perplexity monitoring"
         canonicalPath="/"
         ogImage="/og-home.png"
@@ -81,7 +83,6 @@ const Index = () => {
               "Content Studio",
               "White-Label Reports"
             ]
-            // Note: aggregateRating removed until we have verified real reviews
           }
         ]}
       />
@@ -96,12 +97,14 @@ const Index = () => {
         <StickyBottomCTA />
         <LandingNavbar />
         <main>
-          <HeroSection />
+          <ConversionHeroSection />
+          <FreeVisibilityChecker />
           <ProblemSection />
+          <HowItWorksSection />
           <SolutionSection />
-          <SocialProofSection />
-          <TestimonialSection />
-          <FinalCTASection />
+          <TrustSection />
+          <ConversionFAQSection />
+          <ConversionFinalCTA />
         </main>
         <LandingFooter />
       </div>
