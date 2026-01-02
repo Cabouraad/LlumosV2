@@ -101,12 +101,6 @@ export function DashboardMetrics({ metrics, presenceStats, promptLimit }: Dashbo
                   {presenceStats.weekOverWeekChange > 0 ? '+' : ''}{presenceStats.weekOverWeekChange.toFixed(1)}%
                 </div>
               )}
-              {(presenceStats.weekOverWeekChange === 0 || presenceStats.weekOverWeekChange === undefined) && presenceStats.totalCount > 0 && (
-                <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
-                  <Minus className="h-4 w-4" />
-                  0.0%
-                </div>
-              )}
             </div>
             <div className="w-20 h-10">
               <MiniSparkline data={presenceStats.sparklineData} color="hsl(var(--secondary))" />
