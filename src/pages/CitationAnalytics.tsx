@@ -16,7 +16,8 @@ import {
   Building2,
   FileText,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  List
 } from 'lucide-react';
 import { useBrand } from '@/contexts/BrandContext';
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +31,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CompetitorPagesDialog } from '@/components/citations/CompetitorPagesDialog';
+import { AllCitedPagesTab } from '@/components/citations/AllCitedPagesTab';
 
 interface OwnedCitation {
   citation_url: string;
@@ -149,10 +152,22 @@ export default function CitationAnalytics() {
     );
   }
 
-  const { ownedCitations, topCompetitorDomains, stats } = citationData || {
+  const { ownedCitations, competitorCitations, topCompetitorDomains, stats } = citationData || {
     ownedCitations: [],
+    competitorCitations: [],
     topCompetitorDomains: [],
     stats: { totalOwnedCitations: 0, totalCompetitorCitations: 0, uniqueOwnedPages: 0, uniqueCompetitorPages: 0, citationShare: 0 }
+  };
+
+  // Helper to get display path from URL
+  const getDisplayPath = (url: string) => {
+    try {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname + urlObj.search;
+      return path.length > 50 ? path.substring(0, 47) + '...' : path;
+    } catch {
+      return url.length > 50 ? url.substring(0, 47) + '...' : url;
+    }
   };
 
   return (
@@ -242,14 +257,18 @@ export default function CitationAnalytics() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="your-content" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="your-content" className="flex items-center gap-2">
               <Award className="h-4 w-4" />
-              Your Cited Pages
+              Your Pages
             </TabsTrigger>
             <TabsTrigger value="competitors" className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
-              Competitor Sources
+              Competitors
+            </TabsTrigger>
+            <TabsTrigger value="all-pages" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              All Pages
             </TabsTrigger>
           </TabsList>
 
@@ -420,12 +439,20 @@ export default function CitationAnalytics() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 truncate pl-2 border-l-2 border-muted"
+                                    title={page.citation_url}
                                   >
                                     <ExternalLink className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{page.citation_title || page.citation_url}</span>
+                                    <span className="truncate">{getDisplayPath(page.citation_url)}</span>
                                     <span className="text-muted-foreground shrink-0">({page.total_mentions}x)</span>
                                   </a>
                                 ))}
+                                {competitor.pages.length > 3 && (
+                                  <CompetitorPagesDialog 
+                                    domain={competitor.domain}
+                                    pages={competitor.pages}
+                                    totalCitations={competitor.totalCitations}
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>
@@ -436,6 +463,14 @@ export default function CitationAnalytics() {
                 </Card>
               </>
             )}
+          </TabsContent>
+
+          {/* All Pages Tab */}
+          <TabsContent value="all-pages" className="space-y-6">
+            <AllCitedPagesTab 
+              ownedCitations={ownedCitations}
+              competitorCitations={competitorCitations}
+            />
           </TabsContent>
         </Tabs>
 
