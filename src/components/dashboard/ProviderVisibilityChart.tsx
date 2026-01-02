@@ -19,10 +19,10 @@ const ProviderVisibilityChartComponent = ({ responses, isLoading }: ProviderVisi
   const chartData = useMemo(() => {
     if (!responses || responses.length === 0) return [];
 
-    const data: any[] = [];
+    const allDays: any[] = [];
     
-    // Create 5 days of data
-    for (let i = 4; i >= 0; i--) {
+    // Create 7 days of data to ensure we can find 5 with actual data
+    for (let i = 6; i >= 0; i--) {
       const dayDate = new Date();
       dayDate.setDate(dayDate.getDate() - i);
       dayDate.setHours(0, 0, 0, 0);
@@ -39,6 +39,7 @@ const ProviderVisibilityChartComponent = ({ responses, isLoading }: ProviderVisi
 
       const dayData: any = {
         date: dayDate.toISOString(),
+        hasData: false,
       };
 
       // Calculate presence rate for each provider
@@ -51,12 +52,18 @@ const ProviderVisibilityChartComponent = ({ responses, isLoading }: ProviderVisi
         const total = providerResponses.length;
         const present = providerResponses.filter((r: any) => r.org_brand_present === true).length;
         dayData[providerKey] = total > 0 ? Math.round((present / total) * 100) : null;
+        if (total > 0) dayData.hasData = true;
       });
 
-      data.push(dayData);
+      allDays.push(dayData);
     }
 
-    return data;
+    // Filter to only days with data, then take the most recent 5
+    const daysWithData = allDays.filter(day => day.hasData);
+    const result = daysWithData.slice(-5);
+    
+    // Clean up the hasData flag before returning
+    return result.map(({ hasData, ...rest }) => rest);
   }, [responses]);
 
   // Get active providers (ones with data)
