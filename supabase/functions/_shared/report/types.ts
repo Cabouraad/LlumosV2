@@ -1,4 +1,4 @@
-// Centralized report types to prevent type drift across the codebase
+// Centralized report types to prevent type drift across the codebase - V2 Executive-Grade
 
 // Import VisibilityMetrics from collect.ts to ensure type consistency
 export type VisibilityMetrics = {
@@ -23,13 +23,52 @@ export type VisibilityMetrics = {
   totalPrompts?: number;            // alias for prompts.totalActive
 };
 
+// V2 Competitor with trend tracking
+export interface CompetitorData {
+  name: string;
+  appearances: number;
+  sharePercent: number;
+  deltaVsPriorWeek?: number;
+  isNew: boolean;
+  trend?: 'rising' | 'declining' | 'stable' | 'new';
+  category?: string;
+  promptOverlap?: number; // How many prompts does this competitor appear in that we also appear in
+}
+
+// V2 Prompt with opportunity scoring
+export interface PromptData {
+  id: string;
+  text: string;
+  avgScore: number;
+  totalRuns: number;
+  brandPresentRate: number;
+  category: string;
+  topCompetitors?: string[];
+  suggestedContentAngle?: string;
+  opportunityType?: 'high_opportunity' | 'defensive' | 'winning' | 'standard';
+  searchVolume?: number;
+}
+
+// V2 Citation source with brand presence tracking
+export interface CitationSource {
+  domain: string;
+  mentions: number;
+  avgAuthority: number;
+  brandMentioned?: boolean;
+  categoryType?: 'owned' | 'competitor' | 'neutral';
+}
+
 export interface WeeklyReportData {
   header: {
     orgId: string;
     orgName: string;
+    orgDomain?: string;
+    brandLogo?: string;
+    subscriptionTier?: string;
     periodStart: string;
     periodEnd: string;
     generatedAt: string;
+    reportVersion?: string;
   };
   kpis: VisibilityMetrics;
   historicalTrend: {
@@ -40,67 +79,38 @@ export interface WeeklyReportData {
       totalRuns: number;
     }>;
   };
+  // V2: Enhanced executive summary
+  executiveSummary?: {
+    whatChanged: string;
+    whyItMatters: string;
+    whatToDoNext: string[];
+    netVisibilityMovement: number;
+    presenceDelta: number;
+    keyMetricHighlight: string;
+  };
   prompts: {
     totalActive: number;
     categories: {
-      crm: Array<{
-        id: string;
-        text: string;
-        avgScore: number;
-        totalRuns: number;
-        brandPresentRate: number;
-      }>;
-      competitorTools: Array<{
-        id: string;
-        text: string;
-        avgScore: number;
-        totalRuns: number;
-        brandPresentRate: number;
-      }>;
-      aiFeatures: Array<{
-        id: string;
-        text: string;
-        avgScore: number;
-        totalRuns: number;
-        brandPresentRate: number;
-      }>;
-      other: Array<{
-        id: string;
-        text: string;
-        avgScore: number;
-        totalRuns: number;
-        brandPresentRate: number;
-      }>;
+      crm: PromptData[];
+      competitorTools: PromptData[];
+      aiFeatures: PromptData[];
+      other: PromptData[];
     };
-    topPerformers: Array<{
-      id: string;
-      text: string;
-      avgScore: number;
-      totalRuns: number;
-      brandPresentRate: number;
-      category: string;
-    }>;
+    topPerformers: PromptData[];
     zeroPresence: Array<{
       id: string;
       text: string;
       totalRuns: number;
       category: string;
     }>;
+    // V2: Enhanced prompt insights
+    highOpportunity?: PromptData[]; // High volume, low presence
+    defensive?: PromptData[]; // High competitor presence but brand present
   };
   competitors: {
     totalDetected: number;
-    newThisWeek: Array<{
-      name: string;
-      appearances: number;
-      sharePercent: number;
-    }>;
-    topCompetitors: Array<{
-      name: string;
-      appearances: number;
-      sharePercent: number;
-      deltaVsPriorWeek?: number;
-      isNew: boolean;
-    }>;
+    newThisWeek: CompetitorData[];
+    topCompetitors: CompetitorData[];
     avgCompetitorsPerResponse: number;
     byProvider: Array<{
       provider: string;
@@ -108,6 +118,10 @@ export interface WeeklyReportData {
       uniqueCompetitors: number;
       avgScore: number;
     }>;
+    // V2: Enhanced competitive intel
+    primaryThreat?: CompetitorData; // Most overlap with brand prompts
+    emergingCompetitor?: CompetitorData; // New this week with fast growth
+    byCategory?: Record<string, CompetitorData[]>;
   };
   recommendations: {
     totalCount: number;
@@ -140,21 +154,40 @@ export interface WeeklyReportData {
     keyFindings: string[];
     recommendations: string[];
   };
+  // V2: Strategic recommendations with references
+  strategicRecommendations?: Array<{
+    type: 'content' | 'seo' | 'competitive';
+    title: string;
+    description: string;
+    relatedPrompt?: string;
+    relatedCompetitor?: string;
+    relatedCitation?: string;
+    priority: 'high' | 'medium' | 'low';
+  }>;
   // Phase 1 Enhancements: Citation Analytics
   citations?: {
     totalCitations: number;
     validatedCount: number;
     validationRate: number;
-    topSources: Array<{
-      domain: string;
-      mentions: number;
-      avgAuthority: number;
-    }>;
+    topSources: CitationSource[];
     byProvider: Array<{
       provider: string;
       citationCount: number;
       validationRate: number;
     }>;
+    // V2: Brand presence in citations
+    brandPresentInSources?: number;
+    brandAbsentFromTopSources?: string[];
+    sourceInsight?: string;
+  };
+  // V2: Methodology and trust signals
+  methodology?: {
+    dataCollectionMethod: string;
+    providersIncluded: string[];
+    promptCount: number;
+    responseCount: number;
+    confidenceLevel: 'high' | 'medium' | 'low';
+    disclaimer: string;
   };
   // For internal tracking
   totalResponses?: number;

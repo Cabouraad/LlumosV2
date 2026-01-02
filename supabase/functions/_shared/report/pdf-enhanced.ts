@@ -1,11 +1,11 @@
 /**
- * Professional Weekly Visibility Report PDF Generator
+ * Weekly Visibility Report PDF Generator - V2 Executive Grade
  * Creates polished, multi-page reports with consistent branding and insights
  * Brand Style Guide: Primary Blue, Secondary Green, Accent Orange
  */
 
 import { PDFDocument, rgb, StandardFonts, PageSizes } from 'https://esm.sh/pdf-lib@1.17.1';
-import type { WeeklyReportData } from './types.ts';
+import type { WeeklyReportData, CompetitorData, PromptData } from './types.ts';
 
 // Convert hex colors to RGB for PDF-lib compatibility
 function hexToRgb(hex: string) {
@@ -19,14 +19,42 @@ function hexToRgb(hex: string) {
 
 // Strip emojis and non-WinAnsi characters to prevent encoding errors
 function stripEmojis(text: string | number | null | undefined): string {
-  // Handle non-string inputs
   if (text === null || text === undefined) return '';
   const str = String(text);
-  
-  // Remove emojis and other non-Latin characters that WinAnsi can't encode
   return str.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
-    .replace(/[^\x00-\xFF]/g, '') // Remove any character outside Latin-1 range
+    .replace(/[^\x00-\xFF]/g, '')
     .trim();
+}
+
+// Safe text rendering helper - prevents [object Object] bugs
+function safeText(value: unknown, fallback = ''): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return stripEmojis(value);
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    // Handle competitor objects
+    if ('name' in (value as object)) return stripEmojis((value as { name: string }).name);
+    return fallback;
+  }
+  return stripEmojis(String(value));
+}
+
+// Truncate text with ellipsis
+function truncateText(text: string, maxLength: number): string {
+  const cleaned = stripEmojis(text);
+  return cleaned.length > maxLength ? cleaned.substring(0, maxLength - 3) + '...' : cleaned;
+}
+
+// Format percentage safely
+function formatPercent(value: number | undefined | null, decimals = 1): string {
+  if (value === null || value === undefined || isNaN(value)) return '0%';
+  return `${value.toFixed(decimals)}%`;
+}
+
+// Format number safely
+function formatNumber(value: number | undefined | null, decimals = 1): string {
+  if (value === null || value === undefined || isNaN(value)) return '0';
+  return value.toFixed(decimals);
 }
 
 export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<string, boolean> | null): Promise<Uint8Array> {
@@ -43,14 +71,18 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
     successGreen: hexToRgb('#10B981'),
     errorRed: hexToRgb('#EF4444'),
     accentOrange: hexToRgb('#F97316'),
+    warningYellow: hexToRgb('#FBBF24'),
   };
 
   // Page dimensions (A4)
   const pageWidth = 595;
   const pageHeight = 842;
+  const margin = 40;
+  let pageNumber = 0;
 
-  // Helper function to add headers
-  function addHeader(page: any, title: string, pageNumber: number): number {
+  // Helper function to add headers with page number
+  function addHeader(page: any, title: string): number {
+    pageNumber++;
     const headerY = pageHeight - 60;
     
     page.drawRectangle({
@@ -61,11 +93,11 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
       color: colors.neutralLight,
     });
     
-    page.drawText(title, {
-      x: 40,
+    page.drawText(stripEmojis(title), {
+      x: margin,
       y: headerY + 25,
       size: 18,
-      font: font,
+      font: boldFont,
       color: colors.neutralDark,
     });
     
@@ -77,31 +109,36 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
       color: colors.neutralGray,
     });
     
-    return headerY - 40; // Return Y position for content start
+    return headerY - 40;
   }
 
-  // Helper function to draw branded card
+  // Helper function to add footer with methodology
+  function addFooter(page: any) {
+    const footerY = 30;
+    
+    page.drawLine({
+      start: { x: margin, y: footerY + 20 },
+      end: { x: pageWidth - margin, y: footerY + 20 },
+      thickness: 0.5,
+      color: colors.neutralGray,
+    });
+    
+    const providers = dto.methodology?.providersIncluded?.join(', ') || 'OpenAI, Anthropic, Google, Perplexity';
+    page.drawText(`Data sources: ${stripEmojis(providers)} | Generated: ${new Date().toISOString().split('T')[0]}`, {
+      x: margin,
+      y: footerY,
+      size: 8,
+      font: font,
+      color: colors.neutralGray,
+    });
+  }
+
+  // Helper function to draw branded card with delta indicator
   function drawBrandedCard(page: any, x: number, y: number, width: number, height: number, title: string, value: string, delta?: number, subtitle?: string) {
-    // Card background
-    page.drawRectangle({
-      x,
-      y,
-      width,
-      height,
-      color: colors.neutralLight,
-    });
+    page.drawRectangle({ x, y, width, height, color: colors.neutralLight });
+    page.drawRectangle({ x, y, width: 4, height, color: colors.primaryBlue });
     
-    // Left accent bar
-    page.drawRectangle({
-      x,
-      y,
-      width: 4,
-      height,
-      color: colors.primaryBlue,
-    });
-    
-    // Title
-    page.drawText(title, {
+    page.drawText(stripEmojis(title), {
       x: x + 20,
       y: y + height - 30,
       size: 12,
@@ -109,8 +146,7 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
       color: colors.neutralGray,
     });
     
-    // Main value
-    page.drawText(value, {
+    page.drawText(stripEmojis(value), {
       x: x + 20,
       y: y + height - 55,
       size: 24,
@@ -118,8 +154,7 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
       color: colors.neutralDark,
     });
     
-    // Delta indicator if provided
-    if (delta !== undefined) {
+    if (delta !== undefined && !isNaN(delta)) {
       const deltaColor = delta >= 0 ? colors.successGreen : colors.errorRed;
       const deltaText = delta >= 0 ? `+${delta.toFixed(1)}%` : `${delta.toFixed(1)}%`;
       
@@ -140,9 +175,8 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
       });
     }
     
-    // Subtitle if provided
     if (subtitle) {
-      page.drawText(subtitle, {
+      page.drawText(stripEmojis(subtitle), {
         x: x + 20,
         y: y + 15,
         size: 10,
@@ -152,320 +186,473 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
     }
   }
 
-  // Helper function to draw branded highlights box
-  function drawBrandedHighlightsBox(page: any, x: number, y: number, width: number, height: number, highlights: string[]) {
-    // Background
-    page.drawRectangle({
-      x,
-      y,
-      width,
-      height,
-      color: colors.neutralLight,
+  // Helper: Draw section box with accent
+  function drawSectionBox(page: any, x: number, y: number, width: number, height: number, accentColor = colors.accentOrange) {
+    page.drawRectangle({ x, y, width, height, color: colors.neutralLight });
+    page.drawRectangle({ x, y, width: 4, height, color: accentColor });
+  }
+
+  // Format period text
+  const periodText = stripEmojis(`${dto.header.periodStart} to ${dto.header.periodEnd}`);
+
+  // ========== PAGE 1: COVER PAGE ==========
+  const coverPage = pdfDoc.addPage([pageWidth, pageHeight]);
+  pageNumber++;
+
+  // Brand header bar
+  coverPage.drawRectangle({
+    x: 0,
+    y: pageHeight - 100,
+    width: pageWidth,
+    height: 100,
+    color: colors.primaryBlue,
+  });
+
+  // Logo placeholder (square)
+  coverPage.drawRectangle({
+    x: margin,
+    y: pageHeight - 90,
+    width: 70,
+    height: 70,
+    color: colors.neutralLight,
+  });
+  coverPage.drawText('LOGO', {
+    x: margin + 15,
+    y: pageHeight - 60,
+    size: 14,
+    font: boldFont,
+    color: colors.primaryBlue,
+  });
+
+  // Main title
+  coverPage.drawText('Weekly AI Brand Visibility Report', {
+    x: 130,
+    y: pageHeight - 45,
+    size: 22,
+    font: boldFont,
+    color: colors.neutralLight,
+  });
+
+  // Organization name
+  coverPage.drawText(truncateText(dto.header.orgName, 50), {
+    x: 130,
+    y: pageHeight - 70,
+    size: 14,
+    font: font,
+    color: colors.neutralLight,
+  });
+
+  // Subscription tier badge
+  const tierBadge = dto.header.subscriptionTier || 'Pro';
+  coverPage.drawRectangle({
+    x: pageWidth - 120,
+    y: pageHeight - 80,
+    width: 80,
+    height: 24,
+    color: colors.accentOrange,
+  });
+  coverPage.drawText(tierBadge.toUpperCase(), {
+    x: pageWidth - 105,
+    y: pageHeight - 73,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralLight,
+  });
+
+  // Period
+  coverPage.drawText(`Report Period: ${periodText}`, {
+    x: margin,
+    y: pageHeight - 140,
+    size: 14,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  // Report Version
+  coverPage.drawText(`Generated: ${new Date().toISOString().split('T')[0]} | Version 2.0`, {
+    x: margin,
+    y: pageHeight - 160,
+    size: 10,
+    font: font,
+    color: colors.neutralGray,
+  });
+
+  // Executive Summary Metrics (2x2 grid)
+  const cardWidth = 240;
+  const cardHeight = 100;
+  const cardSpacing = 35;
+  const startX = margin;
+  const startY = pageHeight - 300;
+
+  drawBrandedCard(
+    coverPage, startX, startY, cardWidth, cardHeight,
+    'Overall Brand Score',
+    formatNumber(dto.kpis.overallScore),
+    dto.kpis.scoreTrend,
+    'Weekly average across all prompts'
+  );
+
+  drawBrandedCard(
+    coverPage, startX + cardWidth + cardSpacing, startY, cardWidth, cardHeight,
+    'Brand Presence Rate',
+    formatPercent(dto.kpis.brandPresentRate),
+    dto.kpis.deltaVsPriorWeek?.brandPresentRate,
+    'Prompts where brand was mentioned'
+  );
+
+  drawBrandedCard(
+    coverPage, startX, startY - cardHeight - 20, cardWidth, cardHeight,
+    'Active Prompts Monitored',
+    dto.prompts.totalActive.toString(),
+    undefined,
+    'Tracked across AI platforms'
+  );
+
+  drawBrandedCard(
+    coverPage, startX + cardWidth + cardSpacing, startY - cardHeight - 20, cardWidth, cardHeight,
+    'Total AI Responses',
+    dto.kpis.totalRuns.toString(),
+    dto.kpis.deltaVsPriorWeek?.totalRuns ? ((dto.kpis.deltaVsPriorWeek.totalRuns / dto.kpis.totalRuns) * 100) : undefined,
+    'Analyzed this period'
+  );
+
+  // ========== EXECUTIVE SUMMARY SECTION ==========
+  const summaryY = startY - 280;
+  const summaryHeight = 200;
+  
+  drawSectionBox(coverPage, startX, summaryY, pageWidth - (margin * 2), summaryHeight, colors.primaryBlue);
+  
+  coverPage.drawText('Executive Summary', {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 30,
+    size: 16,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  // Generate executive summary content
+  const scoreTrend = dto.kpis.scoreTrend ?? 0;
+  const presenceDelta = dto.kpis.deltaVsPriorWeek?.brandPresentRate ?? 0;
+  
+  // What Changed This Week
+  let whatChanged = '';
+  if (scoreTrend > 0) {
+    whatChanged = `Visibility increased +${formatNumber(scoreTrend)} points this week`;
+  } else if (scoreTrend < 0) {
+    whatChanged = `Visibility decreased ${formatNumber(scoreTrend)} points this week`;
+  } else {
+    whatChanged = 'Visibility remained stable compared to last week';
+  }
+  
+  if (presenceDelta !== 0) {
+    whatChanged += `, brand presence ${presenceDelta > 0 ? 'up' : 'down'} ${formatPercent(Math.abs(presenceDelta))}`;
+  }
+
+  coverPage.drawText('What Changed:', {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 60,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+  
+  coverPage.drawText(truncateText(whatChanged, 80), {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 80,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  // Why It Matters
+  const topCompetitor = dto.competitors?.topCompetitors?.[0];
+  let whyItMatters = 'Your AI discoverability affects how often users find your brand via AI assistants.';
+  if (topCompetitor && topCompetitor.sharePercent > dto.kpis.brandPresentRate) {
+    whyItMatters = `${safeText(topCompetitor.name, 'Top competitor')} leads share of voice at ${formatPercent(topCompetitor.sharePercent)}, limiting your visibility.`;
+  }
+
+  coverPage.drawText('Why It Matters:', {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 105,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+  
+  coverPage.drawText(truncateText(whyItMatters, 80), {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 125,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  // What To Do Next
+  const primaryAction = dto.insights?.recommendations?.[0] || 'Focus on content that directly answers AI-targeted queries';
+  
+  coverPage.drawText('What To Do Next:', {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 150,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+  
+  coverPage.drawText(`1. ${truncateText(primaryAction, 75)}`, {
+    x: startX + 20,
+    y: summaryY + summaryHeight - 170,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  if (dto.insights?.recommendations?.[1]) {
+    coverPage.drawText(`2. ${truncateText(dto.insights.recommendations[1], 75)}`, {
+      x: startX + 20,
+      y: summaryY + summaryHeight - 185,
+      size: 10,
+      font: font,
+      color: colors.neutralDark,
     });
-    
-    // Accent border
-    page.drawRectangle({
-      x,
-      y,
-      width: 4,
-      height,
-      color: colors.accentOrange,
-    });
-    
-    // Title
-    page.drawText('Key Highlights', {
-      x: x + 20,
-      y: y + height - 25,
+  }
+
+  addFooter(coverPage);
+
+  // ========== PAGE 2: KPI DASHBOARD ==========
+  const kpiPage = pdfDoc.addPage([pageWidth, pageHeight]);
+  let currentY = addHeader(kpiPage, 'Performance Dashboard');
+
+  // Performance summary text
+  currentY -= 30;
+  kpiPage.drawText('Weekly Performance Summary', {
+    x: margin,
+    y: currentY,
+    size: 16,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 25;
+  kpiPage.drawText(`Your brand was mentioned in ${formatPercent(dto.kpis.brandPresentRate)} of AI responses this week.`, {
+    x: margin,
+    y: currentY,
+    size: 12,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 18;
+  kpiPage.drawText(`Average visibility score: ${formatNumber(dto.kpis.overallScore)}/10`, {
+    x: margin,
+    y: currentY,
+    size: 12,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  // Week-over-week trend visualization
+  currentY -= 50;
+  kpiPage.drawText('Week-over-Week Trend', {
+    x: margin,
+    y: currentY,
+    size: 14,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 30;
+  const trendColor = scoreTrend >= 0 ? colors.successGreen : colors.errorRed;
+  const trendText = scoreTrend >= 0 
+    ? `Trending up: +${formatNumber(scoreTrend)} points improvement`
+    : `Trending down: ${formatNumber(scoreTrend)} points decline`;
+
+  kpiPage.drawText(trendText, {
+    x: margin,
+    y: currentY,
+    size: 12,
+    font: font,
+    color: trendColor,
+  });
+
+  // Historical trend mini chart (bar representation)
+  if (dto.historicalTrend?.weeklyScores?.length > 0) {
+    currentY -= 50;
+    kpiPage.drawText('Historical Visibility (Last 8 Weeks)', {
+      x: margin,
+      y: currentY,
       size: 14,
       font: boldFont,
       color: colors.neutralDark,
     });
+
+    currentY -= 25;
+    const maxScore = 10; // Max visibility score
+    const barMaxHeight = 60;
+    const barWidth = 50;
+    const barSpacing = 10;
+
+    dto.historicalTrend.weeklyScores.slice(-8).forEach((week, index) => {
+      const barHeight = (week.avgScore / maxScore) * barMaxHeight;
+      const barX = margin + (index * (barWidth + barSpacing));
+      
+      // Bar background
+      kpiPage.drawRectangle({
+        x: barX,
+        y: currentY - barMaxHeight,
+        width: barWidth,
+        height: barMaxHeight,
+        color: colors.neutralLight,
+      });
+      
+      // Bar fill
+      kpiPage.drawRectangle({
+        x: barX,
+        y: currentY - barMaxHeight,
+        width: barWidth,
+        height: barHeight,
+        color: colors.primaryBlue,
+      });
+      
+      // Week label
+      kpiPage.drawText(week.weekStart.substring(5), {
+        x: barX + 5,
+        y: currentY - barMaxHeight - 15,
+        size: 8,
+        font: font,
+        color: colors.neutralGray,
+      });
+      
+      // Score label
+      kpiPage.drawText(formatNumber(week.avgScore), {
+        x: barX + 15,
+        y: currentY - barMaxHeight + barHeight + 5,
+        size: 8,
+        font: font,
+        color: colors.neutralDark,
+      });
+    });
     
-    // Highlights
-    highlights.slice(0, 5).forEach((highlight, index) => {
-      page.drawText(`• ${stripEmojis(highlight)}`, {
-        x: x + 20,
-        y: y + height - 50 - (index * 20),
-        size: 11,
+    currentY -= barMaxHeight + 40;
+  }
+
+  // Provider performance breakdown
+  currentY -= 30;
+  if (dto.volume?.providersUsed?.length > 0) {
+    kpiPage.drawText('Performance by AI Provider', {
+      x: margin,
+      y: currentY,
+      size: 14,
+      font: boldFont,
+      color: colors.neutralDark,
+    });
+
+    currentY -= 25;
+    const headers = ['Provider', 'Responses', 'Avg Score', 'Brand Mentions'];
+    const colWidths = [120, 100, 100, 120];
+    let headerX = margin;
+
+    headers.forEach((header, i) => {
+      kpiPage.drawText(header, {
+        x: headerX,
+        y: currentY,
+        size: 10,
+        font: boldFont,
+        color: colors.neutralDark,
+      });
+      headerX += colWidths[i];
+    });
+
+    dto.volume.providersUsed.slice(0, 5).forEach((provider, index) => {
+      currentY -= 20;
+      let rowX = margin;
+
+      if (index % 2 === 0) {
+        kpiPage.drawRectangle({
+          x: margin - 5,
+          y: currentY - 5,
+          width: 500,
+          height: 18,
+          color: colors.neutralLight,
+        });
+      }
+
+      kpiPage.drawText(safeText(provider.provider), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[0];
+
+      kpiPage.drawText(String(provider.responseCount), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[1];
+
+      kpiPage.drawText(formatNumber(provider.avgScore), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[2];
+
+      kpiPage.drawText(String(provider.brandMentions), {
+        x: rowX,
+        y: currentY,
+        size: 10,
         font: font,
         color: colors.neutralDark,
       });
     });
   }
 
-  // Format period text (sanitize to prevent emoji encoding issues)
-  const periodText = stripEmojis(`${dto.header.periodStart} to ${dto.header.periodEnd}`);
+  addFooter(kpiPage);
 
-  // PAGE 1: Cover Page with Brand Header Bar, Logo, Big Metrics, and Highlights
-  const coverPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  
-  // Brand header bar with logo (top-left as per style guide)
-  coverPage.drawRectangle({
-    x: 0,
-    y: pageHeight - 80,
-    width: pageWidth,
-    height: 80,
-    color: colors.primaryBlue,
-  });
-
-  // Logo placeholder (square, top-left of header)
-  coverPage.drawRectangle({
-    x: 40,
-    y: pageHeight - 70,
-    width: 60,
-    height: 60,
-    color: colors.neutralLight,
-  });
-
-  coverPage.drawText('L', {
-    x: 65,
-    y: pageHeight - 45,
-    size: 24,
-    font: boldFont,
-    color: colors.primaryBlue,
-  });
-
-  // Main title (overlaying header)
-  coverPage.drawText('Weekly Brand Visibility Report', {
-    x: 120,
-    y: pageHeight - 45,
-    size: 24,
-    font: boldFont,
-    color: colors.neutralLight,
-  });
-
-  // Organization name (sanitize to prevent emoji encoding issues)
-  coverPage.drawText(stripEmojis(dto.header.orgName), {
-    x: 120,
-    y: pageHeight - 65,
-    size: 14,
-    font: font,
-    color: colors.neutralLight,
-  });
-
-  // Period
-  coverPage.drawText(periodText, {
-    x: 40,
-    y: pageHeight - 120,
-    size: 16,
-    font: font,
-    color: colors.neutralDark,
-  });
-
-  // Executive Summary Metrics (4 key metrics in 2x2 grid)
-  const cardWidth = 220;
-  const cardHeight = 100;
-  const cardSpacing = 40;
-  const startX = 40;
-  const startY = pageHeight - 280;
-
-  // Overall Score
-  drawBrandedCard(
-    coverPage,
-    startX,
-    startY,
-    cardWidth,
-    cardHeight,
-    'Overall Brand Score',
-    (dto.kpis.overallScore ?? 0).toFixed(1),
-    dto.kpis.scoreTrend ?? 0,
-    'Weekly average across all prompts'
-  );
-
-  // Brand Presence Rate
-  drawBrandedCard(
-    coverPage,
-    startX + cardWidth + cardSpacing,
-    startY,
-    cardWidth,
-    cardHeight,
-    'Brand Presence Rate',
-    `${(dto.kpis.brandPresentRate ?? 0).toFixed(1)}%`,
-    dto.kpis.deltaVsPriorWeek?.brandPresentRate ?? undefined,
-    'Prompts where brand was mentioned'
-  );
-
-  // Active Prompts
-  drawBrandedCard(
-    coverPage,
-    startX,
-    startY - cardHeight - 20,
-    cardWidth,
-    cardHeight,
-    'Active Prompts',
-    dto.prompts.totalActive.toString(),
-    undefined,
-    'Monitored this week'
-  );
-
-  // Total Runs
-  drawBrandedCard(
-    coverPage,
-    startX + cardWidth + cardSpacing,
-    startY - cardHeight - 20,
-    cardWidth,
-    cardHeight,
-    'Total AI Responses',
-    dto.kpis.totalRuns.toString(),
-    undefined,
-    'Across all providers'
-  );
-
-  // Key Highlights section (executive summary box)
-  const highlightsY = startY - 280;
-  drawBrandedHighlightsBox(
-    coverPage,
-    startX,
-    highlightsY,
-    cardWidth * 2 + cardSpacing,
-    120,
-    dto.insights.highlights || ['No highlights available']
-  );
-
-  // PAGE 2: KPI Dashboard with Performance Metrics and Trends
-  const kpiPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  let currentY = addHeader(kpiPage, 'Performance Dashboard', 2);
-
-  // Performance summary text
-  currentY -= 40;
-  kpiPage.drawText('Weekly Performance Summary', {
-    x: 40,
-    y: currentY,
-    size: 16,
-    font: boldFont,
-    color: colors.neutralDark,
-  });
-
-  currentY -= 20;
-  kpiPage.drawText(`Your brand was mentioned in ${(dto.kpis.brandPresentRate ?? 0).toFixed(1)}% of AI responses this week.`, {
-    x: 40,
-    y: currentY,
-    size: 12,
-    font: font,
-    color: colors.neutralDark,
-  });
-
-  currentY -= 20;
-  kpiPage.drawText(`Average visibility score: ${(dto.kpis.overallScore ?? 0).toFixed(1)}/10`, {
-    x: 40,
-    y: currentY,
-    size: 12,
-    font: font,
-    color: colors.neutralDark,
-  });
-
-  // Trends section
-  currentY -= 60;
-  kpiPage.drawText('Trends Analysis', {
-    x: 40,
-    y: currentY,
-    size: 14,
-    font: boldFont,
-    color: colors.neutralDark,
-  });
-
-  currentY -= 30;
-  const scoreTrend = dto.kpis.scoreTrend ?? 0;
-  const trendText = scoreTrend >= 0 ? 
-    `Trending up: +${scoreTrend.toFixed(1)}% improvement` : 
-    `Trending down: ${scoreTrend.toFixed(1)}% decline`;
-
-  kpiPage.drawText(trendText, {
-    x: 40,
-    y: currentY,
-    size: 12,
-    font: font,
-    color: scoreTrend >= 0 ? colors.successGreen : colors.errorRed,
-  });
-
-  // PAGE 3: Detailed Prompt Analysis
+  // ========== PAGE 3: PROMPT PERFORMANCE ==========
   const promptsPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  currentY = addHeader(promptsPage, 'Prompt Performance Analysis', 3);
+  currentY = addHeader(promptsPage, 'Prompt Performance Analysis');
 
-  // Group prompts by category for analysis (using the correct data structure)
-  const promptsByCategory: Record<string, any[]> = {};
-  
-  // Collect all prompts from categories and topPerformers
-  const allCategorizedPrompts = [
-    ...dto.prompts.categories.crm,
-    ...dto.prompts.categories.competitorTools,
-    ...dto.prompts.categories.aiFeatures,
-    ...dto.prompts.categories.other,
-    ...dto.prompts.topPerformers
-  ];
-  
-  // Group by category
-  allCategorizedPrompts.forEach((prompt: { category?: string; [key: string]: unknown }) => {
-    const category = prompt.category || 'General';
-    if (!promptsByCategory[category]) promptsByCategory[category] = [];
-    promptsByCategory[category].push(prompt);
-  });
-
-  const categoryLabels = Object.keys(promptsByCategory);
-  const categoryData = Object.values(promptsByCategory) as any[][];
-
-  currentY -= 40;
-  promptsPage.drawText('Performance by Category', {
-    x: 40,
-    y: currentY,
-    size: 16,
-    font: boldFont,
-    color: colors.neutralDark,
-  });
-
+  // Top Performers Table
   currentY -= 30;
-  categoryData.forEach((prompts, index) => {
-    const avgScore = prompts.length > 0 
-      ? prompts.reduce((sum: number, p: any) => sum + (p.avgScore || 0), 0) / prompts.length 
-      : 0;
-    currentY -= 20;
-    // Sanitize category labels to prevent emoji encoding issues
-    promptsPage.drawText(stripEmojis(`${categoryLabels[index]}: ${categoryData.length} prompts (avg: ${(avgScore ?? 0).toFixed(1)})`), {
-      x: 40,
-      y: currentY,
-      size: 12,
-      font: font,
-      color: colors.neutralDark,
-    });
-  });
-
-  // Top performing prompts table
-  currentY -= 60;
-  if (dto.prompts && dto.prompts.topPerformers && dto.prompts.topPerformers.length > 0) {
+  if (dto.prompts?.topPerformers?.length > 0) {
     promptsPage.drawText('Top Performing Prompts', {
-      x: 40,
+      x: margin,
       y: currentY,
       size: 14,
       font: boldFont,
       color: colors.neutralDark,
     });
 
-    // Table headers
-    currentY -= 30;
+    currentY -= 25;
     const headers = ['Prompt', 'Score', 'Presence', 'Category'];
     const colWidths = [280, 60, 80, 80];
-    let currentX = 40;
+    let headerX = margin;
 
     headers.forEach((header, i) => {
       promptsPage.drawText(header, {
-        x: currentX,
+        x: headerX,
         y: currentY,
         size: 10,
         font: boldFont,
         color: colors.neutralDark,
       });
-      currentX += colWidths[i];
+      headerX += colWidths[i];
     });
 
-    // Table rows (top 10 prompts)
-    dto.prompts.topPerformers.slice(0, 10).forEach((prompt: any, index: number) => {
-      currentY -= 25;
-      currentX = 40;
+    dto.prompts.topPerformers.slice(0, 8).forEach((prompt, index) => {
+      currentY -= 22;
+      let rowX = margin;
 
-      // Alternate row background
       if (index % 2 === 0) {
         promptsPage.drawRectangle({
-          x: 35,
+          x: margin - 5,
           y: currentY - 5,
           width: 500,
           height: 20,
@@ -473,41 +660,35 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
         });
       }
 
-      // Prompt text (truncated and sanitized)
-      const maxLength = 50;
-      const truncatedText = prompt.text.length > maxLength 
-        ? prompt.text.substring(0, maxLength) + '...' 
-        : prompt.text;
-
-      promptsPage.drawText(stripEmojis(truncatedText), {
-        x: currentX,
+      promptsPage.drawText(truncateText(prompt.text || '', 50), {
+        x: rowX,
         y: currentY,
         size: 9,
         font: font,
         color: colors.neutralDark,
       });
-      currentX += colWidths[0];
+      rowX += colWidths[0];
 
-      promptsPage.drawText((prompt.avgScore ?? 0).toFixed(1), {
-        x: currentX,
+      promptsPage.drawText(formatNumber(prompt.avgScore), {
+        x: rowX,
         y: currentY,
         size: 9,
         font: font,
         color: colors.neutralDark,
       });
-      currentX += colWidths[1];
+      rowX += colWidths[1];
 
-      promptsPage.drawText(`${(prompt.brandPresentRate ?? 0).toFixed(1)}%`, {
-        x: currentX,
+      promptsPage.drawText(formatPercent(prompt.brandPresentRate), {
+        x: rowX,
         y: currentY,
         size: 9,
         font: font,
         color: colors.neutralDark,
       });
-      currentX += colWidths[2];
+      rowX += colWidths[2];
 
-      promptsPage.drawText(stripEmojis(prompt.category ?? 'General'), {
-        x: currentX,
+      promptsPage.drawText(safeText(prompt.category, 'General'), {
+        x: rowX,
         y: currentY,
         size: 9,
         font: font,
@@ -516,141 +697,325 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
     });
   }
 
-  // PAGE 4: Competitive Intelligence
-  const competitorsPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  currentY = addHeader(competitorsPage, 'Competitive Intelligence', 4);
+  // High Opportunity Prompts (new V2 section)
+  currentY -= 50;
+  promptsPage.drawText('High Opportunity Prompts', {
+    x: margin,
+    y: currentY,
+    size: 14,
+    font: boldFont,
+    color: colors.accentOrange,
+  });
 
-  if (dto.competitors && dto.competitors.newThisWeek.length > 0) {
-    // New competitors section
-    competitorsPage.drawRectangle({
-      x: 40,
-      y: currentY - 60,
-      width: 500,
-      height: 40,
-      color: colors.neutralLight,
+  currentY -= 18;
+  promptsPage.drawText('Prompts with high activity but low brand presence - prioritize content creation', {
+    x: margin,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralGray,
+  });
+
+  // Find high opportunity prompts (high runs, low presence)
+  const allPrompts = [
+    ...(dto.prompts.categories?.crm || []),
+    ...(dto.prompts.categories?.competitorTools || []),
+    ...(dto.prompts.categories?.aiFeatures || []),
+    ...(dto.prompts.categories?.other || []),
+  ];
+  
+  const highOpportunity = allPrompts
+    .filter(p => p.totalRuns >= 3 && p.brandPresentRate < 30)
+    .sort((a, b) => a.brandPresentRate - b.brandPresentRate)
+    .slice(0, 5);
+
+  if (highOpportunity.length > 0) {
+    currentY -= 20;
+    highOpportunity.forEach((prompt, index) => {
+      currentY -= 18;
+      promptsPage.drawText(`${index + 1}. ${truncateText(prompt.text, 60)} - ${formatPercent(prompt.brandPresentRate)} presence`, {
+        x: margin + 10,
+        y: currentY,
+        size: 9,
+        font: font,
+        color: colors.neutralDark,
+      });
+    });
+  } else {
+    currentY -= 20;
+    promptsPage.drawText('No high-opportunity prompts identified this period', {
+      x: margin + 10,
+      y: currentY,
+      size: 10,
+      font: font,
+      color: colors.neutralGray,
+    });
+  }
+
+  // Zero Presence Prompts
+  currentY -= 40;
+  if (dto.prompts?.zeroPresence?.length > 0) {
+    promptsPage.drawText('Zero Presence Prompts - Immediate Attention Needed', {
+      x: margin,
+      y: currentY,
+      size: 14,
+      font: boldFont,
+      color: colors.errorRed,
     });
 
-    competitorsPage.drawText(`${dto.competitors.newThisWeek.length} New Competitors This Week`, {
-      x: 50,
+    currentY -= 20;
+    dto.prompts.zeroPresence.slice(0, 5).forEach((prompt, index) => {
+      currentY -= 18;
+      promptsPage.drawText(`${index + 1}. ${truncateText(prompt.text, 70)}`, {
+        x: margin + 10,
+        y: currentY,
+        size: 9,
+        font: font,
+        color: colors.neutralDark,
+      });
+    });
+  }
+
+  addFooter(promptsPage);
+
+  // ========== PAGE 4: COMPETITIVE INTELLIGENCE ==========
+  const competitorsPage = pdfDoc.addPage([pageWidth, pageHeight]);
+  currentY = addHeader(competitorsPage, 'Competitive Intelligence');
+
+  // New competitors alert
+  if (dto.competitors?.newThisWeek?.length > 0) {
+    drawSectionBox(competitorsPage, margin, currentY - 60, pageWidth - (margin * 2), 50, colors.warningYellow);
+    
+    competitorsPage.drawText(`${dto.competitors.newThisWeek.length} New Competitors Detected This Week`, {
+      x: margin + 20,
+      y: currentY - 35,
+      size: 14,
+      font: boldFont,
+      color: colors.neutralDark,
+    });
+
+    // Fix: Properly extract competitor names from objects
+    const newCompNames = dto.competitors.newThisWeek
+      .slice(0, 5)
+      .map(comp => safeText(comp.name || comp, 'Unknown'))
+      .join(', ');
+    
+    competitorsPage.drawText(truncateText(newCompNames, 80), {
+      x: margin + 20,
+      y: currentY - 55,
+      size: 10,
+      font: font,
+      color: colors.neutralDark,
+    });
+
+    currentY -= 80;
+  }
+
+  // Primary Threat Competitor (V2)
+  if (dto.competitors?.topCompetitors?.[0]) {
+    const primaryThreat = dto.competitors.topCompetitors[0];
+    
+    currentY -= 20;
+    drawSectionBox(competitorsPage, margin, currentY - 80, (pageWidth - (margin * 2)) / 2 - 10, 80, colors.errorRed);
+    
+    competitorsPage.drawText('Primary Threat', {
+      x: margin + 20,
+      y: currentY - 25,
+      size: 12,
+      font: boldFont,
+      color: colors.errorRed,
+    });
+    
+    competitorsPage.drawText(safeText(primaryThreat.name, 'Unknown Competitor'), {
+      x: margin + 20,
       y: currentY - 45,
       size: 14,
       font: boldFont,
       color: colors.neutralDark,
     });
-
-    const newCompNames = dto.competitors.newThisWeek.slice(0, 5).map(stripEmojis).join(', ');
-    competitorsPage.drawText(stripEmojis(newCompNames), {
-      x: 50,
-      y: currentY - 80,
-      size: 11,
+    
+    competitorsPage.drawText(`${formatPercent(primaryThreat.sharePercent)} share | ${primaryThreat.appearances} mentions`, {
+      x: margin + 20,
+      y: currentY - 65,
+      size: 10,
       font: font,
-      color: colors.neutralDark,
+      color: colors.neutralGray,
     });
-
-    currentY -= 120;
   }
 
-  // Top competitors analysis
-  if (dto.competitors && dto.competitors.topCompetitors.length > 0) {
-    currentY -= 40;
-    const topCompetitors = dto.competitors.topCompetitors.slice(0, 8);
+  // Emerging Competitor (new this week with highest share)
+  const emergingComp = dto.competitors?.newThisWeek?.[0];
+  if (emergingComp) {
+    drawSectionBox(competitorsPage, margin + (pageWidth - (margin * 2)) / 2 + 10, currentY - 80, (pageWidth - (margin * 2)) / 2 - 10, 80, colors.warningYellow);
     
-    currentY -= 40;
-    competitorsPage.drawText('Competitor Mentions by AI Provider', {
-      x: 40,
-      y: currentY,
+    competitorsPage.drawText('Emerging Competitor', {
+      x: margin + (pageWidth - (margin * 2)) / 2 + 30,
+      y: currentY - 25,
+      size: 12,
+      font: boldFont,
+      color: colors.warningYellow,
+    });
+    
+    competitorsPage.drawText(safeText(emergingComp.name, 'New Competitor'), {
+      x: margin + (pageWidth - (margin * 2)) / 2 + 30,
+      y: currentY - 45,
       size: 14,
       font: boldFont,
       color: colors.neutralDark,
     });
-
-    currentY -= 20;
-    topCompetitors.forEach((comp: any, index: number) => {
-      currentY -= 20;
-      competitorsPage.drawText(
-        stripEmojis(`${comp.name}: ${(comp.mentionRate ?? 0).toFixed(1)}% (${comp.mentions ?? 0} mentions)`),
-        {
-          x: 50,
-          y: currentY,
-          size: 11,
-          font: font,
-          color: colors.neutralDark,
-        }
-      );
+    
+    competitorsPage.drawText(`${formatPercent(emergingComp.sharePercent)} share | New this week`, {
+      x: margin + (pageWidth - (margin * 2)) / 2 + 30,
+      y: currentY - 65,
+      size: 10,
+      font: font,
+      color: colors.neutralGray,
     });
   }
 
-  // PAGE 5: Citation Analytics (Phase 1 Enhancement)
+  currentY -= 100;
+
+  // Top 5 Competitors table
+  currentY -= 30;
+  competitorsPage.drawText('Top Competitors by AI Mention Share', {
+    x: margin,
+    y: currentY,
+    size: 14,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  if (dto.competitors?.topCompetitors?.length > 0) {
+    currentY -= 25;
+    const headers = ['Rank', 'Competitor', 'Share', 'Mentions', 'Trend'];
+    const colWidths = [50, 180, 80, 80, 80];
+    let headerX = margin;
+
+    headers.forEach((header, i) => {
+      competitorsPage.drawText(header, {
+        x: headerX,
+        y: currentY,
+        size: 10,
+        font: boldFont,
+        color: colors.neutralDark,
+      });
+      headerX += colWidths[i];
+    });
+
+    dto.competitors.topCompetitors.slice(0, 8).forEach((comp, index) => {
+      currentY -= 22;
+      let rowX = margin;
+
+      if (index % 2 === 0) {
+        competitorsPage.drawRectangle({
+          x: margin - 5,
+          y: currentY - 5,
+          width: 500,
+          height: 20,
+          color: colors.neutralLight,
+        });
+      }
+
+      competitorsPage.drawText(`#${index + 1}`, {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[0];
+
+      // Fix: Properly render competitor name
+      competitorsPage.drawText(truncateText(safeText(comp.name, 'Unknown'), 30), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[1];
+
+      competitorsPage.drawText(formatPercent(comp.sharePercent), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[2];
+
+      competitorsPage.drawText(String(comp.appearances || 0), {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: colors.neutralDark,
+      });
+      rowX += colWidths[3];
+
+      // Trend indicator
+      const trendLabel = comp.isNew ? 'NEW' : (comp.deltaVsPriorWeek && comp.deltaVsPriorWeek > 0 ? 'Rising' : 'Stable');
+      const trendCol = comp.isNew ? colors.warningYellow : (comp.deltaVsPriorWeek && comp.deltaVsPriorWeek > 0 ? colors.errorRed : colors.neutralGray);
+      
+      competitorsPage.drawText(trendLabel, {
+        x: rowX,
+        y: currentY,
+        size: 10,
+        font: font,
+        color: trendCol,
+      });
+    });
+  }
+
+  addFooter(competitorsPage);
+
+  // ========== PAGE 5: CITATION ANALYTICS ==========
   if (dto.citations && dto.citations.totalCitations > 0) {
     const citationsPage = pdfDoc.addPage([pageWidth, pageHeight]);
-    currentY = addHeader(citationsPage, 'Citation Analytics', 5);
+    currentY = addHeader(citationsPage, 'Where AI Gets Its Information');
 
     // Citation summary cards
-    currentY -= 40;
+    currentY -= 30;
     const citationCardWidth = 150;
     const citationCardHeight = 80;
 
-    // Total Citations
     drawBrandedCard(
-      citationsPage,
-      40,
-      currentY - citationCardHeight,
-      citationCardWidth,
-      citationCardHeight,
-      'Total Citations',
-      dto.citations.totalCitations.toString(),
-      undefined,
-      'Across all AI responses'
+      citationsPage, margin, currentY - citationCardHeight, citationCardWidth, citationCardHeight,
+      'Total Citations', String(dto.citations.totalCitations), undefined, 'Sources referenced'
     );
 
-    // Validation Rate
     drawBrandedCard(
-      citationsPage,
-      40 + citationCardWidth + 20,
-      currentY - citationCardHeight,
-      citationCardWidth,
-      citationCardHeight,
-      'Validation Rate',
-      `${dto.citations.validationRate.toFixed(1)}%`,
-      undefined,
-      'Verified citations'
+      citationsPage, margin + citationCardWidth + 20, currentY - citationCardHeight, citationCardWidth, citationCardHeight,
+      'Validation Rate', formatPercent(dto.citations.validationRate), undefined, 'Verified sources'
     );
 
-    // Top Sources Count
     drawBrandedCard(
-      citationsPage,
-      40 + (citationCardWidth + 20) * 2,
-      currentY - citationCardHeight,
-      citationCardWidth,
-      citationCardHeight,
-      'Unique Sources',
-      dto.citations.topSources.length.toString(),
-      undefined,
-      'Distinct domains cited'
+      citationsPage, margin + (citationCardWidth + 20) * 2, currentY - citationCardHeight, citationCardWidth, citationCardHeight,
+      'Unique Domains', String(dto.citations.topSources.length), undefined, 'Distinct sources'
     );
 
-    currentY -= citationCardHeight + 40;
+    currentY -= citationCardHeight + 50;
 
-    // Top Citation Sources with Bar Chart
+    // Top Citation Sources with bar visualization
     if (dto.citations.topSources.length > 0) {
       citationsPage.drawText('Top Citation Sources', {
-        x: 40,
+        x: margin,
         y: currentY,
         size: 14,
         font: boldFont,
         color: colors.neutralDark,
       });
 
-      currentY -= 30;
+      currentY -= 25;
       const maxMentions = Math.max(...dto.citations.topSources.map(s => s.mentions));
-      const barMaxWidth = 300;
+      const barMaxWidth = 280;
 
       dto.citations.topSources.slice(0, 8).forEach((source, index) => {
-        const barWidth = (source.mentions / maxMentions) * barMaxWidth;
+        const barWidth = maxMentions > 0 ? (source.mentions / maxMentions) * barMaxWidth : 0;
         
         // Domain name
-        citationsPage.drawText(stripEmojis(source.domain.substring(0, 30)), {
-          x: 50,
+        citationsPage.drawText(truncateText(safeText(source.domain), 25), {
+          x: margin,
           y: currentY,
           size: 10,
           font: font,
@@ -659,7 +1024,7 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
 
         // Bar background
         citationsPage.drawRectangle({
-          x: 200,
+          x: 180,
           y: currentY - 3,
           width: barMaxWidth,
           height: 14,
@@ -668,7 +1033,7 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
 
         // Bar fill
         citationsPage.drawRectangle({
-          x: 200,
+          x: 180,
           y: currentY - 3,
           width: barWidth,
           height: 14,
@@ -676,55 +1041,52 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
         });
 
         // Count
-        citationsPage.drawText(`${source.mentions}`, {
-          x: 510,
+        citationsPage.drawText(String(source.mentions), {
+          x: 470,
           y: currentY,
           size: 10,
           font: font,
           color: colors.neutralGray,
         });
 
-        currentY -= 25;
+        currentY -= 22;
       });
     }
 
-    // Citations by Provider
-    if (dto.citations.byProvider && dto.citations.byProvider.length > 0) {
-      currentY -= 40;
-      citationsPage.drawText('Citations by AI Provider', {
-        x: 40,
-        y: currentY,
-        size: 14,
-        font: boldFont,
-        color: colors.neutralDark,
-      });
+    // Insight about brand presence in sources
+    currentY -= 30;
+    drawSectionBox(citationsPage, margin, currentY - 60, pageWidth - (margin * 2), 60, colors.accentOrange);
+    
+    citationsPage.drawText('Citation Insight', {
+      x: margin + 20,
+      y: currentY - 25,
+      size: 12,
+      font: boldFont,
+      color: colors.neutralDark,
+    });
 
-      currentY -= 30;
-      dto.citations.byProvider.forEach((prov) => {
-        citationsPage.drawText(
-          stripEmojis(`${prov.provider}: ${prov.citationCount} citations (${prov.validationRate.toFixed(1)}% validated)`),
-          {
-            x: 50,
-            y: currentY,
-            size: 11,
-            font: font,
-            color: colors.neutralDark,
-          }
-        );
-        currentY -= 20;
-      });
-    }
+    const citationInsight = dto.citations.sourceInsight || 
+      `AI models cite ${dto.citations.topSources.length} unique domains. Ensure your brand is present in these authoritative sources.`;
+    
+    citationsPage.drawText(truncateText(citationInsight, 90), {
+      x: margin + 20,
+      y: currentY - 45,
+      size: 10,
+      font: font,
+      color: colors.neutralDark,
+    });
+
+    addFooter(citationsPage);
   }
 
-  // PAGE 6: Strategic Recommendations
+  // ========== PAGE 6: STRATEGIC RECOMMENDATIONS ==========
   const recoPage = pdfDoc.addPage([pageWidth, pageHeight]);
-  const pageNum = dto.citations && dto.citations.totalCitations > 0 ? 6 : 5;
-  currentY = addHeader(recoPage, 'Strategic Recommendations', pageNum);
+  currentY = addHeader(recoPage, 'Strategic Recommendations');
 
-  // Key findings
-  currentY -= 40;
+  // Key Findings
+  currentY -= 30;
   recoPage.drawText('Key Findings', {
-    x: 40,
+    x: margin,
     y: currentY,
     size: 16,
     font: boldFont,
@@ -732,10 +1094,10 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
   });
 
   const findings = dto.insights?.keyFindings || ['No specific findings available'];
-  findings.slice(0, 4).forEach((finding: string, index: number) => {
-    currentY -= 25;
-    recoPage.drawText(`• ${stripEmojis(finding)}`, {
-      x: 50,
+  findings.slice(0, 4).forEach((finding, index) => {
+    currentY -= 22;
+    recoPage.drawText(`${index + 1}. ${truncateText(safeText(finding), 80)}`, {
+      x: margin + 10,
       y: currentY,
       size: 11,
       font: font,
@@ -743,51 +1105,222 @@ export async function renderReportPDF(dto: WeeklyReportData, sections?: Record<s
     });
   });
 
-  // Action recommendations
-  currentY -= 60;
-  recoPage.drawText('Action Items', {
-    x: 40,
+  // Action Items with references
+  currentY -= 50;
+  recoPage.drawText('Prioritized Action Items', {
+    x: margin,
     y: currentY,
     size: 16,
+    font: boldFont,
+    color: colors.primaryBlue,
+  });
+
+  const actionItems = dto.insights?.recommendations || ['Focus on content addressing zero-visibility prompts'];
+  
+  actionItems.slice(0, 5).forEach((rec, index) => {
+    currentY -= 25;
+    
+    // Priority badge
+    const priority = index < 2 ? 'HIGH' : 'MEDIUM';
+    const priorityColor = index < 2 ? colors.errorRed : colors.accentOrange;
+    
+    recoPage.drawRectangle({
+      x: margin,
+      y: currentY - 3,
+      width: 45,
+      height: 16,
+      color: priorityColor,
+    });
+    
+    recoPage.drawText(priority, {
+      x: margin + 5,
+      y: currentY,
+      size: 8,
+      font: boldFont,
+      color: colors.neutralLight,
+    });
+
+    recoPage.drawText(truncateText(safeText(rec), 70), {
+      x: margin + 55,
+      y: currentY,
+      size: 11,
+      font: font,
+      color: colors.neutralDark,
+    });
+  });
+
+  // Content recommendations based on data
+  currentY -= 50;
+  recoPage.drawText('Content Strategy Recommendations', {
+    x: margin,
+    y: currentY,
+    size: 14,
     font: boldFont,
     color: colors.neutralDark,
   });
 
-  const actionItems = dto.insights?.recommendations || ['No specific actions recommended'];
-  actionItems.slice(0, 5).forEach((rec: string, index: number) => {
-    currentY -= 25;
-    recoPage.drawText(`${index + 1}. ${stripEmojis(rec)}`, {
-      x: 50,
+  currentY -= 25;
+  
+  // Generate context-aware recommendations
+  if (dto.prompts?.zeroPresence?.length > 0) {
+    recoPage.drawText(`• Create content targeting: "${truncateText(dto.prompts.zeroPresence[0].text, 50)}"`, {
+      x: margin + 10,
       y: currentY,
-      size: 11,
+      size: 10,
       font: font,
       color: colors.neutralDark,
     });
-  });
+    currentY -= 18;
+  }
 
-  // Performance summary using insights highlights
-  currentY -= 60;
-  if (dto.insights && dto.insights.highlights && dto.insights.highlights.length > 0) {
-    recoPage.drawText('Performance Summary', {
-      x: 40,
+  if (dto.competitors?.topCompetitors?.[0]) {
+    const topComp = dto.competitors.topCompetitors[0];
+    recoPage.drawText(`• Create comparison content: "Your Brand vs ${safeText(topComp.name)}"`, {
+      x: margin + 10,
       y: currentY,
-      size: 16,
-      font: boldFont,
+      size: 10,
+      font: font,
       color: colors.neutralDark,
     });
+    currentY -= 18;
+  }
 
-    currentY -= 30;
-    dto.insights.highlights.slice(0, 6).forEach((highlight: string) => {
-      currentY -= 20;
-      recoPage.drawText(stripEmojis(highlight), {
-        x: 50,
-        y: currentY,
-        size: 11,
-        font: font,
-        color: colors.neutralDark,
-      });
+  if (dto.citations?.topSources?.[0]) {
+    recoPage.drawText(`• Pursue citations from: ${safeText(dto.citations.topSources[0].domain)}`, {
+      x: margin + 10,
+      y: currentY,
+      size: 10,
+      font: font,
+      color: colors.neutralDark,
     });
   }
+
+  addFooter(recoPage);
+
+  // ========== PAGE 7: METHODOLOGY & TRUST SIGNALS ==========
+  const methodPage = pdfDoc.addPage([pageWidth, pageHeight]);
+  currentY = addHeader(methodPage, 'Methodology & Data Quality');
+
+  currentY -= 30;
+  methodPage.drawText('How This Report Was Generated', {
+    x: margin,
+    y: currentY,
+    size: 14,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 25;
+  methodPage.drawText('Data Collection Method:', {
+    x: margin,
+    y: currentY,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+  
+  currentY -= 18;
+  methodPage.drawText('We query major AI platforms with your tracked prompts and analyze responses for brand mentions,', {
+    x: margin,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+  
+  currentY -= 15;
+  methodPage.drawText('competitor presence, and citation sources. Each response is scored for brand visibility.', {
+    x: margin,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 35;
+  methodPage.drawText('AI Providers Analyzed:', {
+    x: margin,
+    y: currentY,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 18;
+  const providers = dto.volume?.providersUsed?.map(p => safeText(p.provider)).join(', ') || 'OpenAI, Anthropic, Google, Perplexity';
+  methodPage.drawText(providers, {
+    x: margin,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 35;
+  methodPage.drawText('Data Summary:', {
+    x: margin,
+    y: currentY,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  currentY -= 18;
+  methodPage.drawText(`• ${dto.prompts.totalActive} prompts monitored`, {
+    x: margin + 10,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+  
+  currentY -= 15;
+  methodPage.drawText(`• ${dto.kpis.totalRuns} AI responses analyzed`, {
+    x: margin + 10,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+  
+  currentY -= 15;
+  methodPage.drawText(`• ${dto.competitors?.totalDetected || 0} competitors detected`, {
+    x: margin + 10,
+    y: currentY,
+    size: 10,
+    font: font,
+    color: colors.neutralDark,
+  });
+
+  // Disclaimer
+  currentY -= 50;
+  drawSectionBox(methodPage, margin, currentY - 80, pageWidth - (margin * 2), 80, colors.neutralGray);
+  
+  methodPage.drawText('Important Disclaimer', {
+    x: margin + 20,
+    y: currentY - 25,
+    size: 11,
+    font: boldFont,
+    color: colors.neutralDark,
+  });
+
+  methodPage.drawText('AI responses can vary between queries and over time. This report represents a snapshot of AI behavior', {
+    x: margin + 20,
+    y: currentY - 45,
+    size: 9,
+    font: font,
+    color: colors.neutralGray,
+  });
+  
+  methodPage.drawText('during the reporting period. Results should be used as directional guidance, not absolute metrics.', {
+    x: margin + 20,
+    y: currentY - 60,
+    size: 9,
+    font: font,
+    color: colors.neutralGray,
+  });
+
+  addFooter(methodPage);
 
   return await pdfDoc.save();
 }
