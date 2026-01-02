@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Loader2, Shield, CheckCircle, XCircle, Building2, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { Loader2, Shield, CheckCircle, XCircle, Building2, Trash2, RefreshCw } from 'lucide-react';
+import { format, differenceInMilliseconds, startOfTomorrow } from 'date-fns';
 import { toast } from 'sonner';
+import { useCallback } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +41,37 @@ export default function SuperAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
+  const fetchAdminData = useCallback(async (showToast = false) => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    if (showToast) setRefreshing(true);
+
+    try {
+      const { data, error } = await supabase.rpc('get_super_admin_dashboard');
+      
+      if (error) {
+        if (error.message.includes('Access denied')) {
+          setError('Access denied: You are not authorized to view this page.');
+        } else {
+          setError(error.message);
+        }
+        return;
+      }
+
+      setAccounts(data || []);
+      if (showToast) toast.success('Data refreshed');
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user]);
   const handleDeleteAccounts = async () => {
     setDeleting(true);
     try {
@@ -61,37 +92,27 @@ export default function SuperAdmin() {
     }
   };
 
+  // Initial fetch
   useEffect(() => {
-    async function fetchAdminData() {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase.rpc('get_super_admin_dashboard');
-        
-        if (error) {
-          if (error.message.includes('Access denied')) {
-            setError('Access denied: You are not authorized to view this page.');
-          } else {
-            setError(error.message);
-          }
-          return;
-        }
-
-        setAccounts(data || []);
-      } catch (err) {
-        setError('An unexpected error occurred');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     if (!authLoading) {
       fetchAdminData();
     }
-  }, [user, authLoading]);
+  }, [authLoading, fetchAdminData]);
+
+  // Daily auto-refresh at midnight
+  useEffect(() => {
+    const scheduleNextRefresh = () => {
+      const msUntilMidnight = differenceInMilliseconds(startOfTomorrow(), new Date());
+      return setTimeout(() => {
+        fetchAdminData();
+        // Schedule the next refresh for the following day
+        scheduleNextRefresh();
+      }, msUntilMidnight);
+    };
+
+    const timeoutId = scheduleNextRefresh();
+    return () => clearTimeout(timeoutId);
+  }, [fetchAdminData]);
 
   if (authLoading || loading) {
     return (
@@ -132,12 +153,23 @@ export default function SuperAdmin() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Shield className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
-            <p className="text-muted-foreground">System-wide account management</p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Shield className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
+              <p className="text-muted-foreground">System-wide account management</p>
+            </div>
           </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchAdminData(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
