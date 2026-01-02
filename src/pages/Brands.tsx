@@ -28,10 +28,7 @@ function BrandLlumosScore({ brandId }: { brandId: string }) {
   const colorClass = getScoreColor(score);
   
   return (
-    <div className="flex flex-col items-center">
-      <span className={colorClass}>{score}</span>
-      <span className="text-[10px] text-muted-foreground">({composite.toFixed(1)}%)</span>
-    </div>
+    <span className={colorClass}>{score}</span>
   );
 }
 
