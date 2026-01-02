@@ -200,10 +200,10 @@ export default function Dashboard() {
       return [];
     }
 
-    const chartData: any[] = [];
+    const allDays: any[] = [];
     
-    // Create 5 days of data
-    for (let i = 4; i >= 0; i--) {
+    // Create 7 days of data to ensure we can find 5 with actual data
+    for (let i = 6; i >= 0; i--) {
       const dayDate = new Date();
       dayDate.setDate(dayDate.getDate() - i);
       dayDate.setHours(0, 0, 0, 0);
@@ -217,13 +217,14 @@ export default function Dashboard() {
         return responseDate >= dayDate && responseDate < nextDay && (response.status === 'success' || response.status === 'completed');
       });
       
+      const totalDayResponses = dayResponses.length;
       const dayData: any = {
         date: dayDate.toISOString(),
-        orgPresence: 0
+        orgPresence: 0,
+        hasData: totalDayResponses > 0
       };
 
       // Calculate org presence rate
-      const totalDayResponses = dayResponses.length;
       if (totalDayResponses > 0) {
         const orgPresent = dayResponses.filter((r: any) => r.org_brand_present === true).length;
         dayData.orgPresence = Math.round((orgPresent / totalDayResponses) * 100);
@@ -243,10 +244,15 @@ export default function Dashboard() {
         dayData[`competitor${index}`] = competitorRate;
       });
 
-      chartData.push(dayData);
+      allDays.push(dayData);
     }
 
-    return chartData;
+    // Filter to only days with data, then take the most recent 5
+    const daysWithData = allDays.filter(day => day.hasData);
+    const result = daysWithData.slice(-5);
+    
+    // Clean up the hasData flag before returning
+    return result.map(({ hasData, ...rest }) => rest);
   }, [dashboardData?.responses, competitorData]);
 
   useEffect(() => {
