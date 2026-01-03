@@ -116,64 +116,19 @@ export default function AIVisibilityLanding() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="bg-card border border-border rounded-2xl p-8 shadow-lg"
               >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Website URL *</label>
-                    <Input
-                      type="text"
-                      placeholder="yourcompany.com"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      className="h-12"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Email Address *</label>
-                    <Input
-                      type="email"
-                      placeholder="you@company.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="h-12"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Competitors (optional)</label>
-                    <div className="space-y-2">
-                      {competitors.map((comp, i) => (
-                        <Input
-                          key={i}
-                          type="text"
-                          placeholder={`Competitor ${i + 1}`}
-                          value={comp}
-                          onChange={(e) => updateCompetitor(i, e.target.value)}
-                          className="h-10"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full h-16 text-xl font-semibold bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity shadow-lg shadow-primary/25"
-                  >
-                    Get My Free AI Visibility Report
-                    <ArrowRight className="ml-2 w-6 h-6" />
-                  </Button>
-                  <p className="text-center text-sm text-muted-foreground">
-                    Takes ~2 minutes · Instant preview · No credit card
-                  </p>
-                  <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
-                    <p className="text-xs font-medium text-foreground mb-2">What happens next:</p>
-                    <ul className="text-xs text-muted-foreground space-y-1">
-                      <li>• We run real AI prompts</li>
-                      <li>• You see your visibility snapshot</li>
-                      <li>• You decide if you want full tracking</li>
-                    </ul>
-                  </div>
-                </form>
+                <HubSpotForm
+                  portalId="244723281"
+                  formId="a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d"
+                  region="na2"
+                />
+                <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
+                  <p className="text-xs font-medium text-foreground mb-2">What happens next:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• We run real AI prompts</li>
+                    <li>• You see your visibility snapshot</li>
+                    <li>• You decide if you want full tracking</li>
+                  </ul>
+                </div>
               </motion.div>
             </div>
           </div>
