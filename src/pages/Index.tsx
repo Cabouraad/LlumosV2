@@ -9,6 +9,7 @@ import { ProductSchema } from '@/components/seo/ProductSchema';
 import { LLUMOS_PRICING } from '@/components/seo/SoftwareApplicationSchema';
 
 // New conversion-focused components
+import { LargeLogoSection } from '@/components/landing/LargeLogoSection';
 import { ConversionHeroV2 } from '@/components/landing/ConversionHeroV2';
 import { WhatReportShows } from '@/components/landing/WhatReportShows';
 import { ResultsPreview } from '@/components/landing/ResultsPreview';
@@ -91,6 +92,7 @@ const Index = () => {
       <div className="dark min-h-screen bg-background text-foreground">
         <LandingNavbar />
         <main>
+          <LargeLogoSection />
           <ConversionHeroV2 />
           <WhatReportShows />
           <ResultsPreview />
