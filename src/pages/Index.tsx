@@ -2,22 +2,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { SEOHelmet } from '@/components/SEOHelmet';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
+
+import { ConversionHeroSection } from '@/components/landing/ConversionHeroSection';
+import { FreeVisibilityChecker } from '@/components/landing/FreeVisibilityChecker';
+import { ProblemSection } from '@/components/landing/ProblemSection';
+import { SolutionSection } from '@/components/landing/SolutionSection';
+import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
+import { TrustSection } from '@/components/landing/TrustSection';
+import { ConversionFAQSection } from '@/components/landing/ConversionFAQSection';
+import { ConversionFinalCTA } from '@/components/landing/ConversionFinalCTA';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { ExitIntentPopup } from '@/components/home/ExitIntentPopup';
+import { StickyBottomCTA } from '@/components/landing/StickyBottomCTA';
 import { OrganizationSchema } from '@/components/seo/OrganizationSchema';
 import { WebSiteSchema } from '@/components/seo/WebSiteSchema';
 import { ProductSchema } from '@/components/seo/ProductSchema';
 import { LLUMOS_PRICING } from '@/components/seo/SoftwareApplicationSchema';
-
-// New conversion-focused components
-import { LargeLogoSection } from '@/components/landing/LargeLogoSection';
-import { ConversionHeroV2 } from '@/components/landing/ConversionHeroV2';
-import { WhatReportShows } from '@/components/landing/WhatReportShows';
-import { ResultsPreview } from '@/components/landing/ResultsPreview';
-import { WhyLlumosDifferent } from '@/components/landing/WhyLlumosDifferent';
-import { HowItWorksV2 } from '@/components/landing/HowItWorksV2';
-import { UpgradeTriggers } from '@/components/landing/UpgradeTriggers';
-import { PricingTease } from '@/components/landing/PricingTease';
-import { FinalCTAV2 } from '@/components/landing/FinalCTAV2';
 
 const Index = () => {
   const { user, loading, orgData, orgStatus, ready, isChecking } = useAuth();
@@ -26,7 +26,7 @@ const Index = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-500 mx-auto"></div>
           <p className="mt-2 text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -44,9 +44,9 @@ const Index = () => {
   return (
     <>
       <SEOHelmet
-        title="See If AI Recommends Your Brand — Or Your Competitors | Llumos"
-        description="ChatGPT, Gemini, and Perplexity now decide which brands get recommended. Get your free AI Visibility Report and see where you appear, where you don't, and why."
-        keywords="AI visibility report, ChatGPT recommendations, AI search visibility, Gemini brand mentions, Perplexity monitoring, AI SEO"
+        title="Turn AI Search Mentions Into Revenue | Llumos"
+        description="See how your brand appears in ChatGPT, Gemini, and Perplexity — and get clear actions to improve visibility and win more demand from AI-powered search."
+        keywords="AI search visibility, ChatGPT ranking, GEO platform, brand visibility tracking, AI SEO, Gemini search, Perplexity monitoring"
         canonicalPath="/"
         ogImage="/og-home.png"
         structuredData={[
@@ -57,7 +57,7 @@ const Index = () => {
             name: "Llumos",
             applicationCategory: "BusinessApplication",
             operatingSystem: "Cloud/Web",
-            description: "AI Search Visibility Platform. Get your free AI Visibility Report and track your brand across ChatGPT, Gemini, and Perplexity.",
+            description: "AI Search Visibility & GEO Tracking Platform. Track your brand visibility across AI-powered search engines like ChatGPT, Claude, Perplexity, and Google AI Overviews.",
             url: "https://llumos.app",
             image: "https://llumos.app/og-home.png",
             author: {
@@ -74,33 +74,37 @@ const Index = () => {
               url: "https://llumos.app/pricing"
             },
             featureList: [
-              "Free AI Visibility Report",
               "AI Search Visibility Tracking",
               "ChatGPT Brand Monitoring",
+              "Perplexity Visibility Analytics",
+              "Google AI Overviews Tracking",
               "Competitor Analysis",
               "Citation Analytics",
-              "Optimization Recommendations"
+              "Content Studio",
+              "White-Label Reports"
             ]
           }
         ]}
       />
+      {/* Separate schema components for better organization */}
       <OrganizationSchema />
       <WebSiteSchema />
       <ProductSchema />
       
       {/* Force dark mode for landing page */}
       <div className="dark min-h-screen bg-background text-foreground">
+        <ExitIntentPopup />
+        <StickyBottomCTA />
         <LandingNavbar />
         <main>
-          <LargeLogoSection />
-          <ConversionHeroV2 />
-          <WhatReportShows />
-          <ResultsPreview />
-          <WhyLlumosDifferent />
-          <HowItWorksV2 />
-          <UpgradeTriggers />
-          <PricingTease />
-          <FinalCTAV2 />
+          <ConversionHeroSection />
+          <FreeVisibilityChecker />
+          <ProblemSection />
+          <HowItWorksSection />
+          <SolutionSection />
+          <TrustSection />
+          <ConversionFAQSection />
+          <ConversionFinalCTA />
         </main>
         <LandingFooter />
       </div>

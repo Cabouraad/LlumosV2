@@ -55,7 +55,6 @@ import DashboardDemo from "./pages/DashboardDemo";
 import ScoreResults from "./pages/ScoreResults";
 import AIRecommendsLanding from "./pages/AIRecommendsLanding";
 import AIRecommendsThankYou from "./pages/AIRecommendsThankYou";
-import AIVisibilityReport from "./pages/AIVisibilityReport";
 
 // ============================================
 // LAZY LOADED - Auth Routes
@@ -184,7 +183,6 @@ const App = () => {
         <Route path="/score-results" element={<ScoreResults />} />
         <Route path="/lp/ai-recommends" element={<AIRecommendsLanding />} />
         <Route path="/lp/ai-recommends/thank-you" element={<AIRecommendsThankYou />} />
-        <Route path="/lp/ai-visibility" element={<AIVisibilityReport />} />
 
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}

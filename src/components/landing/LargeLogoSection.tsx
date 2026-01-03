@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 
 export function LargeLogoSection() {
   return (
-    <section className="pt-28 pb-4 px-4 relative">
+    <section className="pt-28 pb-8 px-4 relative">
       {/* Background glow */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-[600px] h-[300px] bg-violet-500/20 rounded-full blur-[120px]" />
