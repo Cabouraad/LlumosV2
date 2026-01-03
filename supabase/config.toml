@@ -301,3 +301,6 @@ verify_jwt = true
 
 [functions.snapshot-email-sequence]
 verify_jwt = false
+
+[functions.ai-visibility-submit]
+verify_jwt = false

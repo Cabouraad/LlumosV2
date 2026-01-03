@@ -2346,6 +2346,83 @@ export type Database = {
         }
         Relationships: []
       }
+      visibility_snapshots: {
+        Row: {
+          company_name: string | null
+          competitor_placeholders: Json
+          created_at: string
+          domain: string
+          email: string
+          email_opened: boolean | null
+          email_opened_at: string | null
+          email_sent: boolean
+          email_sent_at: string | null
+          first_name: string | null
+          id: string
+          lead_id: string | null
+          link_clicked: boolean | null
+          link_clicked_at: string | null
+          metadata: Json | null
+          model_presence: Json
+          snapshot_token: string
+          updated_at: string
+          visibility_score: number
+          visibility_status: string
+        }
+        Insert: {
+          company_name?: string | null
+          competitor_placeholders?: Json
+          created_at?: string
+          domain: string
+          email: string
+          email_opened?: boolean | null
+          email_opened_at?: string | null
+          email_sent?: boolean
+          email_sent_at?: string | null
+          first_name?: string | null
+          id?: string
+          lead_id?: string | null
+          link_clicked?: boolean | null
+          link_clicked_at?: string | null
+          metadata?: Json | null
+          model_presence?: Json
+          snapshot_token: string
+          updated_at?: string
+          visibility_score: number
+          visibility_status: string
+        }
+        Update: {
+          company_name?: string | null
+          competitor_placeholders?: Json
+          created_at?: string
+          domain?: string
+          email?: string
+          email_opened?: boolean | null
+          email_opened_at?: string | null
+          email_sent?: boolean
+          email_sent_at?: string | null
+          first_name?: string | null
+          id?: string
+          lead_id?: string | null
+          link_clicked?: boolean | null
+          link_clicked_at?: string | null
+          metadata?: Json | null
+          model_presence?: Json
+          snapshot_token?: string
+          updated_at?: string
+          visibility_score?: number
+          visibility_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visibility_snapshots_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_events: {
         Row: {
           created_at: string
