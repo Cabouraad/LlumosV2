@@ -6,22 +6,22 @@ import { Link } from 'react-router-dom';
 const triggers = [
   {
     label: 'Curiosity',
-    message: "You're missing a majority of AI answers in your category.",
+    message: "You're missing high-intent AI answers customers use to decide.",
     cta: 'See missed prompts',
   },
   {
     label: 'Competitor Fear',
-    message: 'Your competitor is recommended more often than you.',
+    message: 'AI is already recommending your competitor instead.',
     cta: "See why they're winning",
   },
   {
     label: 'Time Value',
-    message: "One snapshot isn't enough. AI answers change constantly.",
+    message: 'AI answers change daily — static reports fall behind.',
     cta: 'Start continuous tracking',
   },
   {
     label: 'Actionability',
-    message: "We don't just show the problem — we show what to fix.",
+    message: 'We show exactly which content and sources influence AI answers.',
     cta: 'Get optimization insights',
   },
 ];

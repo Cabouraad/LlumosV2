@@ -43,7 +43,7 @@ export function FinalCTAV2() {
           <Button
             size="lg"
             onClick={scrollToTop}
-            className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 group"
+            className="h-16 px-12 text-lg font-bold bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-xl shadow-primary/30 hover:shadow-primary/50 transition-all duration-300 group"
           >
             Get My Free AI Visibility Report
             <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
