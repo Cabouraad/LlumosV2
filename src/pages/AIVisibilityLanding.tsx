@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
 import { Helmet } from 'react-helmet-async';
 import { UpgradeModal } from '@/components/landing/UpgradeModal';
+import { AIVisibilitySnapshot } from '@/components/landing/AIVisibilitySnapshot';
 
 export default function AIVisibilityLanding() {
   const [url, setUrl] = useState('');
@@ -17,6 +18,9 @@ export default function AIVisibilityLanding() {
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [cleanedDomain, setCleanedDomain] = useState('');
+  const [showSnapshot, setShowSnapshot] = useState(false);
+  const [submittedData, setSubmittedData] = useState<{ domain: string; email: string; competitors: string[] } | null>(null);
+  const snapshotRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,6 +124,37 @@ export default function AIVisibilityLanding() {
                   portalId="244723281"
                   formId="a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d"
                   region="na2"
+                  onFormSubmit={() => {
+                    // Extract domain from HubSpot form - we'll use a placeholder approach
+                    // HubSpot captures the data, we show the snapshot with a sample domain
+                    const formContainer = document.querySelector('.hubspot-embedded-form');
+                    const domainInput = formContainer?.querySelector('input[name="website"], input[name="domain"], input[type="url"]') as HTMLInputElement;
+                    const emailInput = formContainer?.querySelector('input[name="email"], input[type="email"]') as HTMLInputElement;
+                    
+                    const domain = domainInput?.value || 'yourcompany.com';
+                    const emailVal = emailInput?.value || '';
+                    
+                    // Clean the domain
+                    let cleanDomain = domain.trim().toLowerCase();
+                    if (cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')) {
+                      cleanDomain = cleanDomain.replace(/^https?:\/\/(www\.)?/, '');
+                    } else {
+                      cleanDomain = cleanDomain.replace(/^(www\.)?/, '');
+                    }
+                    cleanDomain = cleanDomain.replace(/\/.*$/, '');
+                    
+                    setSubmittedData({
+                      domain: cleanDomain || 'yourcompany.com',
+                      email: emailVal,
+                      competitors: []
+                    });
+                    setShowSnapshot(true);
+                    
+                    // Scroll to snapshot after a brief delay
+                    setTimeout(() => {
+                      snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 300);
+                  }}
                 />
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
                   <p className="text-xs font-medium text-foreground mb-2">What happens next:</p>
@@ -133,6 +168,18 @@ export default function AIVisibilityLanding() {
             </div>
           </div>
         </section>
+
+        {/* AI VISIBILITY SNAPSHOT - Shows after form submission */}
+        {showSnapshot && submittedData && (
+          <section ref={snapshotRef} className="bg-muted/30 border-t border-border">
+            <AIVisibilitySnapshot
+              domain={submittedData.domain}
+              email={submittedData.email}
+              competitors={submittedData.competitors}
+              onUpgrade={() => setShowUpgradeModal(true)}
+            />
+          </section>
+        )}
 
         {/* WHAT THIS REPORT SHOWS */}
         <section className="py-16 px-4 bg-muted/30">
