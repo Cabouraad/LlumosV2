@@ -8,12 +8,14 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
 import { Helmet } from 'react-helmet-async';
+import { UpgradeModal } from '@/components/landing/UpgradeModal';
 
 export default function AIVisibilityLanding() {
   const [url, setUrl] = useState('');
   const [email, setEmail] = useState('');
   const [competitors, setCompetitors] = useState(['', '', '']);
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [cleanedDomain, setCleanedDomain] = useState('');
   const navigate = useNavigate();
 
@@ -296,7 +298,10 @@ export default function AIVisibilityLanding() {
                   <p className="text-center text-sm text-foreground font-medium mb-4 max-w-xs">
                     Unlock full AI visibility tracking to see every missed opportunity, every competitor mention, and exactly what to fix.
                   </p>
-                  <Button className="h-12 px-6 text-base font-semibold bg-gradient-to-r from-primary to-secondary shadow-lg shadow-primary/25">
+                  <Button 
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="h-12 px-6 text-base font-semibold bg-gradient-to-r from-primary to-secondary shadow-lg shadow-primary/25"
+                  >
                     Unlock Full AI Visibility
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
@@ -501,6 +506,11 @@ export default function AIVisibilityLanding() {
           </p>
         </DialogContent>
       </Dialog>
+
+      <UpgradeModal 
+        open={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+      />
     </>
   );
 }
