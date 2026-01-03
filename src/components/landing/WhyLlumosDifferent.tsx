@@ -2,10 +2,10 @@ import { motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 
 const differentiators = [
-  'Runs real prompts across AI models',
-  'Tracks answers over time, not screenshots',
-  'Shows who AI recommends and why',
-  'Designed for SEO, content, and growth teams',
+  'Runs real prompts across ChatGPT, Gemini, and Perplexity',
+  'Tracks answers over time — not one-off screenshots',
+  'Shows which competitors AI actually recommends',
+  'Built for SEO, content, and growth teams',
 ];
 
 export function WhyLlumosDifferent() {
@@ -22,7 +22,7 @@ export function WhyLlumosDifferent() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Built for How AI Actually Works
+            Most Tools Guess. <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Llumos Measures.</span>
           </h2>
         </motion.div>
 

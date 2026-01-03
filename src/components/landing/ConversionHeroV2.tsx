@@ -69,15 +69,20 @@ export function ConversionHeroV2() {
             transition={{ duration: 0.5 }}
           >
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-              See If AI Recommends Your Brand — Or Your{' '}
+              Is AI Recommending Your Brand — Or Your{' '}
               <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Competitors
+                Competitors?
               </span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl">
+            <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-xl">
               ChatGPT, Gemini, and Perplexity now decide which brands get recommended.
-              Llumos shows where you appear, where you don't, and why.
+              See where you appear, where you don't, and why.
+            </p>
+
+            {/* Trust strip */}
+            <p className="text-sm text-muted-foreground/80 mb-6 font-medium">
+              Used by SEO & growth teams to track real AI recommendations
             </p>
 
             {/* Trust micro-copy */}
@@ -155,7 +160,7 @@ export function ConversionHeroV2() {
                   type="submit"
                   size="lg"
                   disabled={isSubmitting}
-                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 group"
+                  className="w-full h-16 text-lg font-bold bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-xl shadow-primary/30 hover:shadow-primary/50 transition-all duration-300 group"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
@@ -170,9 +175,19 @@ export function ConversionHeroV2() {
                   )}
                 </Button>
 
-                <p className="text-center text-xs text-muted-foreground">
+                <p className="text-center text-xs text-muted-foreground mb-6">
                   Takes ~2 minutes · Instant preview · No credit card
                 </p>
+
+                {/* What happens next */}
+                <div className="border-t border-border/30 pt-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">What happens next:</p>
+                  <ul className="text-xs text-muted-foreground/80 space-y-1">
+                    <li>• We run real AI prompts</li>
+                    <li>• You see your visibility snapshot</li>
+                    <li>• You decide if you want full tracking</li>
+                  </ul>
+                </div>
               </form>
             </div>
           </motion.div>

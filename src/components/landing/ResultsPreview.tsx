@@ -15,7 +15,7 @@ export function ResultsPreview() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Your AI Visibility Snapshot
+            Your AI Visibility Snapshot <span className="text-muted-foreground">(Preview)</span>
           </h2>
           <p className="text-lg text-muted-foreground">
             Here's a preview of what you'll discover
@@ -39,14 +39,14 @@ export function ResultsPreview() {
             {/* Visibility Score */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Visibility Score</span>
+                <span className="text-sm text-muted-foreground">AI Visibility Score</span>
               </div>
               <div className="flex items-end gap-3">
                 <span className="text-5xl font-bold text-warning">42</span>
                 <span className="text-2xl text-muted-foreground mb-1">/ 100</span>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Room for significant improvement
+              <p className="text-sm text-destructive font-medium mt-2">
+                Below industry average
               </p>
             </div>
 
@@ -59,8 +59,8 @@ export function ResultsPreview() {
                   <p className="text-sm text-muted-foreground italic">
                     "Best [category] for [use case]"
                   </p>
-                  <p className="text-xs text-destructive mt-2">
-                    → Competitor is recommended instead
+                  <p className="text-xs text-destructive font-medium mt-2">
+                    AI recommends a competitor instead of you.
                   </p>
                 </div>
               </div>
@@ -82,10 +82,13 @@ export function ResultsPreview() {
               </div>
             </div>
 
-            {/* Competitor Teaser */}
+            {/* Competitor Advantage */}
             <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
-              <p className="text-sm font-medium text-destructive">
-                ⚠️ One competitor appears 3× more often than you
+              <p className="text-sm font-semibold text-destructive mb-1">
+                ⚠️ Competitor Advantage
+              </p>
+              <p className="text-sm text-destructive/90">
+                One competitor appears 3× more often than your brand in AI answers.
               </p>
             </div>
           </motion.div>
@@ -110,11 +113,12 @@ export function ResultsPreview() {
                 Unlock Full AI Visibility Tracking
               </h3>
               <p className="text-muted-foreground mb-6 max-w-sm">
-                Unlock full AI visibility tracking to see every prompt, every mention, and how to improve.
+                Unlock full AI visibility tracking to see every missed opportunity,
+                every competitor mention, and exactly what to fix.
               </p>
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-lg group"
+                className="h-14 px-8 text-base font-bold bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 border-0 shadow-xl shadow-primary/30 group"
                 asChild
               >
                 <Link to="/signup">
@@ -122,6 +126,9 @@ export function ResultsPreview() {
                   <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
+              <p className="text-xs text-muted-foreground mt-3">
+                Most users upgrade after seeing their snapshot
+              </p>
             </div>
 
             {/* Blurred preview content */}
