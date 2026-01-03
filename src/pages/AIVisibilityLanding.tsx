@@ -92,15 +92,18 @@ export default function AIVisibilityLanding() {
                 transition={{ duration: 0.5 }}
               >
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                  See If AI Recommends Your Brand — Or Your Competitors
+                  Is AI Recommending Your Brand — Or Your Competitors?
                 </h1>
                 <h2 className="text-xl md:text-2xl text-muted-foreground mb-6">
                   ChatGPT, Gemini, and Perplexity now decide which brands get recommended.
                   <br />
-                  <span className="text-foreground font-medium">Llumos shows where you appear, where you don't, and why.</span>
+                  <span className="text-foreground font-medium">See where you appear, where you don't, and why.</span>
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mb-4">
                   Built for SEO & growth teams · Tracks real AI answers · No credit card required
+                </p>
+                <p className="text-xs text-muted-foreground/80 border border-border/50 rounded-full px-4 py-2 inline-block">
+                  Used by SEO & growth teams to track real AI recommendations
                 </p>
               </motion.div>
 
@@ -152,14 +155,22 @@ export default function AIVisibilityLanding() {
                   <Button
                     type="submit"
                     size="lg"
-                    className="w-full h-14 text-lg bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
+                    className="w-full h-16 text-xl font-semibold bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity shadow-lg shadow-primary/25"
                   >
                     Get My Free AI Visibility Report
-                    <ArrowRight className="ml-2 w-5 h-5" />
+                    <ArrowRight className="ml-2 w-6 h-6" />
                   </Button>
                   <p className="text-center text-sm text-muted-foreground">
                     Takes ~2 minutes · Instant preview · No credit card
                   </p>
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
+                    <p className="text-xs font-medium text-foreground mb-2">What happens next:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      <li>• We run real AI prompts</li>
+                      <li>• You see your visibility snapshot</li>
+                      <li>• You decide if you want full tracking</li>
+                    </ul>
+                  </div>
                 </form>
               </motion.div>
             </div>
@@ -212,7 +223,7 @@ export default function AIVisibilityLanding() {
               viewport={{ once: true }}
               className="text-3xl md:text-4xl font-bold text-center mb-12"
             >
-              Your AI Visibility Snapshot
+              Your AI Visibility Snapshot <span className="text-muted-foreground font-normal">(Preview)</span>
             </motion.h2>
             
             <div className="grid lg:grid-cols-2 gap-8">
@@ -225,10 +236,11 @@ export default function AIVisibilityLanding() {
               >
                 <div className="bg-card border border-border rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-muted-foreground">Visibility Score</span>
+                    <span className="text-sm font-medium text-muted-foreground">AI Visibility Score</span>
                     <Check className="w-5 h-5 text-success" />
                   </div>
                   <div className="text-4xl font-bold text-primary">42 / 100</div>
+                  <p className="text-sm text-warning mt-2">Below industry average</p>
                 </div>
 
                 <div className="bg-card border border-border rounded-xl p-6">
@@ -237,7 +249,7 @@ export default function AIVisibilityLanding() {
                     <Check className="w-5 h-5 text-success" />
                   </div>
                   <p className="text-lg font-medium">"Best [category] for [use case]"</p>
-                  <p className="text-sm text-muted-foreground mt-2">Your competitor is recommended instead.</p>
+                  <p className="text-sm text-warning mt-2">AI recommends a competitor instead of you.</p>
                 </div>
 
                 <div className="bg-card border border-border rounded-xl p-6">
@@ -256,10 +268,10 @@ export default function AIVisibilityLanding() {
 
                 <div className="bg-card border border-border rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-muted-foreground">Competitor Insight</span>
+                    <span className="text-sm font-medium text-muted-foreground">Competitor Advantage</span>
                     <Check className="w-5 h-5 text-success" />
                   </div>
-                  <p className="text-lg font-medium text-warning">One competitor appears 3× more often than you</p>
+                  <p className="text-lg font-medium text-warning">One competitor appears 3× more often than your brand in AI answers</p>
                 </div>
               </motion.div>
 
@@ -282,12 +294,13 @@ export default function AIVisibilityLanding() {
                     Full prompt list · Frequency trends · Citation breakdown · Historical tracking · Optimization recommendations
                   </p>
                   <p className="text-center text-sm text-foreground font-medium mb-4 max-w-xs">
-                    Unlock full AI visibility tracking to see every prompt, every mention, and how to improve.
+                    Unlock full AI visibility tracking to see every missed opportunity, every competitor mention, and exactly what to fix.
                   </p>
-                  <Button className="bg-gradient-to-r from-primary to-secondary">
+                  <Button className="h-12 px-6 text-base font-semibold bg-gradient-to-r from-primary to-secondary shadow-lg shadow-primary/25">
                     Unlock Full AI Visibility
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
+                  <p className="text-xs text-muted-foreground mt-3">Most users upgrade after seeing their snapshot</p>
                 </div>
               </motion.div>
             </div>
@@ -303,7 +316,7 @@ export default function AIVisibilityLanding() {
               viewport={{ once: true }}
               className="text-3xl md:text-4xl font-bold mb-8"
             >
-              Built for How AI Actually Works
+              Most Tools Guess. Llumos Measures.
             </motion.h2>
             <motion.ul
               initial={{ opacity: 0, y: 20 }}
@@ -312,10 +325,10 @@ export default function AIVisibilityLanding() {
               className="text-left max-w-md mx-auto space-y-4 mb-8"
             >
               {[
-                'Runs real prompts across AI models',
-                'Tracks answers over time, not screenshots',
-                'Shows who AI recommends and why',
-                'Designed for SEO, content, and growth teams',
+                'Runs real prompts across ChatGPT, Gemini, and Perplexity',
+                'Tracks answers over time — not one-off screenshots',
+                'Shows which competitors AI actually recommends',
+                'Built for SEO, content, and growth teams',
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
@@ -369,10 +382,10 @@ export default function AIVisibilityLanding() {
           <div className="container max-w-4xl mx-auto">
             <div className="grid md:grid-cols-2 gap-6">
               {[
-                { icon: AlertTriangle, text: "You're missing a majority of AI answers in your category.", cta: 'See missed prompts →' },
-                { icon: TrendingUp, text: 'Your competitor is recommended more often than you.', cta: 'See why they\'re winning →' },
-                { icon: BarChart3, text: "AI answers change constantly. One snapshot isn't enough.", cta: 'Start continuous tracking →' },
-                { icon: Lightbulb, text: "We don't just show the problem — we show what to fix.", cta: 'Get optimization insights →' },
+                { icon: AlertTriangle, text: "You're missing high-intent AI answers customers use to decide.", cta: 'See missed prompts →' },
+                { icon: TrendingUp, text: 'AI is already recommending your competitor instead.', cta: 'See why they\'re winning →' },
+                { icon: BarChart3, text: 'AI answers change daily — static reports fall behind.', cta: 'Start continuous tracking →' },
+                { icon: Lightbulb, text: 'We show exactly which content and sources influence AI answers.', cta: 'Get optimization insights →' },
               ].map((trigger, i) => (
                 <motion.div
                   key={i}
@@ -442,7 +455,7 @@ export default function AIVisibilityLanding() {
             >
               <Button
                 size="lg"
-                className="h-16 px-10 text-xl bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
+                className="h-16 px-10 text-xl font-semibold bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity shadow-lg shadow-primary/25"
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               >
                 Get My Free AI Visibility Report
