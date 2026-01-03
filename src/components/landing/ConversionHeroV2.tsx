@@ -55,7 +55,7 @@ export function ConversionHeroV2() {
   ];
 
   return (
-    <section className="relative pt-24 pb-16 md:pt-32 md:pb-24 px-4 overflow-hidden min-h-[90vh] flex items-center">
+    <section className="relative pt-8 pb-16 md:pt-12 md:pb-24 px-4 overflow-hidden min-h-[70vh] flex items-center">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background" />
       <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/10 rounded-full blur-[120px] opacity-50" />
