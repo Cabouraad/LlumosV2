@@ -56,7 +56,7 @@ import ScoreResults from "./pages/ScoreResults";
 import AIRecommendsLanding from "./pages/AIRecommendsLanding";
 import AIRecommendsThankYou from "./pages/AIRecommendsThankYou";
 import AIVisibilityLanding from "./pages/AIVisibilityLanding";
-
+import AIVisibilityResults from "./pages/AIVisibilityResults";
 // ============================================
 // LAZY LOADED - Auth Routes
 // ============================================
@@ -185,7 +185,7 @@ const App = () => {
         <Route path="/lp/ai-recommends" element={<AIRecommendsLanding />} />
         <Route path="/lp/ai-recommends/thank-you" element={<AIRecommendsThankYou />} />
         <Route path="/lp/ai-visibility" element={<AIVisibilityLanding />} />
-
+        <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
         {/* ============================================ */}

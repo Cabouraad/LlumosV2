@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Check, Lock, Zap, Target, Users, Link2, TrendingUp, AlertTriangle, Lightbulb, BarChart3 } from 'lucide-react';
+import { ArrowRight, Check, Lock, Zap, Target, Users, Link2, TrendingUp, AlertTriangle, Lightbulb, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -10,6 +10,7 @@ import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
 import { Helmet } from 'react-helmet-async';
 import { UpgradeModal } from '@/components/landing/UpgradeModal';
 import { AIVisibilitySnapshot } from '@/components/landing/AIVisibilitySnapshot';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AIVisibilityLanding() {
   const [url, setUrl] = useState('');
@@ -19,6 +20,7 @@ export default function AIVisibilityLanding() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [cleanedDomain, setCleanedDomain] = useState('');
   const [showSnapshot, setShowSnapshot] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedData, setSubmittedData] = useState<{ domain: string; email: string; competitors: string[] } | null>(null);
   const snapshotRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -124,15 +126,39 @@ export default function AIVisibilityLanding() {
                   portalId="244723281"
                   formId="a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d"
                   region="na2"
-                  onFormSubmit={() => {
-                    // Extract domain from HubSpot form - we'll use a placeholder approach
-                    // HubSpot captures the data, we show the snapshot with a sample domain
+                  onFormSubmit={async () => {
+                    // Extract form data from HubSpot form
                     const formContainer = document.querySelector('.hubspot-embedded-form');
                     const domainInput = formContainer?.querySelector('input[name="website"], input[name="domain"], input[type="url"]') as HTMLInputElement;
                     const emailInput = formContainer?.querySelector('input[name="email"], input[type="email"]') as HTMLInputElement;
+                    const firstNameInput = formContainer?.querySelector('input[name="firstname"]') as HTMLInputElement;
                     
-                    const domain = domainInput?.value || 'yourcompany.com';
+                    const domain = domainInput?.value || '';
                     const emailVal = emailInput?.value || '';
+                    const firstName = firstNameInput?.value || '';
+                    
+                    if (!domain || !emailVal) {
+                      // Fallback: show local snapshot
+                      let cleanDomain = domain.trim().toLowerCase() || 'yourcompany.com';
+                      if (cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')) {
+                        cleanDomain = cleanDomain.replace(/^https?:\/\/(www\.)?/, '');
+                      } else {
+                        cleanDomain = cleanDomain.replace(/^(www\.)?/, '');
+                      }
+                      cleanDomain = cleanDomain.replace(/\/.*$/, '');
+                      
+                      setSubmittedData({
+                        domain: cleanDomain,
+                        email: emailVal,
+                        competitors: []
+                      });
+                      setShowSnapshot(true);
+                      
+                      setTimeout(() => {
+                        snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 300);
+                      return;
+                    }
                     
                     // Clean the domain
                     let cleanDomain = domain.trim().toLowerCase();
@@ -143,17 +169,59 @@ export default function AIVisibilityLanding() {
                     }
                     cleanDomain = cleanDomain.replace(/\/.*$/, '');
                     
-                    setSubmittedData({
-                      domain: cleanDomain || 'yourcompany.com',
-                      email: emailVal,
-                      competitors: []
-                    });
-                    setShowSnapshot(true);
+                    setIsSubmitting(true);
                     
-                    // Scroll to snapshot after a brief delay
-                    setTimeout(() => {
-                      snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 300);
+                    try {
+                      // Call edge function to create snapshot and send email
+                      const { data, error } = await supabase.functions.invoke('ai-visibility-submit', {
+                        body: {
+                          email: emailVal.trim(),
+                          domain: cleanDomain,
+                          firstName: firstName.trim() || undefined,
+                          utmSource: new URLSearchParams(window.location.search).get('utm_source') || undefined,
+                          utmMedium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
+                          utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
+                          referrer: document.referrer || undefined,
+                        }
+                      });
+                      
+                      if (error) {
+                        console.error('Edge function error:', error);
+                        throw error;
+                      }
+                      
+                      if (data?.snapshotToken) {
+                        // Redirect to results page
+                        navigate(`/lp/ai-visibility/results/${data.snapshotToken}`);
+                      } else {
+                        // Fallback: show local snapshot
+                        setSubmittedData({
+                          domain: cleanDomain,
+                          email: emailVal,
+                          competitors: []
+                        });
+                        setShowSnapshot(true);
+                        
+                        setTimeout(() => {
+                          snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 300);
+                      }
+                    } catch (err) {
+                      console.error('Failed to submit:', err);
+                      // Fallback: show local snapshot on error
+                      setSubmittedData({
+                        domain: cleanDomain,
+                        email: emailVal,
+                        competitors: []
+                      });
+                      setShowSnapshot(true);
+                      
+                      setTimeout(() => {
+                        snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 300);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
                   }}
                 />
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
