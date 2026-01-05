@@ -1135,12 +1135,15 @@ export type Database = {
         Row: {
           business_name: string
           business_website: string | null
+          cache_expires_at: string | null
           category: string
           city: string
           created_at: string
           error: string | null
           id: string
+          input_fingerprint: string
           label: string
+          last_run_at: string | null
           lead_email: string | null
           max_raw_score: number
           normalized_score: number
@@ -1153,12 +1156,15 @@ export type Database = {
         Insert: {
           business_name: string
           business_website?: string | null
+          cache_expires_at?: string | null
           category: string
           city: string
           created_at?: string
           error?: string | null
           id?: string
+          input_fingerprint?: string
           label?: string
+          last_run_at?: string | null
           lead_email?: string | null
           max_raw_score?: number
           normalized_score?: number
@@ -1171,12 +1177,15 @@ export type Database = {
         Update: {
           business_name?: string
           business_website?: string | null
+          cache_expires_at?: string | null
           category?: string
           city?: string
           created_at?: string
           error?: string | null
           id?: string
+          input_fingerprint?: string
           label?: string
+          last_run_at?: string | null
           lead_email?: string | null
           max_raw_score?: number
           normalized_score?: number

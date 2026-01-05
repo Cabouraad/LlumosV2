@@ -79,7 +79,7 @@ type ScanSummary = {
 type State =
   | { step: 'form'; form: ScanForm; error?: string }
   | { step: 'running'; form: ScanForm; scanId: string; progress: number; messageIndex: number; error?: string }
-  | { step: 'results'; form: ScanForm; scan: ScanSummary }
+  | { step: 'results'; form: ScanForm; scan: ScanSummary; cached?: boolean }
   | { step: 'error'; form: ScanForm; error: string };
 
 type Action =
@@ -87,7 +87,7 @@ type Action =
   | { type: 'START_RUNNING'; scanId: string }
   | { type: 'SET_PROGRESS'; progress: number }
   | { type: 'SET_MESSAGE_INDEX'; messageIndex: number }
-  | { type: 'SET_RESULTS'; scan: ScanSummary }
+  | { type: 'SET_RESULTS'; scan: ScanSummary; cached?: boolean }
   | { type: 'FAIL'; error: string }
   | { type: 'RESET' };
 
@@ -112,7 +112,7 @@ function reducer(state: State, action: Action): State {
       if (state.step !== 'running') return state;
       return { ...state, messageIndex: action.messageIndex };
     case 'SET_RESULTS':
-      return { step: 'results', form: state.form, scan: action.scan };
+      return { step: 'results', form: state.form, scan: action.scan, cached: action.cached };
     case 'FAIL':
       return { step: 'error', form: state.form, error: action.error };
     case 'RESET':
@@ -126,6 +126,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
   const [state, dispatch] = useReducer(reducer, { step: 'form', form: initialForm });
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [captureEmail, setCaptureEmail] = useState('');
+  const [isRerunning, setIsRerunning] = useState(false);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -172,7 +173,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
     };
   }, [state.step, state.step === 'running' ? state.messageIndex : 0, state.step === 'running' ? state.progress : 0, runningMessages.length]);
 
-  async function startScan() {
+  async function startScan(force = false) {
     try {
       const f = state.form;
       if (!f.business_name.trim() || !f.city.trim() || !f.category.trim()) {
@@ -180,24 +181,46 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
         return;
       }
 
-      // 1) Create scan via edge function
-      const { data: createData, error: createErr } = await supabase.functions.invoke('local-scan-create', {
+      // Use rerun endpoint which handles caching
+      const { data: rerunData, error: rerunErr } = await supabase.functions.invoke('local-scan-rerun', {
         body: {
           business_name: f.business_name.trim(),
           business_website: f.business_website.trim() || null,
           city: f.city.trim(),
           category: f.category.trim(),
           lead_email: f.lead_email.trim() || null,
+          force,
         },
       });
 
-      if (createErr) throw new Error(createErr.message);
-      const scanId = createData?.scan_id;
+      if (rerunErr) throw new Error(rerunErr.message);
+      
+      // If cached result returned, show immediately
+      if (rerunData?.cached && rerunData?.scan) {
+        const scan: ScanSummary = {
+          scan_id: rerunData.scan.scan_id,
+          business_name: rerunData.scan.business_name,
+          city: rerunData.scan.city,
+          category: rerunData.scan.category,
+          status: 'completed',
+          raw_score: rerunData.scan.raw_score ?? 0,
+          max_raw_score: rerunData.scan.max_raw_score ?? 54,
+          normalized_score: rerunData.scan.normalized_score ?? 0,
+          label: rerunData.scan.label ?? 'Not Mentioned',
+          top_competitors: rerunData.scan.top_competitors ?? [],
+        };
+        toast.success('Loaded cached results');
+        dispatch({ type: 'SET_RESULTS', scan, cached: true });
+        onComplete?.(scan);
+        return;
+      }
+
+      const scanId = rerunData?.scan_id;
       if (!scanId) throw new Error('Scan creation failed: missing scan_id');
 
       dispatch({ type: 'START_RUNNING', scanId });
 
-      // 2) Run scan via edge function
+      // Run scan via edge function
       const { data: runData, error: runErr } = await supabase.functions.invoke('local-scan-run', {
         body: { scan_id: scanId },
       });
@@ -223,7 +246,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
       
       // Small delay then show results
       setTimeout(() => {
-        dispatch({ type: 'SET_RESULTS', scan });
+        dispatch({ type: 'SET_RESULTS', scan, cached: false });
         onComplete?.(scan);
       }, 500);
 
@@ -231,6 +254,16 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
       console.error('Scan error:', e);
       dispatch({ type: 'FAIL', error: (e as Error).message ?? 'Something went wrong.' });
       toast.error((e as Error).message ?? 'Scan failed');
+    }
+  }
+
+  async function handleRerun(force = false) {
+    if (state.step !== 'results') return;
+    setIsRerunning(true);
+    try {
+      await startScan(force);
+    } finally {
+      setIsRerunning(false);
     }
   }
 
@@ -401,7 +434,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                 </div>
 
                 <Button
-                  onClick={startScan}
+                  onClick={() => startScan()}
                   size="lg"
                   className="w-full gap-2 h-14 text-lg mt-6"
                 >
@@ -527,6 +560,32 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                       }`}>{state.scan.normalized_score}</span>
                       <span className="text-sm text-muted-foreground">/100</span>
                     </div>
+                  </div>
+                </div>
+                
+                {/* Re-run controls + cache note */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground">
+                    {state.cached ? '✓ Loaded from cache' : 'Score normalized based on available AI models.'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRerun(false)}
+                      disabled={isRerunning}
+                      className="gap-1.5"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRerunning ? 'animate-spin' : ''}`} />
+                      Re-run Scan
+                    </Button>
+                    <button
+                      onClick={() => handleRerun(true)}
+                      disabled={isRerunning}
+                      className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                    >
+                      Force refresh
+                    </button>
                   </div>
                 </div>
               </div>
