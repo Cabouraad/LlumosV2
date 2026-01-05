@@ -310,3 +310,6 @@ verify_jwt = false
 
 [functions.local-scan-run]
 verify_jwt = false
+
+[functions.local-scan-rerun]
+verify_jwt = false
