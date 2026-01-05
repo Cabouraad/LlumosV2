@@ -998,6 +998,196 @@ export type Database = {
           },
         ]
       }
+      local_ai_scan_competitors: {
+        Row: {
+          avg_position: number | null
+          competitor_name: string
+          id: string
+          mention_count: number
+          recommended_count: number
+          scan_id: string
+        }
+        Insert: {
+          avg_position?: number | null
+          competitor_name: string
+          id?: string
+          mention_count?: number
+          recommended_count?: number
+          scan_id: string
+        }
+        Update: {
+          avg_position?: number | null
+          competitor_name?: string
+          id?: string
+          mention_count?: number
+          recommended_count?: number
+          scan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_ai_scan_competitors_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "local_ai_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_ai_scan_prompts: {
+        Row: {
+          created_at: string
+          id: string
+          prompt_index: number
+          prompt_text: string
+          scan_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prompt_index: number
+          prompt_text: string
+          scan_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prompt_index?: number
+          prompt_text?: string
+          scan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_ai_scan_prompts_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "local_ai_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_ai_scan_runs: {
+        Row: {
+          base_points: number
+          competitor_names: Json
+          created_at: string
+          error: string | null
+          extracted_business_mentioned: boolean
+          extracted_position: number | null
+          extracted_recommended: boolean
+          id: string
+          model: Database["public"]["Enums"]["local_ai_model"]
+          position_bonus: number
+          prompt_id: string
+          response_text: string | null
+          scan_id: string
+          total_points: number
+        }
+        Insert: {
+          base_points?: number
+          competitor_names?: Json
+          created_at?: string
+          error?: string | null
+          extracted_business_mentioned?: boolean
+          extracted_position?: number | null
+          extracted_recommended?: boolean
+          id?: string
+          model: Database["public"]["Enums"]["local_ai_model"]
+          position_bonus?: number
+          prompt_id: string
+          response_text?: string | null
+          scan_id: string
+          total_points?: number
+        }
+        Update: {
+          base_points?: number
+          competitor_names?: Json
+          created_at?: string
+          error?: string | null
+          extracted_business_mentioned?: boolean
+          extracted_position?: number | null
+          extracted_recommended?: boolean
+          id?: string
+          model?: Database["public"]["Enums"]["local_ai_model"]
+          position_bonus?: number
+          prompt_id?: string
+          response_text?: string | null
+          scan_id?: string
+          total_points?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_ai_scan_runs_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "local_ai_scan_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "local_ai_scan_runs_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "local_ai_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_ai_scans: {
+        Row: {
+          business_name: string
+          business_website: string | null
+          category: string
+          city: string
+          created_at: string
+          error: string | null
+          id: string
+          label: string
+          lead_email: string | null
+          max_raw_score: number
+          normalized_score: number
+          raw_score: number
+          status: Database["public"]["Enums"]["local_scan_status"]
+          top_competitors: Json
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          business_name: string
+          business_website?: string | null
+          category: string
+          city: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          label?: string
+          lead_email?: string | null
+          max_raw_score?: number
+          normalized_score?: number
+          raw_score?: number
+          status?: Database["public"]["Enums"]["local_scan_status"]
+          top_competitors?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          business_name?: string
+          business_website?: string | null
+          category?: string
+          city?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          label?: string
+          lead_email?: string | null
+          max_raw_score?: number
+          normalized_score?: number
+          raw_score?: number
+          status?: Database["public"]["Enums"]["local_scan_status"]
+          top_competitors?: Json
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       optimizations_v2: {
         Row: {
           brand_id: string | null
@@ -3456,6 +3646,8 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "member" | "admin"
+      local_ai_model: "openai" | "gemini" | "perplexity"
+      local_scan_status: "created" | "running" | "completed" | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3584,6 +3776,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "member", "admin"],
+      local_ai_model: ["openai", "gemini", "perplexity"],
+      local_scan_status: ["created", "running", "completed", "failed"],
     },
   },
 } as const
