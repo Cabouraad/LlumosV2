@@ -57,6 +57,7 @@ import AIRecommendsLanding from "./pages/AIRecommendsLanding";
 import AIRecommendsThankYou from "./pages/AIRecommendsThankYou";
 import AIVisibilityLanding from "./pages/AIVisibilityLanding";
 import AIVisibilityResults from "./pages/AIVisibilityResults";
+import LocalAISearchLanding from "./pages/LocalAISearchLanding";
 // ============================================
 // LAZY LOADED - Auth Routes
 // ============================================
@@ -186,6 +187,7 @@ const App = () => {
         <Route path="/lp/ai-recommends/thank-you" element={<AIRecommendsThankYou />} />
         <Route path="/lp/ai-visibility" element={<AIVisibilityLanding />} />
         <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
+        <Route path="/lp/local-ai-search" element={<LocalAISearchLanding />} />
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
         {/* ============================================ */}
