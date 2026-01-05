@@ -40,6 +40,8 @@ interface RunResult {
   total_points: number;
   competitor_names: string[];
   error: string | null;
+  list_detected: boolean;
+  competitor_count: number;
 }
 
 // Keywords that indicate recommendation
@@ -90,6 +92,24 @@ function checkRecommended(response: string, isMentioned: boolean): boolean {
   if (!isMentioned) return false;
   const lower = response.toLowerCase();
   return RECOMMENDATION_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// Detect if response contains a list (numbered or bulleted) with >= 2 items
+function detectList(response: string): boolean {
+  const lines = response.split('\n');
+  const numberedPattern = /^[\s]*(\d+)[.)\]:\-]\s+.+/;
+  const bulletPattern = /^[\s]*[•\-\*→►▸]\s+.+/;
+  
+  let listItemCount = 0;
+  
+  for (const line of lines) {
+    if (numberedPattern.test(line) || bulletPattern.test(line)) {
+      listItemCount++;
+      if (listItemCount >= 2) return true;
+    }
+  }
+  
+  return false;
 }
 
 // Extract position from numbered or bulleted list
@@ -395,6 +415,8 @@ serve(async (req) => {
           total_points: 0,
           competitor_names: [],
           error: null,
+          list_detected: false,
+          competitor_count: 0,
         };
 
         try {
@@ -408,11 +430,14 @@ serve(async (req) => {
           const recommended = checkRecommended(responseText, mentioned);
           const position = extractPosition(responseText, scan.business_name, domain);
           const competitors = extractCompetitors(responseText, scan.business_name, scan.category);
+          const listDetected = detectList(responseText);
 
           runResult.extracted_business_mentioned = mentioned;
           runResult.extracted_recommended = recommended;
           runResult.extracted_position = position;
           runResult.competitor_names = competitors;
+          runResult.list_detected = listDetected;
+          runResult.competitor_count = competitors.length;
 
           // Calculate scoring
           const scoring = calculateScoring(mentioned, recommended, position);
@@ -466,6 +491,8 @@ serve(async (req) => {
       total_points: run.total_points,
       competitor_names: run.competitor_names,
       error: run.error,
+      list_detected: run.list_detected,
+      competitor_count: run.competitor_count,
     }));
 
     const { error: insertRunsError } = await supabase
@@ -483,7 +510,34 @@ serve(async (req) => {
     const normalizedScore = Math.round((rawScore / maxRawScore) * 100);
     const label = getStatusLabel(normalizedScore);
 
+    // Calculate confidence score
+    const successfulRuns = allRuns.filter(r => !r.error && r.response_text);
+    const successfulRunsCount = successfulRuns.length;
+    const attemptedRunsCount = allRuns.length;
+    const listDetectedCount = successfulRuns.filter(r => r.list_detected).length;
+    const competitorExtractionCount = successfulRuns.filter(r => r.competitor_count >= 1).length;
+
+    const successRate = attemptedRunsCount > 0 ? successfulRunsCount / attemptedRunsCount : 0;
+    const listRate = successfulRunsCount > 0 ? listDetectedCount / successfulRunsCount : 0;
+    const competitorRate = successfulRunsCount > 0 ? competitorExtractionCount / successfulRunsCount : 0;
+
+    // Confidence formula: 60% success_rate + 25% list_rate + 15% competitor_rate
+    const confidenceScore = Math.min(100, Math.max(0, Math.round(
+      (successRate * 60) + (listRate * 25) + (competitorRate * 15)
+    )));
+    
+    // Confidence label
+    let confidenceLabel: string;
+    if (confidenceScore < 40) {
+      confidenceLabel = 'Low';
+    } else if (confidenceScore < 75) {
+      confidenceLabel = 'Medium';
+    } else {
+      confidenceLabel = 'High';
+    }
+
     console.log(`[local-scan-run] Raw score: ${rawScore}/${maxRawScore}, Normalized: ${normalizedScore}, Label: ${label}`);
+    console.log(`[local-scan-run] Confidence: ${confidenceScore} (${confidenceLabel}) - success=${successRate.toFixed(2)}, list=${listRate.toFixed(2)}, comp=${competitorRate.toFixed(2)}`);
 
     // Aggregate competitors
     const competitorMap = new Map<string, { mentions: number; recommended: number; positions: number[] }>();
@@ -544,6 +598,8 @@ serve(async (req) => {
         label,
         top_competitors: topCompetitors,
         error: null,
+        confidence_score: confidenceScore,
+        confidence_label: confidenceLabel,
       })
       .eq('id', scanId);
 
@@ -568,6 +624,8 @@ serve(async (req) => {
         top_competitors: topCompetitors,
         runs_completed: allRuns.length - failedCount,
         runs_failed: failedCount,
+        confidence_score: confidenceScore,
+        confidence_label: confidenceLabel,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
