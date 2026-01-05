@@ -278,7 +278,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
   };
 
   const handleBookDemo = () => {
-    window.open('https://calendly.com/llumos/demo', '_blank');
+    window.open('https://calendly.com/llumos-info/llumos-demo', '_blank');
   };
 
   const handleEmailSubmit = () => {
