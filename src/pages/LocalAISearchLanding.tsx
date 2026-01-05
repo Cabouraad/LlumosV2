@@ -18,10 +18,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 // Sample AI conversation for demo
 const sampleAIConversation = {
-  query: "Who's the best plumber near downtown Austin?",
+  query: "Who's the best plumber near me?",
   response: {
     recommended: "Austin Pro Plumbing",
-    reason: "Highly rated local service with 24/7 availability and certified technicians",
+    reason: "Top-rated with same-day service and great reviews",
     notMentioned: "[Your Business]"
   }
 };
@@ -29,34 +29,34 @@ const sampleAIConversation = {
 // Local business types
 const businessTypes = [
   { icon: Wrench, label: 'Home Services', example: 'Plumbers, HVAC, Electricians' },
-  { icon: Stethoscope, label: 'Medical & Dental', example: 'Dentists, Clinics, Specialists' },
-  { icon: Scale, label: 'Law Firms', example: 'Attorneys, Legal Services' },
+  { icon: Stethoscope, label: 'Medical & Dental', example: 'Dentists, Doctors, Therapists' },
+  { icon: Scale, label: 'Professional Services', example: 'Lawyers, Accountants, Consultants' },
   { icon: Home, label: 'Real Estate', example: 'Agents, Property Managers' },
-  { icon: Utensils, label: 'Restaurants', example: 'Cafes, Bars, Eateries' },
-  { icon: Building2, label: 'Local Retail', example: 'Shops, Boutiques, Stores' },
+  { icon: Utensils, label: 'Restaurants & Food', example: 'Cafes, Catering, Bars' },
+  { icon: Building2, label: 'Retail & Shops', example: 'Boutiques, Salons, Gyms' },
 ];
 
-// FAQ data
+// FAQ data - rewritten for local business owners
 const faqs = [
   {
-    question: "Does this replace Local SEO?",
-    answer: "No — Local AI Search Visibility complements your existing Local SEO efforts. While Local SEO helps you rank on Google Maps and local search results, Local GEO ensures you appear in AI-generated answers. Think of it as the next layer of local discovery."
+    question: "I already do Local SEO. Do I need this too?",
+    answer: "Yes — and here's why. Local SEO gets you found on Google. But more customers now skip Google entirely and ask AI directly: 'Who should I call for roof repair?' If AI doesn't mention you, you miss those leads. This works alongside your Local SEO to capture a new source of customers."
   },
   {
-    question: "Does AI use Google Maps data?",
-    answer: "Not always. AI models like ChatGPT and Perplexity pull from various sources including web content, reviews, directories, and their training data. Your Google Maps ranking doesn't guarantee AI visibility, which is why dedicated tracking is essential."
+    question: "Will this help me show up on Google Maps?",
+    answer: "This is different from Google Maps. AI tools like ChatGPT don't use Google Maps rankings — they make their own recommendations. You could be #1 on Maps but invisible to AI users. We help you get found in both places."
   },
   {
-    question: "How fast can my results improve?",
-    answer: "Many businesses see visibility improvements within 2-4 weeks of implementing our recommendations. The speed depends on your current online presence, the competitiveness of your local market, and how quickly you can implement suggested changes."
+    question: "How quickly will I start getting more leads?",
+    answer: "Most businesses see improved AI visibility within 2-4 weeks. The recommendations are simple: update your website content, strengthen your online reviews, and build local mentions. No technical skills needed — just follow the steps we give you."
   },
   {
-    question: "Do I need technical skills?",
-    answer: "Not at all. Llumos provides clear, actionable recommendations in plain language. Most improvements involve updating your website content, optimizing your business listings, and building local citations — all things you or your team can handle."
+    question: "Is this complicated? I'm not tech-savvy.",
+    answer: "Not at all. We give you a simple checklist in plain English. Things like 'Add this sentence to your About page' or 'Get listed on these 3 directories.' If you can update your Google Business Profile, you can do this."
   },
   {
-    question: "How is this different from traditional SEO tools?",
-    answer: "Traditional SEO tools track Google rankings. Llumos tracks actual AI recommendations — what ChatGPT, Gemini, and Perplexity say when customers ask about services in your area. These are completely different systems with different ranking factors."
+    question: "How is this different from my current marketing?",
+    answer: "Your current marketing targets Google searchers. This targets a growing group of customers who ask AI for recommendations instead. It's like adding a new lead source without competing in the same crowded space as everyone else."
   }
 ];
 
@@ -130,9 +130,9 @@ export default function LocalAISearchLanding() {
   return (
     <>
       <Helmet>
-        <title>Local AI Search Visibility | Get Found in ChatGPT & AI Answers | Llumos</title>
-        <meta name="description" content="AI now recommends local businesses to customers. See if ChatGPT, Gemini, and Perplexity recommend your local business — or your competitors." />
-        <meta name="keywords" content="local AI search, local GEO, AI recommendations, local business AI visibility, ChatGPT local search" />
+        <title>Get More Local Leads From AI Search | Llumos</title>
+        <meta name="description" content="You worked hard on Local SEO. But customers now ask AI for recommendations. Find out if AI sends leads to you — or your competitors. Free scan." />
+        <meta name="keywords" content="local SEO, get more local leads, Google Maps ranking, local marketing help, AI local search, local business marketing" />
         <link rel="canonical" href="https://llumos.app/lp/local-ai-search" />
       </Helmet>
 
@@ -178,46 +178,46 @@ export default function LocalAISearchLanding() {
               >
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
                   <MapPin className="w-4 h-4" />
-                  <span>Local AI Search Visibility</span>
+                  <span>The Next Step After Local SEO</span>
                 </div>
                 
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                  Local Customers Are Finding Businesses Through AI —{' '}
+                  You Rank on Google Maps.{' '}
                   <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                    Are They Finding Yours?
+                    But Does AI Recommend You?
                   </span>
                 </h1>
                 
                 <p className="text-xl text-muted-foreground mb-6">
-                  ChatGPT, Gemini, and Perplexity now recommend local businesses.
+                  More local customers now skip Google and ask AI directly: "Who should I hire?"
                   <br />
                   <span className="text-foreground font-medium">
-                    Llumos shows whether your business appears — and helps you fix it if you don't.
+                    Find out if you're getting those leads — or losing them to competitors.
                   </span>
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <Button size="lg" className="gap-2 text-lg px-8" onClick={handleScanClick}>
-                    Run Free Local AI Visibility Scan
+                    Get My Free AI Visibility Check
                     <ArrowRight className="w-5 h-5" />
                   </Button>
                   <Button size="lg" variant="outline" className="gap-2" onClick={() => {
                     const demoSection = document.getElementById('how-ai-works');
                     demoSection?.scrollIntoView({ behavior: 'smooth' });
                   }}>
-                    See How AI Recommends Local Businesses
+                    See How This Works
                   </Button>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Check className="w-4 h-4 text-success" /> No credit card required
+                    <Check className="w-4 h-4 text-success" /> Free — No credit card
                   </span>
                   <span className="flex items-center gap-1">
-                    <Check className="w-4 h-4 text-success" /> Results in 60 seconds
+                    <Check className="w-4 h-4 text-success" /> See results in 60 seconds
                   </span>
                   <span className="flex items-center gap-1">
-                    <Check className="w-4 h-4 text-success" /> Built for local businesses
+                    <Check className="w-4 h-4 text-success" /> Works alongside your Local SEO
                   </span>
                 </div>
               </motion.div>
@@ -288,10 +288,10 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Built for Local Businesses Like Yours
+                Get More Local Leads — From a Source Your Competitors Miss
               </h2>
               <p className="text-lg text-muted-foreground">
-                If you rely on local customers finding you, AI visibility matters.
+                If you rely on local customers finding you, this is your next growth channel.
               </p>
             </motion.div>
             
@@ -326,10 +326,10 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <span className="inline-block px-4 py-1.5 rounded-full bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium mb-4">
-                The Visibility Problem
+                You Could Be Losing Leads Right Now
               </span>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                AI Doesn't Show 10 Blue Links. It Gives <span className="text-destructive">One Answer</span>.
+                Google Maps Isn't the Only Place Customers Find Local Businesses Anymore
               </h2>
             </motion.div>
 
@@ -337,21 +337,21 @@ export default function LocalAISearchLanding() {
               {[
                 {
                   icon: Search,
-                  title: 'Customers Ask AI',
-                  examples: ['"Best plumber near me"', '"Top dentist in Boston"', '"Who should I call for HVAC repair?"'],
-                  description: 'People now ask AI tools directly instead of searching Google.'
+                  title: 'Customers Ask AI First',
+                  examples: ['"Best plumber near me"', '"Who should I call for AC repair?"', '"Top-rated dentist in my area"'],
+                  description: 'Instead of scrolling Google, they ask ChatGPT or Siri for a recommendation.'
                 },
                 {
                   icon: MessageSquare,
-                  title: 'AI Gives One Answer',
-                  examples: ['No scrolling', 'No alternatives', 'One recommendation'],
-                  description: 'AI doesn\'t show a list — it recommends specific businesses.'
+                  title: 'AI Gives One Name',
+                  examples: ['No list to scroll', 'No ads to skip', 'Just one answer'],
+                  description: 'AI doesn\'t show 10 options — it picks one business. That\'s a direct referral.'
                 },
                 {
                   icon: EyeOff,
-                  title: 'Invisible = Zero Leads',
-                  examples: ['No clicks', 'No calls', 'No customers'],
-                  description: 'If AI doesn\'t mention you, you get zero visibility from AI users.'
+                  title: 'Not Mentioned = No Lead',
+                  examples: ['Zero phone calls', 'Zero website visits', 'Zero new customers'],
+                  description: 'If AI recommends your competitor, that customer never even sees your name.'
                 },
               ].map((item, i) => (
                 <motion.div
@@ -387,7 +387,7 @@ export default function LocalAISearchLanding() {
             >
               <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
               <p className="text-xl md:text-2xl font-semibold max-w-3xl mx-auto">
-                "If your business doesn't appear in AI answers, you effectively don't exist to customers using AI to make decisions."
+                "Your Local SEO is working. But if AI doesn't mention you, you're missing a growing stream of ready-to-buy customers."
               </p>
             </motion.div>
           </div>
@@ -403,13 +403,13 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-4">
-                Understanding Local GEO
+                Local SEO + AI = More Leads
               </span>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                What is Local AI Search Visibility?
+                This Is the Next Step After Google Maps
               </h2>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                <strong>Local AI Search Visibility</strong> means how often — and how favorably — your business appears when AI tools recommend businesses in your city or service area.
+                You've done the work to rank locally. Now make sure AI sends customers your way too — not just to your competitors.
               </p>
             </motion.div>
 
@@ -426,9 +426,9 @@ export default function LocalAISearchLanding() {
                       <MapPin className="w-5 h-5 text-secondary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Location-Specific Recommendations</h3>
+                      <h3 className="font-semibold mb-2">AI Recommendations Are Location-Based</h3>
                       <p className="text-muted-foreground text-sm">
-                        AI recommendations are tailored to the user's location. A query for "best dentist" in Austin gets different results than the same query in Boston.
+                        When someone asks "best dentist near me," AI tailors the answer to their city. You need to show up in YOUR service area — not just anywhere.
                       </p>
                     </div>
                   </div>
@@ -440,9 +440,9 @@ export default function LocalAISearchLanding() {
                       <TrendingUp className="w-5 h-5 text-secondary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Different from Google Maps</h3>
+                      <h3 className="font-semibold mb-2">Google Maps Rank ≠ AI Rank</h3>
                       <p className="text-muted-foreground text-sm">
-                        AI does not always mirror Google Maps rankings. Your #1 position on Maps doesn't guarantee AI will recommend you — they use different signals.
+                        You might be #1 on Google Maps — but AI uses different signals. Great reviews and local SEO help, but AI needs more context to recommend you.
                       </p>
                     </div>
                   </div>
@@ -454,9 +454,9 @@ export default function LocalAISearchLanding() {
                       <Target className="w-5 h-5 text-secondary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">City & Service Area Variations</h3>
+                      <h3 className="font-semibold mb-2">Every Neighborhood Is Different</h3>
                       <p className="text-muted-foreground text-sm">
-                        Different cities can show different businesses for the same question. Your visibility can vary dramatically by neighborhood, city, or service area.
+                        AI might recommend you in one part of town but not another. We show you exactly where you're visible — and where you're not.
                       </p>
                     </div>
                   </div>
@@ -477,26 +477,26 @@ export default function LocalAISearchLanding() {
                   <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                     <div>
                       <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Local SEO</h4>
-                      <p className="text-sm">Helps customers find you on Google</p>
+                      <p className="text-sm">Gets you found on Google & Maps</p>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold mb-2 text-primary">Local GEO</h4>
-                      <p className="text-sm">Helps customers find you inside AI</p>
+                      <h4 className="text-sm font-semibold mb-2 text-primary">AI Visibility</h4>
+                      <p className="text-sm">Gets you recommended by AI</p>
                     </div>
                   </div>
                   
                   <div className="p-4 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg border border-primary/20">
                     <p className="text-sm font-medium text-center">
-                      <span className="text-primary">Local GEO</span> is the next evolution of Local SEO — but inside AI answers.
+                      <span className="text-primary">AI Visibility</span> is the next step after Local SEO — it captures leads that never touch Google.
                     </p>
                   </div>
 
                   <div className="space-y-3">
                     {[
-                      { seo: 'Google Maps', geo: 'ChatGPT / Gemini / Perplexity' },
-                      { seo: '10 blue links', geo: '1 direct recommendation' },
-                      { seo: 'User chooses from list', geo: 'AI chooses for user' },
-                      { seo: 'Click-through traffic', geo: 'Referral-style traffic' },
+                      { seo: 'Google Maps & Search', geo: 'ChatGPT / Siri / Alexa' },
+                      { seo: 'Customer scrolls & picks', geo: 'AI picks for them' },
+                      { seo: 'Compete with 10+ businesses', geo: 'Compete with 1-2 businesses' },
+                      { seo: 'Lead clicks your listing', geo: 'Lead calls you directly' },
                     ].map((row) => (
                       <div key={row.seo} className="grid grid-cols-2 gap-4 text-sm">
                         <div className="text-muted-foreground">{row.seo}</div>
@@ -520,13 +520,13 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <span className="inline-block px-4 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-sm font-medium mb-4">
-                The Solution
+                Simple Local Marketing Help
               </span>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                How Llumos Helps You Get Found in AI
+                Get More Local Leads With Less Effort
               </h2>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Simple, actionable insights to improve your local AI visibility — no technical skills required.
+                We show you exactly what to fix — in plain English. No tech skills required.
               </p>
             </motion.div>
 
@@ -534,39 +534,39 @@ export default function LocalAISearchLanding() {
               {[
                 {
                   icon: Eye,
-                  title: 'Monitor AI Appearances',
-                  description: 'See if your business appears when AI answers local search questions in your category.',
-                  highlight: 'Real-time tracking'
+                  title: 'See If AI Recommends You',
+                  description: 'Find out instantly if ChatGPT, Siri, or other AI tools mention your business when customers ask.',
+                  highlight: 'Instant visibility check'
                 },
                 {
                   icon: MapPin,
-                  title: 'Track by Location',
-                  description: 'Monitor visibility by city, neighborhood, and service area to understand local variations.',
-                  highlight: 'City-level insights'
+                  title: 'Track Your Service Area',
+                  description: 'See which neighborhoods and cities you show up in — and which ones you\'re missing.',
+                  highlight: 'Location-by-location'
                 },
                 {
                   icon: Users,
-                  title: 'Compare to Competitors',
-                  description: 'See which local competitors AI recommends instead of you and how often.',
-                  highlight: 'Competitive intel'
+                  title: 'See Who\'s Getting Your Leads',
+                  description: 'Find out which competitors AI recommends instead of you — and how often.',
+                  highlight: 'Competitor tracking'
                 },
                 {
                   icon: Target,
-                  title: 'Identify Why Others Win',
-                  description: 'Understand the signals that make AI recommend competitors over your business.',
+                  title: 'Learn Why They Win',
+                  description: 'Understand what your competitors do differently that makes AI prefer them.',
                   highlight: 'Gap analysis'
                 },
                 {
                   icon: Zap,
-                  title: 'Get Clear Recommendations',
-                  description: 'Step-by-step actions to improve your AI visibility, written in plain English.',
-                  highlight: 'Actionable steps'
+                  title: 'Get a Simple Fix List',
+                  description: 'Clear, step-by-step actions to improve your visibility. No jargon, no guesswork.',
+                  highlight: 'Plain-English steps'
                 },
                 {
                   icon: BarChart3,
-                  title: 'Track Progress Over Time',
-                  description: 'See how your visibility improves as you implement recommendations.',
-                  highlight: 'Historical trends'
+                  title: 'Watch Your Leads Grow',
+                  description: 'Track your progress over time as you implement the recommendations.',
+                  highlight: 'Measure results'
                 },
               ].map((feature, i) => (
                 <motion.div
@@ -603,10 +603,10 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                See Your Local AI Visibility at a Glance
+                See Exactly Where You're Visible — And Where You're Not
               </h2>
               <p className="text-lg text-muted-foreground">
-                AI recommends different businesses depending on location.
+                Get a clear picture of your AI visibility across your entire service area.
               </p>
             </motion.div>
 
@@ -696,13 +696,13 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <span className="inline-block px-4 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-sm font-medium mb-4">
-                The Opportunity
+                A New Way to Get Local Leads
               </span>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Why Local AI Visibility Matters Now
+                Why Smart Local Businesses Are Adding AI Visibility Now
               </h2>
               <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-                "AI traffic is quieter than Google — but far more decisive."
+                "AI leads are quieter than Google — but they convert better because customers already trust the recommendation."
               </p>
             </motion.div>
 
@@ -710,23 +710,23 @@ export default function LocalAISearchLanding() {
               {[
                 {
                   icon: TrendingUp,
-                  title: 'Incremental Leads Beyond Google',
-                  description: 'Capture customers who never even search Google — they go straight to AI for recommendations.',
+                  title: 'New Lead Source Beyond Google',
+                  description: 'Reach customers who skip Google entirely and go straight to AI for local recommendations.',
                 },
                 {
                   icon: Sparkles,
-                  title: 'Early-Mover Advantage',
-                  description: 'Most local businesses don\'t know about AI visibility yet. Get ahead while competition is low.',
+                  title: 'Beat Competitors to the Punch',
+                  description: 'Most local businesses don\'t know about AI visibility yet. Get ahead now while the window is open.',
                 },
                 {
                   icon: Target,
-                  title: 'Less Competition Than Search',
-                  description: 'AI only recommends a few businesses per query, unlike Google\'s crowded results pages.',
+                  title: 'Less Competition, More Wins',
+                  description: 'AI only recommends 1-2 businesses per query — not a page of 10 competitors.',
                 },
                 {
                   icon: Clock,
-                  title: 'High-Intent Customers',
-                  description: 'People asking AI for recommendations are ready to buy — they just need to know who to call.',
+                  title: 'Ready-to-Buy Customers',
+                  description: 'People asking AI "who should I call" are ready to hire — they just need a name.',
                 },
               ].map((item, i) => (
                 <motion.div
@@ -760,10 +760,10 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Built for Local Businesses, Not Enterprise Complexity
+                Made for Busy Business Owners — Not Marketing Experts
               </h2>
               <p className="text-lg text-muted-foreground">
-                Simple, fast, and designed for business owners who want results, not dashboards.
+                No dashboards to learn. No jargon to decode. Just clear steps that get results.
               </p>
             </motion.div>
 
@@ -771,18 +771,18 @@ export default function LocalAISearchLanding() {
               {[
                 {
                   icon: Shield,
-                  stat: 'Simple Setup',
-                  label: 'No technical skills needed',
+                  stat: '2-Minute Setup',
+                  label: 'Just enter your website',
                 },
                 {
                   icon: Clock,
-                  stat: '60 Seconds',
-                  label: 'To see your first insights',
+                  stat: 'Instant Results',
+                  label: 'See your visibility now',
                 },
                 {
                   icon: Star,
-                  stat: 'Clear Actions',
-                  label: 'Plain-English recommendations',
+                  stat: 'Simple Action Steps',
+                  label: 'Know exactly what to do next',
                 },
               ].map((item) => (
                 <motion.div
@@ -819,7 +819,7 @@ export default function LocalAISearchLanding() {
                     ))}
                   </div>
                   <p className="text-lg mb-4">
-                    "We had no idea AI was recommending our competitors instead of us. Within two weeks of using Llumos, we started appearing in local AI answers and got three new leads from people who said they 'asked ChatGPT for a recommendation.'"
+                    "We've been doing Local SEO for years. But we had no idea customers were asking ChatGPT for recommendations — and getting our competitor's name. Within two weeks of using Llumos, we fixed that. Now we get calls from people who say AI told them to call us."
                   </p>
                   <p className="font-semibold">James Mitchell</p>
                   <p className="text-sm text-muted-foreground">Owner, Mitchell HVAC Services</p>
@@ -839,13 +839,13 @@ export default function LocalAISearchLanding() {
               className="text-center mb-8"
             >
               <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-4">
-                Free Local AI Visibility Scan
+                Free Visibility Check
               </span>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Check If AI Recommends Your Business
+                Find Out If AI Is Sending You Leads — Or Sending Them to Competitors
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Get a free snapshot showing if you appear in AI answers, where you appear, and which competitors are mentioned instead.
+                Get a free snapshot showing your AI visibility, who's getting recommended instead of you, and what to do about it.
               </p>
             </motion.div>
 
@@ -864,13 +864,13 @@ export default function LocalAISearchLanding() {
               
               <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Check className="w-4 h-4 text-success" /> No credit card required
+                  <Check className="w-4 h-4 text-success" /> 100% Free
                 </span>
                 <span className="flex items-center gap-1">
-                  <Check className="w-4 h-4 text-success" /> Results in 60 seconds
+                  <Check className="w-4 h-4 text-success" /> Takes 60 seconds
                 </span>
                 <span className="flex items-center gap-1">
-                  <Check className="w-4 h-4 text-success" /> Instant email with snapshot
+                  <Check className="w-4 h-4 text-success" /> No credit card needed
                 </span>
               </div>
             </motion.div>
@@ -887,7 +887,7 @@ export default function LocalAISearchLanding() {
               className="text-center mb-12"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Frequently Asked Questions
+                Common Questions About AI Visibility
               </h2>
             </motion.div>
 
@@ -926,13 +926,13 @@ export default function LocalAISearchLanding() {
               className="bg-gradient-to-br from-primary/10 via-secondary/10 to-primary/10 border border-primary/20 rounded-2xl p-12"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Customers Are Already Using AI to Choose Local Businesses
+                Your Competitors Might Already Be Getting These Leads
               </h2>
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Make sure you're the one they see.
+                Find out in 60 seconds if AI is working for you — or against you.
               </p>
               <Button size="lg" className="gap-2 text-lg px-8" onClick={handleScanClick}>
-                Check My Local AI Visibility
+                Check My AI Visibility — Free
                 <ArrowRight className="w-5 h-5" />
               </Button>
             </motion.div>
