@@ -15,6 +15,7 @@ import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
 import { Helmet } from 'react-helmet-async';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
+import { LocalScanWizard } from '@/components/local-scan/LocalScanWizard';
 
 // Sample AI conversation for demo
 const sampleAIConversation = {
@@ -65,10 +66,15 @@ export default function LocalAISearchLanding() {
   const [location, setLocation] = useState('');
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showScanWizard, setShowScanWizard] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const handleScanClick = () => {
+    setShowScanWizard(true);
+  };
+
+  const handleScrollToForm = () => {
     if (formRef.current) {
       formRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
@@ -961,6 +967,12 @@ export default function LocalAISearchLanding() {
             </div>
           </div>
         </footer>
+
+        {/* Local Scan Wizard Modal */}
+        <LocalScanWizard
+          isOpen={showScanWizard}
+          onClose={() => setShowScanWizard(false)}
+        />
       </div>
     </>
   );
