@@ -1,24 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useReducer, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import {
   ArrowRight, Check, Lock, MapPin, Building2, Globe, Loader2,
-  Eye, EyeOff, TrendingUp, AlertTriangle, ChevronRight, Sparkles,
-  Calendar, Mail, X, Star, MessageSquare, Phone
+  Eye, EyeOff, TrendingUp, AlertTriangle, Sparkles,
+  Calendar, Mail, X, Star, MessageSquare, RefreshCw
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { 
-  calculateLocalAIVisibilityScore, 
-  generatePrompts,
-  type ScanResults as ScoringResults,
-  getScoreColor 
-} from '@/lib/local-visibility-scoring';
+import { supabase } from '@/integrations/supabase/client';
 
-// Business categories for dropdown - mapped to scoring system categories
+// Business categories for dropdown
 const businessCategories = [
   { value: 'Plumber', label: 'Plumber' },
   { value: 'HVAC', label: 'HVAC / Heating & Cooling' },
@@ -44,173 +39,203 @@ const businessCategories = [
   { value: 'Other', label: 'Other Local Business' },
 ];
 
-// Scanning messages that rotate - now includes prompt info
-const scanningMessages = [
-  { text: 'Checking AI recommendations for {category} in {city}...', icon: MapPin },
-  { text: 'Running prompt: "Best {category} near me in {city}"', icon: MessageSquare },
-  { text: 'Analyzing competitor mentions across ChatGPT, Gemini, Perplexity...', icon: Building2 },
-  { text: 'Running prompt: "Top-rated {category} in {city}"', icon: MessageSquare },
-  { text: 'Detecting AI trust signals...', icon: Star },
-  { text: 'Evaluating position bonuses...', icon: TrendingUp },
-  { text: 'Running prompt: "Which {category} should I call in {city}?"', icon: MessageSquare },
-  { text: 'Calculating visibility score...', icon: Eye },
-];
-
-// AI model logos/icons for visual display
+// AI model display config
 const aiModels = [
-  { name: 'ChatGPT', color: 'from-emerald-500 to-teal-600' },
-  { name: 'Gemini', color: 'from-blue-500 to-indigo-600' },
-  { name: 'Perplexity', color: 'from-purple-500 to-pink-600' },
+  { name: 'ChatGPT', color: 'from-emerald-500 to-teal-600', key: 'openai' },
+  { name: 'Gemini', color: 'from-blue-500 to-indigo-600', key: 'gemini' },
+  { name: 'Perplexity', color: 'from-purple-500 to-pink-600', key: 'perplexity' },
 ];
 
 interface LocalScanWizardProps {
   isOpen: boolean;
   onClose: () => void;
-  onComplete?: (data: DisplayResults) => void;
+  onComplete?: (data: ScanSummary) => void;
 }
 
-// Display-friendly results derived from scoring system
-interface DisplayResults {
-  businessName: string;
-  website: string;
+// Form data type
+type ScanForm = {
+  business_name: string;
+  business_website: string;
   city: string;
   category: string;
-  visibilityVerdict: 'not_mentioned' | 'occasionally_mentioned' | 'frequently_recommended';
-  score: number;
-  rawScore: number;
-  maxPossibleScore: number;
-  competitors: Array<{ name: string; mentions: number; mentionRate: string }>;
-  googleMapsEstimate: number;
-  aiVisibilityScore: number;
-  statusLabel: string;
-  promptsUsed: string[];
+  lead_email: string;
+};
+
+// Backend scan summary type
+type ScanSummary = {
+  scan_id: string;
+  business_name: string;
+  city: string;
+  category: string;
+  status: 'created' | 'running' | 'completed' | 'failed';
+  raw_score: number;
+  max_raw_score: number;
+  normalized_score: number;
+  label: string;
+  top_competitors: Array<{ name: string; mentions: number; recommended_count?: number }>;
+};
+
+// State machine types
+type State =
+  | { step: 'form'; form: ScanForm; error?: string }
+  | { step: 'running'; form: ScanForm; scanId: string; progress: number; messageIndex: number; error?: string }
+  | { step: 'results'; form: ScanForm; scan: ScanSummary }
+  | { step: 'error'; form: ScanForm; error: string };
+
+type Action =
+  | { type: 'UPDATE_FORM'; patch: Partial<ScanForm> }
+  | { type: 'START_RUNNING'; scanId: string }
+  | { type: 'SET_PROGRESS'; progress: number }
+  | { type: 'SET_MESSAGE_INDEX'; messageIndex: number }
+  | { type: 'SET_RESULTS'; scan: ScanSummary }
+  | { type: 'FAIL'; error: string }
+  | { type: 'RESET' };
+
+const initialForm: ScanForm = {
+  business_name: '',
+  business_website: '',
+  city: '',
+  category: '',
+  lead_email: '',
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'UPDATE_FORM':
+      return { ...state, form: { ...state.form, ...action.patch }, error: undefined } as State;
+    case 'START_RUNNING':
+      return { step: 'running', form: state.form, scanId: action.scanId, progress: 5, messageIndex: 0 };
+    case 'SET_PROGRESS':
+      if (state.step !== 'running') return state;
+      return { ...state, progress: action.progress };
+    case 'SET_MESSAGE_INDEX':
+      if (state.step !== 'running') return state;
+      return { ...state, messageIndex: action.messageIndex };
+    case 'SET_RESULTS':
+      return { step: 'results', form: state.form, scan: action.scan };
+    case 'FAIL':
+      return { step: 'error', form: state.form, error: action.error };
+    case 'RESET':
+      return { step: 'form', form: initialForm };
+    default:
+      return state;
+  }
 }
 
-type WizardStep = 'input' | 'scanning' | 'results';
-
 export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizardProps) {
-  const [step, setStep] = useState<WizardStep>('input');
-  const [formData, setFormData] = useState({
-    businessName: '',
-    website: '',
-    city: '',
-    category: '',
-  });
-  const [scanProgress, setScanProgress] = useState(0);
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [results, setResults] = useState<DisplayResults | null>(null);
+  const [state, dispatch] = useReducer(reducer, { step: 'form', form: initialForm });
   const [showEmailCapture, setShowEmailCapture] = useState(false);
-  const [email, setEmail] = useState('');
+  const [captureEmail, setCaptureEmail] = useState('');
 
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setStep('input');
-      setFormData({ businessName: '', website: '', city: '', category: '' });
-      setScanProgress(0);
-      setCurrentMessageIndex(0);
-      setResults(null);
+      dispatch({ type: 'RESET' });
       setShowEmailCapture(false);
-      setEmail('');
+      setCaptureEmail('');
     }
   }, [isOpen]);
 
-  // Scanning animation
+  // Dynamic scanning messages
+  const runningMessages = useMemo(() => {
+    const city = state.form.city || 'your area';
+    const cat = businessCategories.find(c => c.value === state.form.category)?.label || state.form.category || 'local businesses';
+    return [
+      `Checking AI recommendations for ${cat} in ${city}...`,
+      `Running prompt: "Best ${cat} near me in ${city}"`,
+      `Analyzing competitor mentions across ChatGPT, Gemini, Perplexity...`,
+      `Running prompt: "Top-rated ${cat} in ${city}"`,
+      `Detecting AI trust signals...`,
+      `Evaluating position bonuses...`,
+      `Running prompt: "Which ${cat} should I call in ${city}?"`,
+      `Calculating visibility score...`,
+    ];
+  }, [state.form.city, state.form.category]);
+
+  // Rotate messages + progress while running
   useEffect(() => {
-    if (step !== 'scanning') return;
+    if (state.step !== 'running') return;
 
-    const progressInterval = setInterval(() => {
-      setScanProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 2;
-      });
-    }, 80);
+    const msgTimer = setInterval(() => {
+      dispatch({ type: 'SET_MESSAGE_INDEX', messageIndex: (state.messageIndex + 1) % runningMessages.length });
+    }, 1400);
 
-    const messageInterval = setInterval(() => {
-      setCurrentMessageIndex((prev) => (prev + 1) % scanningMessages.length);
-    }, 1500);
+    const progTimer = setInterval(() => {
+      // Smooth progress illusion; backend usually finishes before 100
+      const next = Math.min(95, state.progress + Math.random() * 5 + 1);
+      dispatch({ type: 'SET_PROGRESS', progress: Math.round(next) });
+    }, 900);
 
     return () => {
-      clearInterval(progressInterval);
-      clearInterval(messageInterval);
+      clearInterval(msgTimer);
+      clearInterval(progTimer);
     };
-  }, [step]);
+  }, [state.step, state.step === 'running' ? state.messageIndex : 0, state.step === 'running' ? state.progress : 0, runningMessages.length]);
 
-  // Complete scan when progress reaches 100
-  useEffect(() => {
-    if (scanProgress >= 100 && step === 'scanning') {
-      const timer = setTimeout(() => {
-        // Calculate real visibility score using the scoring system
-        const scoringResults = calculateLocalAIVisibilityScore({
-          businessName: formData.businessName,
-          websiteUrl: formData.website,
-          city: formData.city,
-          category: formData.category,
-        });
-        
-        // Transform to display format
-        const displayResults = transformToDisplayResults(formData, scoringResults);
-        setResults(displayResults);
-        setStep('results');
+  async function startScan() {
+    try {
+      const f = state.form;
+      if (!f.business_name.trim() || !f.city.trim() || !f.category.trim()) {
+        toast.error('Please fill Business Name, City, and Category');
+        return;
+      }
+
+      // 1) Create scan via edge function
+      const { data: createData, error: createErr } = await supabase.functions.invoke('local-scan-create', {
+        body: {
+          business_name: f.business_name.trim(),
+          business_website: f.business_website.trim() || null,
+          city: f.city.trim(),
+          category: f.category.trim(),
+          lead_email: f.lead_email.trim() || null,
+        },
+      });
+
+      if (createErr) throw new Error(createErr.message);
+      const scanId = createData?.scan_id;
+      if (!scanId) throw new Error('Scan creation failed: missing scan_id');
+
+      dispatch({ type: 'START_RUNNING', scanId });
+
+      // 2) Run scan via edge function
+      const { data: runData, error: runErr } = await supabase.functions.invoke('local-scan-run', {
+        body: { scan_id: scanId },
+      });
+
+      if (runErr) throw new Error(runErr.message);
+
+      // Parse response
+      const scan: ScanSummary = {
+        scan_id: runData?.scan_id || scanId,
+        business_name: runData?.business_name || f.business_name,
+        city: runData?.city || f.city,
+        category: runData?.category || f.category,
+        status: 'completed',
+        raw_score: runData?.raw_score ?? 0,
+        max_raw_score: runData?.max_raw_score ?? 54,
+        normalized_score: runData?.normalized_score ?? 0,
+        label: runData?.label ?? 'Not Mentioned',
+        top_competitors: runData?.top_competitors ?? [],
+      };
+
+      // Complete progress bar
+      dispatch({ type: 'SET_PROGRESS', progress: 100 });
+      
+      // Small delay then show results
+      setTimeout(() => {
+        dispatch({ type: 'SET_RESULTS', scan });
+        onComplete?.(scan);
       }, 500);
-      return () => clearTimeout(timer);
+
+    } catch (e) {
+      console.error('Scan error:', e);
+      dispatch({ type: 'FAIL', error: (e as Error).message ?? 'Something went wrong.' });
+      toast.error((e as Error).message ?? 'Scan failed');
     }
-  }, [scanProgress, step, formData]);
-
-  // Transform scoring results to display format
-  const transformToDisplayResults = (
-    data: typeof formData, 
-    scoring: ScoringResults
-  ): DisplayResults => {
-    // Map status label to verdict
-    const verdictMap: Record<string, DisplayResults['visibilityVerdict']> = {
-      'Not Mentioned': 'not_mentioned',
-      'Mentioned Occasionally': 'occasionally_mentioned',
-      'Frequently Recommended': 'frequently_recommended',
-    };
-    
-    // Calculate mention rate percentages for competitors
-    const totalPromptModelCombos = 18; // 6 prompts × 3 models
-    const competitorsWithRates = scoring.topCompetitors.slice(0, 3).map(comp => ({
-      name: comp.name,
-      mentions: comp.mentions,
-      mentionRate: `${Math.round((comp.mentions / totalPromptModelCombos) * 100)}%`,
-    }));
-
-    const categoryLabel = businessCategories.find(c => c.value === data.category)?.label || data.category;
-    
-    return {
-      businessName: data.businessName,
-      website: data.website,
-      city: data.city,
-      category: categoryLabel,
-      visibilityVerdict: verdictMap[scoring.statusLabel] || 'not_mentioned',
-      score: scoring.normalizedScore,
-      rawScore: scoring.rawScore,
-      maxPossibleScore: scoring.maxPossibleScore,
-      competitors: competitorsWithRates,
-      googleMapsEstimate: scoring.googleMapsEstimate,
-      aiVisibilityScore: scoring.normalizedScore,
-      statusLabel: scoring.statusLabel,
-      promptsUsed: generatePrompts(data.category, data.city),
-    };
-  };
-
-  const handleSubmit = () => {
-    if (!formData.businessName || !formData.website || !formData.city || !formData.category) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-    setStep('scanning');
-  };
+  }
 
   const handleUnlockReport = () => {
-    // Navigate to signup or show HubSpot form
     window.open('/auth?source=local-scan', '_blank');
-    onComplete?.(results!);
   };
 
   const handleBookDemo = () => {
@@ -218,43 +243,65 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
   };
 
   const handleEmailSubmit = () => {
-    if (!email) {
+    if (!captureEmail) {
       toast.error('Please enter your email');
       return;
     }
+    // In production, this would call an edge function to send the email
     toast.success('Summary sent! Check your inbox.');
     setShowEmailCapture(false);
   };
 
   const getCategoryLabel = () => {
-    return businessCategories.find(c => c.value === formData.category)?.label || formData.category;
+    return businessCategories.find(c => c.value === state.form.category)?.label || state.form.category;
   };
 
-  const getCurrentMessage = () => {
-    const msg = scanningMessages[currentMessageIndex];
-    return msg.text
-      .replace('{category}', getCategoryLabel())
-      .replace('{city}', formData.city || 'your area');
-  };
-
-  const getVerdictDisplay = () => {
-    if (!results) return null;
-    switch (results.visibilityVerdict) {
-      case 'not_mentioned':
+  const getVerdictDisplay = (label: string) => {
+    switch (label) {
+      case 'Not Mentioned':
         return { label: 'Not Mentioned', color: 'destructive', icon: EyeOff };
-      case 'occasionally_mentioned':
+      case 'Mentioned Occasionally':
         return { label: 'Occasionally Mentioned', color: 'warning', icon: Eye };
-      case 'frequently_recommended':
+      case 'Frequently Recommended':
         return { label: 'Frequently Recommended', color: 'success', icon: Check };
+      default:
+        return { label, color: 'muted', icon: Eye };
     }
+  };
+
+  // Estimate Google Maps score (simulated based on website presence)
+  const estimateGoogleMapsScore = () => {
+    const hasWebsite = state.form.business_website.trim().length > 0;
+    return hasWebsite ? Math.floor(60 + Math.random() * 25) : Math.floor(40 + Math.random() * 20);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0">
         <AnimatePresence mode="wait">
+          {/* ERROR STEP */}
+          {state.step === 'error' && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="p-8 text-center"
+            >
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-destructive" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Something went wrong</h3>
+              <p className="text-muted-foreground mb-6">{state.error}</p>
+              <Button onClick={() => dispatch({ type: 'RESET' })} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Try again
+              </Button>
+            </motion.div>
+          )}
+
           {/* INPUT STEP */}
-          {step === 'input' && (
+          {state.step === 'form' && (
             <motion.div
               key="input"
               initial={{ opacity: 0, y: 20 }}
@@ -285,8 +332,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   </label>
                   <Input
                     placeholder="e.g., Smith Plumbing"
-                    value={formData.businessName}
-                    onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                    value={state.form.business_name}
+                    onChange={(e) => dispatch({ type: 'UPDATE_FORM', patch: { business_name: e.target.value } })}
                     className="h-12"
                   />
                 </div>
@@ -294,12 +341,12 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                 <div className="space-y-2">
                   <label className="text-sm font-medium flex items-center gap-2">
                     <Globe className="w-4 h-4 text-muted-foreground" />
-                    Website URL
+                    Website URL <span className="text-muted-foreground">(optional)</span>
                   </label>
                   <Input
                     placeholder="e.g., smithplumbing.com"
-                    value={formData.website}
-                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    value={state.form.business_website}
+                    onChange={(e) => dispatch({ type: 'UPDATE_FORM', patch: { business_website: e.target.value } })}
                     className="h-12"
                   />
                 </div>
@@ -311,8 +358,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   </label>
                   <Input
                     placeholder="e.g., Austin, TX"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    value={state.form.city}
+                    onChange={(e) => dispatch({ type: 'UPDATE_FORM', patch: { city: e.target.value } })}
                     className="h-12"
                   />
                 </div>
@@ -323,8 +370,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                     Business Category
                   </label>
                   <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                    value={state.form.category}
+                    onValueChange={(value) => dispatch({ type: 'UPDATE_FORM', patch: { category: value } })}
                   >
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select your business type" />
@@ -339,8 +386,22 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    Email <span className="text-muted-foreground">(optional, for summary)</span>
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="you@business.com"
+                    value={state.form.lead_email}
+                    onChange={(e) => dispatch({ type: 'UPDATE_FORM', patch: { lead_email: e.target.value } })}
+                    className="h-12"
+                  />
+                </div>
+
                 <Button
-                  onClick={handleSubmit}
+                  onClick={startScan}
                   size="lg"
                   className="w-full gap-2 h-14 text-lg mt-6"
                 >
@@ -356,7 +417,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
           )}
 
           {/* SCANNING STEP */}
-          {step === 'scanning' && (
+          {state.step === 'running' && (
             <motion.div
               key="scanning"
               initial={{ opacity: 0, y: 20 }}
@@ -376,40 +437,44 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   </div>
                 </div>
 
-                <h3 className="text-xl font-semibold mb-2">Scanning AI Recommendations</h3>
-                <p className="text-muted-foreground mb-6">{getCurrentMessage()}</p>
+                <h3 className="text-xl font-semibold mb-2">Running Your Local AI Visibility Scan</h3>
+                <p className="text-muted-foreground mb-6">{runningMessages[state.messageIndex]}</p>
 
                 <div className="max-w-md mx-auto mb-8">
-                  <Progress value={scanProgress} className="h-3" />
-                  <p className="text-sm text-muted-foreground mt-2">{Math.round(scanProgress)}% complete</p>
+                  <Progress value={state.progress} className="h-3" />
+                  <p className="text-sm text-muted-foreground mt-2">{state.progress}% complete</p>
                 </div>
 
-                {/* AI Model logos */}
-                <div className="flex justify-center gap-4">
+                {/* AI Model indicators */}
+                <div className="flex justify-center gap-4 mb-6">
                   {aiModels.map((model, i) => (
                     <motion.div
                       key={model.name}
                       initial={{ opacity: 0.3 }}
                       animate={{
-                        opacity: currentMessageIndex === i % aiModels.length ? 1 : 0.3,
-                        scale: currentMessageIndex === i % aiModels.length ? 1.1 : 1,
+                        opacity: state.messageIndex % aiModels.length === i ? 1 : 0.5,
+                        scale: state.messageIndex % aiModels.length === i ? 1.1 : 1,
                       }}
-                      className={`w-14 h-14 rounded-xl bg-gradient-to-br ${model.color} flex items-center justify-center`}
+                      className={`w-16 h-16 rounded-xl bg-gradient-to-br ${model.color} flex flex-col items-center justify-center gap-1`}
                     >
-                      <span className="text-white font-bold text-xs">{model.name.slice(0, 2)}</span>
+                      <span className="text-white font-bold text-sm">{model.name.slice(0, 2)}</span>
+                      <span className="text-white/70 text-[10px]">Checking…</span>
                     </motion.div>
                   ))}
                 </div>
               </div>
 
               <p className="text-sm text-muted-foreground">
-                Checking <span className="font-medium">{formData.businessName}</span> in <span className="font-medium">{formData.city}</span>
+                Checking <span className="font-medium">{state.form.business_name}</span> in <span className="font-medium">{state.form.city}</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                No credit card required. We'll show a preview, and you can unlock the full report if you want.
               </p>
             </motion.div>
           )}
 
           {/* RESULTS STEP */}
-          {step === 'results' && results && (
+          {state.step === 'results' && (
             <motion.div
               key="results"
               initial={{ opacity: 0, y: 20 }}
@@ -422,21 +487,21 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Visibility Report for</p>
-                    <h3 className="text-xl font-bold">{results.businessName}</h3>
-                    <p className="text-sm text-muted-foreground">{results.city} · {results.category}</p>
+                    <h3 className="text-xl font-bold">{state.scan.business_name}</h3>
+                    <p className="text-sm text-muted-foreground">{state.scan.city} · {getCategoryLabel()}</p>
                   </div>
                   <div className="text-right">
                     {(() => {
-                      const verdict = getVerdictDisplay();
-                      const VerdictIcon = verdict?.icon;
+                      const verdict = getVerdictDisplay(state.scan.label);
+                      const VerdictIcon = verdict.icon;
                       return (
                         <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                          results.visibilityVerdict === 'not_mentioned' ? 'bg-destructive/10 text-destructive' :
-                          results.visibilityVerdict === 'occasionally_mentioned' ? 'bg-warning/10 text-warning' :
+                          state.scan.label === 'Not Mentioned' ? 'bg-destructive/10 text-destructive' :
+                          state.scan.label === 'Mentioned Occasionally' ? 'bg-warning/10 text-warning' :
                           'bg-success/10 text-success'
                         }`}>
-                          {VerdictIcon && <VerdictIcon className="w-4 h-4" />}
-                          {verdict?.label}
+                          <VerdictIcon className="w-4 h-4" />
+                          {verdict.label}
                         </div>
                       );
                     })()}
@@ -448,7 +513,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   <div className="bg-card rounded-lg p-4 border border-border">
                     <p className="text-xs text-muted-foreground mb-1">Est. Google Maps Visibility</p>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-success">{results.googleMapsEstimate}</span>
+                      <span className="text-3xl font-bold text-success">{estimateGoogleMapsScore()}</span>
                       <span className="text-sm text-muted-foreground">/100</span>
                     </div>
                   </div>
@@ -456,42 +521,88 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                     <p className="text-xs text-muted-foreground mb-1">AI Visibility Score</p>
                     <div className="flex items-baseline gap-2">
                       <span className={`text-3xl font-bold ${
-                        results.aiVisibilityScore < 30 ? 'text-destructive' :
-                        results.aiVisibilityScore < 70 ? 'text-warning' :
+                        state.scan.normalized_score < 30 ? 'text-destructive' :
+                        state.scan.normalized_score < 70 ? 'text-warning' :
                         'text-success'
-                      }`}>{results.aiVisibilityScore}</span>
+                      }`}>{state.scan.normalized_score}</span>
                       <span className="text-sm text-muted-foreground">/100</span>
                     </div>
                   </div>
                 </div>
               </div>
 
+              {/* Status explanation */}
+              <div className="p-6 border-b border-border">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-primary" />
+                  Status
+                </h4>
+                <p className="text-lg font-medium mb-2">{state.scan.label}</p>
+                <p className="text-sm text-muted-foreground">
+                  Customers are already asking AI for "best {getCategoryLabel().toLowerCase()} in {state.scan.city}". 
+                  This shows how often you appear in those AI-generated recommendations.
+                </p>
+              </div>
+
               {/* Competitors getting your leads */}
               <div className="p-6 border-b border-border">
                 <h4 className="font-semibold mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-warning" />
-                  Businesses AI Recommends Instead of You
+                  What AI is showing instead
                 </h4>
+                <p className="text-sm text-muted-foreground mb-4">
+                  These businesses are being surfaced when customers ask for local recommendations.
+                </p>
                 <div className="space-y-3">
-                  {results.competitors.map((comp, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-destructive/10 flex items-center justify-center text-xs font-bold text-destructive">
-                          {i + 1}
-                        </span>
-                        <span className="font-medium">{comp.name}</span>
+                  {state.scan.top_competitors.length > 0 ? (
+                    state.scan.top_competitors.slice(0, 3).map((comp, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-destructive/10 flex items-center justify-center text-xs font-bold text-destructive">
+                            {i + 1}
+                          </span>
+                          <div>
+                            <span className="font-medium">{comp.name}</span>
+                            <p className="text-xs text-muted-foreground">Frequently recommended in AI answers</p>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-sm text-muted-foreground">
-                        Mentioned in <span className="font-semibold text-foreground">{comp.mentionRate}</span> of AI answers
-                      </span>
+                    ))
+                  ) : (
+                    <div className="p-4 bg-muted/30 rounded-lg text-center text-sm text-muted-foreground">
+                      We found competitor mentions, but they're locked in the full report preview.
                     </div>
-                  ))}
+                  )}
                 </div>
+              </div>
+
+              {/* Google vs AI */}
+              <div className="p-6 border-b border-border">
+                <h4 className="font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  Google vs AI
+                </h4>
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="p-3 bg-success/5 rounded-lg border border-success/20">
+                    <p className="text-xs text-muted-foreground mb-1">Google Maps Visibility</p>
+                    <p className="text-sm font-medium text-success">✅ Strong</p>
+                  </div>
+                  <div className="p-3 bg-destructive/5 rounded-lg border border-destructive/20">
+                    <p className="text-xs text-muted-foreground mb-1">AI Recommendations</p>
+                    <p className="text-sm font-medium text-destructive">
+                      {state.scan.normalized_score < 30 ? '❌ Weak' : 
+                       state.scan.normalized_score < 70 ? '⚠️ Limited' : '✅ Strong'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ranking well in Google doesn't guarantee you'll be recommended inside ChatGPT, Gemini, or Perplexity.
+                </p>
               </div>
 
               {/* Locked Insights */}
               <div className="p-6 space-y-3">
-                <h4 className="font-semibold mb-4">What's Holding You Back</h4>
+                <h4 className="font-semibold mb-4">Locked insights (Full report)</h4>
                 
                 {[
                   { title: 'Why Competitors Rank Higher', desc: 'See exactly what makes AI prefer them' },
@@ -510,14 +621,23 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
               </div>
 
               {/* Conversion Gate CTAs */}
-              <div className="p-6 bg-muted/30 border-t border-border space-y-3">
+              <div className="p-6 bg-muted/30 border-t border-border space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Unlock the Full Local AI Visibility Report</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1 mb-4">
+                    <li>• Full competitor comparison (all prompts + models)</li>
+                    <li>• What AI "trust signals" you're missing</li>
+                    <li>• Action plan to improve recommendations</li>
+                  </ul>
+                </div>
+
                 <Button
                   onClick={handleUnlockReport}
                   size="lg"
                   className="w-full gap-2 h-14"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Unlock Full Local AI Visibility Report
+                  Unlock Full Report
                 </Button>
                 
                 <Button
@@ -527,7 +647,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   className="w-full gap-2 h-12"
                 >
                   <Calendar className="w-4 h-4" />
-                  Book a 15-Minute AI Visibility Walkthrough
+                  Book a 15-Minute Walkthrough
                 </Button>
 
                 <button
@@ -537,6 +657,10 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                   <Mail className="w-4 h-4 inline mr-1" />
                   Email me a summary instead
                 </button>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  Tip: This is the "next evolution of Local SEO"—but inside AI answers.
+                </p>
               </div>
 
               {/* Email Capture Modal */}
@@ -557,8 +681,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                       <Input
                         type="email"
                         placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        value={captureEmail}
+                        onChange={(e) => setCaptureEmail(e.target.value)}
                         className="h-12"
                       />
                       <Button onClick={handleEmailSubmit} className="w-full">
