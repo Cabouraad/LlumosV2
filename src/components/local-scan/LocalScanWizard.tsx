@@ -11,40 +11,49 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { 
+  calculateLocalAIVisibilityScore, 
+  generatePrompts,
+  type ScanResults as ScoringResults,
+  getScoreColor 
+} from '@/lib/local-visibility-scoring';
 
-// Business categories for dropdown
+// Business categories for dropdown - mapped to scoring system categories
 const businessCategories = [
-  { value: 'plumber', label: 'Plumber' },
-  { value: 'hvac', label: 'HVAC / Heating & Cooling' },
-  { value: 'electrician', label: 'Electrician' },
-  { value: 'landscaper', label: 'Landscaper' },
-  { value: 'roofer', label: 'Roofer' },
-  { value: 'dentist', label: 'Dentist' },
-  { value: 'doctor', label: 'Doctor / Physician' },
-  { value: 'therapist', label: 'Therapist / Counselor' },
-  { value: 'chiropractor', label: 'Chiropractor' },
-  { value: 'lawyer', label: 'Lawyer / Attorney' },
-  { value: 'accountant', label: 'Accountant / CPA' },
-  { value: 'realtor', label: 'Real Estate Agent' },
-  { value: 'property-manager', label: 'Property Manager' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'cafe', label: 'Cafe / Coffee Shop' },
-  { value: 'salon', label: 'Hair Salon / Barber' },
-  { value: 'spa', label: 'Spa / Wellness' },
-  { value: 'gym', label: 'Gym / Fitness Studio' },
-  { value: 'auto-repair', label: 'Auto Repair' },
-  { value: 'cleaning', label: 'Cleaning Service' },
-  { value: 'pest-control', label: 'Pest Control' },
-  { value: 'other', label: 'Other Local Business' },
+  { value: 'Plumber', label: 'Plumber' },
+  { value: 'HVAC', label: 'HVAC / Heating & Cooling' },
+  { value: 'Electrician', label: 'Electrician' },
+  { value: 'Landscaper', label: 'Landscaper' },
+  { value: 'Roofer', label: 'Roofer' },
+  { value: 'Dentist', label: 'Dentist' },
+  { value: 'Doctor', label: 'Doctor / Physician' },
+  { value: 'Therapist', label: 'Therapist / Counselor' },
+  { value: 'Chiropractor', label: 'Chiropractor' },
+  { value: 'Lawyer', label: 'Lawyer / Attorney' },
+  { value: 'Accountant', label: 'Accountant / CPA' },
+  { value: 'Real Estate Agent', label: 'Real Estate Agent' },
+  { value: 'Property Manager', label: 'Property Manager' },
+  { value: 'Restaurant', label: 'Restaurant' },
+  { value: 'Cafe', label: 'Cafe / Coffee Shop' },
+  { value: 'Salon', label: 'Hair Salon / Barber' },
+  { value: 'Spa', label: 'Spa / Wellness' },
+  { value: 'Gym', label: 'Gym / Fitness Studio' },
+  { value: 'Auto Repair', label: 'Auto Repair' },
+  { value: 'Cleaning', label: 'Cleaning Service' },
+  { value: 'Pest Control', label: 'Pest Control' },
+  { value: 'Other', label: 'Other Local Business' },
 ];
 
-// Scanning messages that rotate
+// Scanning messages that rotate - now includes prompt info
 const scanningMessages = [
   { text: 'Checking AI recommendations for {category} in {city}...', icon: MapPin },
-  { text: 'Analyzing competitor mentions...', icon: Building2 },
+  { text: 'Running prompt: "Best {category} near me in {city}"', icon: MessageSquare },
+  { text: 'Analyzing competitor mentions across ChatGPT, Gemini, Perplexity...', icon: Building2 },
+  { text: 'Running prompt: "Top-rated {category} in {city}"', icon: MessageSquare },
   { text: 'Detecting AI trust signals...', icon: Star },
-  { text: 'Evaluating local visibility patterns...', icon: Eye },
-  { text: 'Comparing with top local businesses...', icon: TrendingUp },
+  { text: 'Evaluating position bonuses...', icon: TrendingUp },
+  { text: 'Running prompt: "Which {category} should I call in {city}?"', icon: MessageSquare },
+  { text: 'Calculating visibility score...', icon: Eye },
 ];
 
 // AI model logos/icons for visual display
@@ -52,25 +61,29 @@ const aiModels = [
   { name: 'ChatGPT', color: 'from-emerald-500 to-teal-600' },
   { name: 'Gemini', color: 'from-blue-500 to-indigo-600' },
   { name: 'Perplexity', color: 'from-purple-500 to-pink-600' },
-  { name: 'Claude', color: 'from-orange-500 to-red-500' },
 ];
 
 interface LocalScanWizardProps {
   isOpen: boolean;
   onClose: () => void;
-  onComplete?: (data: ScanResults) => void;
+  onComplete?: (data: DisplayResults) => void;
 }
 
-interface ScanResults {
+// Display-friendly results derived from scoring system
+interface DisplayResults {
   businessName: string;
   website: string;
   city: string;
   category: string;
   visibilityVerdict: 'not_mentioned' | 'occasionally_mentioned' | 'frequently_recommended';
   score: number;
-  competitors: Array<{ name: string; mentionRate: string }>;
-  googleMapsRank: number;
+  rawScore: number;
+  maxPossibleScore: number;
+  competitors: Array<{ name: string; mentions: number; mentionRate: string }>;
+  googleMapsEstimate: number;
   aiVisibilityScore: number;
+  statusLabel: string;
+  promptsUsed: string[];
 }
 
 type WizardStep = 'input' | 'scanning' | 'results';
@@ -85,7 +98,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
   });
   const [scanProgress, setScanProgress] = useState(0);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [results, setResults] = useState<ScanResults | null>(null);
+  const [results, setResults] = useState<DisplayResults | null>(null);
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [email, setEmail] = useState('');
 
@@ -130,23 +143,43 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
   useEffect(() => {
     if (scanProgress >= 100 && step === 'scanning') {
       const timer = setTimeout(() => {
-        // Generate mock results
-        const mockResults = generateMockResults(formData);
-        setResults(mockResults);
+        // Calculate real visibility score using the scoring system
+        const scoringResults = calculateLocalAIVisibilityScore({
+          businessName: formData.businessName,
+          websiteUrl: formData.website,
+          city: formData.city,
+          category: formData.category,
+        });
+        
+        // Transform to display format
+        const displayResults = transformToDisplayResults(formData, scoringResults);
+        setResults(displayResults);
         setStep('results');
       }, 500);
       return () => clearTimeout(timer);
     }
   }, [scanProgress, step, formData]);
 
-  const generateMockResults = (data: typeof formData): ScanResults => {
-    // Generate a deterministic score based on business name
-    const hash = data.businessName.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    const score = 15 + Math.abs(hash % 30); // 15-45 range
+  // Transform scoring results to display format
+  const transformToDisplayResults = (
+    data: typeof formData, 
+    scoring: ScoringResults
+  ): DisplayResults => {
+    // Map status label to verdict
+    const verdictMap: Record<string, DisplayResults['visibilityVerdict']> = {
+      'Not Mentioned': 'not_mentioned',
+      'Mentioned Occasionally': 'occasionally_mentioned',
+      'Frequently Recommended': 'frequently_recommended',
+    };
     
+    // Calculate mention rate percentages for competitors
+    const totalPromptModelCombos = 18; // 6 prompts × 3 models
+    const competitorsWithRates = scoring.topCompetitors.slice(0, 3).map(comp => ({
+      name: comp.name,
+      mentions: comp.mentions,
+      mentionRate: `${Math.round((comp.mentions / totalPromptModelCombos) * 100)}%`,
+    }));
+
     const categoryLabel = businessCategories.find(c => c.value === data.category)?.label || data.category;
     
     return {
@@ -154,15 +187,15 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
       website: data.website,
       city: data.city,
       category: categoryLabel,
-      visibilityVerdict: score < 25 ? 'not_mentioned' : score < 40 ? 'occasionally_mentioned' : 'frequently_recommended',
-      score,
-      competitors: [
-        { name: `${data.city} Pro ${categoryLabel.split(' ')[0]}`, mentionRate: '68%' },
-        { name: `Elite ${categoryLabel.split(' ')[0]} Services`, mentionRate: '52%' },
-        { name: `${data.city} Best ${categoryLabel.split(' ')[0]}`, mentionRate: '41%' },
-      ],
-      googleMapsRank: Math.floor(Math.random() * 5) + 1,
-      aiVisibilityScore: score,
+      visibilityVerdict: verdictMap[scoring.statusLabel] || 'not_mentioned',
+      score: scoring.normalizedScore,
+      rawScore: scoring.rawScore,
+      maxPossibleScore: scoring.maxPossibleScore,
+      competitors: competitorsWithRates,
+      googleMapsEstimate: scoring.googleMapsEstimate,
+      aiVisibilityScore: scoring.normalizedScore,
+      statusLabel: scoring.statusLabel,
+      promptsUsed: generatePrompts(data.category, data.city),
     };
   };
 
@@ -413,18 +446,18 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                 {/* Score comparison */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-card rounded-lg p-4 border border-border">
-                    <p className="text-xs text-muted-foreground mb-1">Google Maps Visibility</p>
+                    <p className="text-xs text-muted-foreground mb-1">Est. Google Maps Visibility</p>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-success">#{results.googleMapsRank}</span>
-                      <span className="text-sm text-muted-foreground">in your area</span>
+                      <span className="text-3xl font-bold text-success">{results.googleMapsEstimate}</span>
+                      <span className="text-sm text-muted-foreground">/100</span>
                     </div>
                   </div>
                   <div className="bg-card rounded-lg p-4 border border-border">
                     <p className="text-xs text-muted-foreground mb-1">AI Visibility Score</p>
                     <div className="flex items-baseline gap-2">
                       <span className={`text-3xl font-bold ${
-                        results.aiVisibilityScore < 25 ? 'text-destructive' :
-                        results.aiVisibilityScore < 40 ? 'text-warning' :
+                        results.aiVisibilityScore < 30 ? 'text-destructive' :
+                        results.aiVisibilityScore < 70 ? 'text-warning' :
                         'text-success'
                       }`}>{results.aiVisibilityScore}</span>
                       <span className="text-sm text-muted-foreground">/100</span>
