@@ -304,3 +304,9 @@ verify_jwt = false
 
 [functions.ai-visibility-submit]
 verify_jwt = false
+
+[functions.local-scan-create]
+verify_jwt = false
+
+[functions.local-scan-run]
+verify_jwt = false
