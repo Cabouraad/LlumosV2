@@ -73,6 +73,8 @@ type ScanSummary = {
   normalized_score: number;
   label: string;
   top_competitors: Array<{ name: string; mentions: number; recommended_count?: number }>;
+  confidence_score?: number;
+  confidence_label?: 'Low' | 'Medium' | 'High';
 };
 
 // State machine types
@@ -208,6 +210,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
           normalized_score: rerunData.scan.normalized_score ?? 0,
           label: rerunData.scan.label ?? 'Not Mentioned',
           top_competitors: rerunData.scan.top_competitors ?? [],
+          confidence_score: rerunData.scan.confidence_score ?? 0,
+          confidence_label: rerunData.scan.confidence_label ?? 'Low',
         };
         toast.success('Loaded cached results');
         dispatch({ type: 'SET_RESULTS', scan, cached: true });
@@ -239,6 +243,8 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
         normalized_score: runData?.normalized_score ?? 0,
         label: runData?.label ?? 'Not Mentioned',
         top_competitors: runData?.top_competitors ?? [],
+        confidence_score: runData?.confidence_score ?? 0,
+        confidence_label: runData?.confidence_label ?? 'Low',
       };
 
       // Complete progress bar
@@ -523,7 +529,7 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                     <h3 className="text-xl font-bold">{state.scan.business_name}</h3>
                     <p className="text-sm text-muted-foreground">{state.scan.city} · {getCategoryLabel()}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right space-y-2">
                     {(() => {
                       const verdict = getVerdictDisplay(state.scan.label);
                       const VerdictIcon = verdict.icon;
@@ -538,6 +544,18 @@ export function LocalScanWizard({ isOpen, onClose, onComplete }: LocalScanWizard
                         </div>
                       );
                     })()}
+                    {/* Confidence Badge */}
+                    <div 
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-help ${
+                        state.scan.confidence_label === 'Low' ? 'bg-muted text-muted-foreground' :
+                        state.scan.confidence_label === 'Medium' ? 'bg-primary/10 text-primary' :
+                        'bg-success/10 text-success'
+                      }`}
+                      title="Confidence is based on successful AI responses and how consistently the scan detected structured recommendations (lists) across models."
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                      Confidence: {state.scan.confidence_label || 'Low'}
+                    </div>
                   </div>
                 </div>
 

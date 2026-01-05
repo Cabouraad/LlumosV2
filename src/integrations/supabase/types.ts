@@ -1068,6 +1068,7 @@ export type Database = {
       local_ai_scan_runs: {
         Row: {
           base_points: number
+          competitor_count: number
           competitor_names: Json
           created_at: string
           error: string | null
@@ -1075,6 +1076,7 @@ export type Database = {
           extracted_position: number | null
           extracted_recommended: boolean
           id: string
+          list_detected: boolean
           model: Database["public"]["Enums"]["local_ai_model"]
           position_bonus: number
           prompt_id: string
@@ -1084,6 +1086,7 @@ export type Database = {
         }
         Insert: {
           base_points?: number
+          competitor_count?: number
           competitor_names?: Json
           created_at?: string
           error?: string | null
@@ -1091,6 +1094,7 @@ export type Database = {
           extracted_position?: number | null
           extracted_recommended?: boolean
           id?: string
+          list_detected?: boolean
           model: Database["public"]["Enums"]["local_ai_model"]
           position_bonus?: number
           prompt_id: string
@@ -1100,6 +1104,7 @@ export type Database = {
         }
         Update: {
           base_points?: number
+          competitor_count?: number
           competitor_names?: Json
           created_at?: string
           error?: string | null
@@ -1107,6 +1112,7 @@ export type Database = {
           extracted_position?: number | null
           extracted_recommended?: boolean
           id?: string
+          list_detected?: boolean
           model?: Database["public"]["Enums"]["local_ai_model"]
           position_bonus?: number
           prompt_id?: string
@@ -1138,6 +1144,8 @@ export type Database = {
           cache_expires_at: string | null
           category: string
           city: string
+          confidence_label: string
+          confidence_score: number
           created_at: string
           error: string | null
           id: string
@@ -1159,6 +1167,8 @@ export type Database = {
           cache_expires_at?: string | null
           category: string
           city: string
+          confidence_label?: string
+          confidence_score?: number
           created_at?: string
           error?: string | null
           id?: string
@@ -1180,6 +1190,8 @@ export type Database = {
           cache_expires_at?: string | null
           category?: string
           city?: string
+          confidence_label?: string
+          confidence_score?: number
           created_at?: string
           error?: string | null
           id?: string
