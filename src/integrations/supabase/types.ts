@@ -1209,6 +1209,267 @@ export type Database = {
         }
         Relationships: []
       }
+      local_authority_results: {
+        Row: {
+          citations: Json | null
+          created_at: string
+          extracted: Json
+          id: string
+          layer: string
+          model: string
+          prompt_text: string
+          raw_response: string | null
+          run_id: string
+        }
+        Insert: {
+          citations?: Json | null
+          created_at?: string
+          extracted?: Json
+          id?: string
+          layer: string
+          model: string
+          prompt_text: string
+          raw_response?: string | null
+          run_id: string
+        }
+        Update: {
+          citations?: Json | null
+          created_at?: string
+          extracted?: Json
+          id?: string
+          layer?: string
+          model?: string
+          prompt_text?: string
+          raw_response?: string | null
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_authority_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "local_authority_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_authority_runs: {
+        Row: {
+          cache_key: string | null
+          created_at: string
+          error_count: number
+          finished_at: string | null
+          id: string
+          models_used: string[]
+          profile_id: string
+          quality_flags: Json | null
+          started_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          cache_key?: string | null
+          created_at?: string
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          models_used?: string[]
+          profile_id: string
+          quality_flags?: Json | null
+          started_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          cache_key?: string | null
+          created_at?: string
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          models_used?: string[]
+          profile_id?: string
+          quality_flags?: Json | null
+          started_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_authority_runs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "local_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_authority_scores: {
+        Row: {
+          breakdown: Json
+          created_at: string
+          id: string
+          profile_id: string
+          recommendations: Json
+          run_id: string
+          score_association: number
+          score_geo: number
+          score_implicit: number
+          score_sov: number
+          score_total: number
+        }
+        Insert: {
+          breakdown?: Json
+          created_at?: string
+          id?: string
+          profile_id: string
+          recommendations?: Json
+          run_id: string
+          score_association?: number
+          score_geo?: number
+          score_implicit?: number
+          score_sov?: number
+          score_total?: number
+        }
+        Update: {
+          breakdown?: Json
+          created_at?: string
+          id?: string
+          profile_id?: string
+          recommendations?: Json
+          run_id?: string
+          score_association?: number
+          score_geo?: number
+          score_implicit?: number
+          score_sov?: number
+          score_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_authority_scores_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "local_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "local_authority_scores_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "local_authority_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_profiles: {
+        Row: {
+          address: string | null
+          brand_synonyms: string[] | null
+          business_name: string
+          categories: string[]
+          competitor_overrides: Json | null
+          created_at: string
+          domain: string | null
+          gbp_url: string | null
+          id: string
+          neighborhoods: string[] | null
+          org_id: string | null
+          phone: string | null
+          primary_location: Json
+          service_radius_miles: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          brand_synonyms?: string[] | null
+          business_name: string
+          categories?: string[]
+          competitor_overrides?: Json | null
+          created_at?: string
+          domain?: string | null
+          gbp_url?: string | null
+          id?: string
+          neighborhoods?: string[] | null
+          org_id?: string | null
+          phone?: string | null
+          primary_location?: Json
+          service_radius_miles?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          brand_synonyms?: string[] | null
+          business_name?: string
+          categories?: string[]
+          competitor_overrides?: Json | null
+          created_at?: string
+          domain?: string | null
+          gbp_url?: string | null
+          id?: string
+          neighborhoods?: string[] | null
+          org_id?: string | null
+          phone?: string | null
+          primary_location?: Json
+          service_radius_miles?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "local_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_prompt_templates: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          intent_tag: string | null
+          layer: string
+          profile_id: string
+          prompt_text: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          intent_tag?: string | null
+          layer: string
+          profile_id: string
+          prompt_text: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          intent_tag?: string | null
+          layer?: string
+          profile_id?: string
+          prompt_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_prompt_templates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "local_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       optimizations_v2: {
         Row: {
           brand_id: string | null
