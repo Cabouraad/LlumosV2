@@ -313,3 +313,19 @@ verify_jwt = false
 
 [functions.local-scan-rerun]
 verify_jwt = false
+
+# Local AI Authority functions
+[functions.local-authority-profile-upsert]
+verify_jwt = false
+
+[functions.local-authority-prompt-generate]
+verify_jwt = false
+
+[functions.local-authority-run-create]
+verify_jwt = false
+
+[functions.local-authority-run-execute]
+verify_jwt = false
+
+[functions.local-authority-run-get]
+verify_jwt = false
