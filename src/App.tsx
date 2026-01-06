@@ -92,6 +92,7 @@ const UserGuide = lazy(() => loadChunkWithRetry(() => import("./pages/UserGuide"
 const BypassTestPage = lazy(() => loadChunkWithRetry(() => import("./pages/BypassTestPage")));
 const Labs = lazy(() => loadChunkWithRetry(() => import("./pages/Labs")));
 const TestDashboard = lazy(() => loadChunkWithRetry(() => import("./pages/TestDashboard")));
+const LocalAuthority = lazy(() => loadChunkWithRetry(() => import("./pages/LocalAuthority")));
 
 // ============================================
 // LAZY LOADED - Admin Routes
@@ -389,6 +390,13 @@ const App = () => {
               <Route path="/tests" element={
                 <ProtectedRoute>
                   <TestDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/local-authority" element={
+                <ProtectedRoute>
+                  <ChunkErrorBoundary chunkName="LocalAuthority">
+                    <LocalAuthority />
+                  </ChunkErrorBoundary>
                 </ProtectedRoute>
               } />
               {isFeatureEnabled('AUDIT_UI') && (
