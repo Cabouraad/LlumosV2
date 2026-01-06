@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface ServiceArea {
+  city: string;
+  state: string;
+  country?: string;
+  zip_codes?: string[];
+  priority: 'primary' | 'secondary' | 'expansion';
+}
+
 interface ProfileInput {
   business_name: string;
   domain: string;
@@ -26,6 +34,9 @@ interface ProfileInput {
   phone?: string;
   address?: string;
   org_id?: string;
+  // New enhanced fields
+  service_areas?: ServiceArea[];
+  location_priority?: 'primary' | 'secondary' | 'expansion';
 }
 
 serve(async (req) => {
@@ -70,6 +81,18 @@ serve(async (req) => {
     if (!input.primary_location?.state?.trim()) errors.push('primary_location.state is required');
     if (!input.categories || input.categories.length === 0) errors.push('At least one category is required');
     
+    // Validate service areas if provided
+    if (input.service_areas) {
+      for (let i = 0; i < input.service_areas.length; i++) {
+        const area = input.service_areas[i];
+        if (!area.city?.trim()) errors.push(`service_areas[${i}].city is required`);
+        if (!area.state?.trim()) errors.push(`service_areas[${i}].state is required`);
+        if (!['primary', 'secondary', 'expansion'].includes(area.priority)) {
+          errors.push(`service_areas[${i}].priority must be primary, secondary, or expansion`);
+        }
+      }
+    }
+    
     if (errors.length > 0) {
       return new Response(
         JSON.stringify({ error: 'Validation failed', details: errors }),
@@ -91,6 +114,14 @@ serve(async (req) => {
       .eq('domain', normalizedDomain)
       .single();
 
+    // Fetch location intelligence for auto-suggestions
+    const { data: locationIntel } = await supabase
+      .from('location_intelligence')
+      .select('neighborhoods, semantic_variants')
+      .eq('city', input.primary_location.city)
+      .eq('state', input.primary_location.state)
+      .single();
+
     const profileData = {
       user_id: user.id,
       org_id: input.org_id || null,
@@ -105,6 +136,11 @@ serve(async (req) => {
       gbp_url: input.gbp_url || null,
       phone: input.phone || null,
       address: input.address || null,
+      // Enhanced localization fields
+      service_areas: input.service_areas || [],
+      location_priority: input.location_priority || 'primary',
+      auto_neighborhoods: locationIntel?.neighborhoods || [],
+      location_variants: locationIntel?.semantic_variants || [],
       updated_at: new Date().toISOString(),
     };
 
@@ -147,6 +183,9 @@ serve(async (req) => {
       JSON.stringify({ 
         profile_id: profileId,
         updated: !!existingProfile,
+        has_location_intelligence: !!locationIntel,
+        auto_neighborhoods: locationIntel?.neighborhoods || [],
+        location_variants: locationIntel?.semantic_variants || [],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

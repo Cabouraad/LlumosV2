@@ -413,16 +413,18 @@ interface ActionRecommendation {
   impact: 'low' | 'med' | 'high';
 }
 
-function generateRecommendations(scores: ComputedScores): ActionRecommendation[] {
+function generateRecommendations(scores: ComputedScores, profile: any): ActionRecommendation[] {
   const recommendations: ActionRecommendation[] = [];
+  const city = profile?.primary_location?.city || 'your city';
+  const state = profile?.primary_location?.state || 'your state';
   
   // If score_association <= 12: entity-place coupling actions
   if (scores.score_association <= 12) {
     recommendations.push({
       bucket: 'on_site',
-      title: 'Add "Serving [City]" Language',
+      title: `Add "Serving ${city}" Language`,
       why: 'AI models need explicit location signals to associate your brand with your service area.',
-      how: 'Add "Serving [City], [State]" language to your homepage hero, About page, Contact page, and footer.',
+      how: `Add "Serving ${city}, ${state}" language to your homepage hero, About page, Contact page, and footer.`,
       difficulty: 'easy',
       impact: 'high',
     });
@@ -836,7 +838,7 @@ serve(async (req) => {
     }, competitorCounts, intentStats);
 
     // Generate recommendations
-    const actionRecs = generateRecommendations(scores);
+    const actionRecs = generateRecommendations(scores, profile);
 
     // Compute confidence
     const coverage = totalCalls > 0 ? successfulCalls / totalCalls : 0;
