@@ -435,6 +435,39 @@ export type Database = {
           },
         ]
       }
+      category_location_patterns: {
+        Row: {
+          active: boolean | null
+          category_keywords: string[]
+          created_at: string | null
+          id: string
+          intent_tag: string
+          pattern_type: string
+          priority: number | null
+          prompt_template: string
+        }
+        Insert: {
+          active?: boolean | null
+          category_keywords: string[]
+          created_at?: string | null
+          id?: string
+          intent_tag: string
+          pattern_type: string
+          priority?: number | null
+          prompt_template: string
+        }
+        Update: {
+          active?: boolean | null
+          category_keywords?: string[]
+          created_at?: string | null
+          id?: string
+          intent_tag?: string
+          pattern_type?: string
+          priority?: number | null
+          prompt_template?: string
+        }
+        Relationships: []
+      }
       cms_connections: {
         Row: {
           app_password_encrypted: string
@@ -1363,54 +1396,69 @@ export type Database = {
       local_profiles: {
         Row: {
           address: string | null
+          auto_neighborhoods: Json | null
           brand_synonyms: string[] | null
           business_name: string
           categories: string[]
+          category_location_combos: Json | null
           competitor_overrides: Json | null
           created_at: string
           domain: string | null
           gbp_url: string | null
           id: string
+          location_priority: string | null
+          location_variants: Json | null
           neighborhoods: string[] | null
           org_id: string | null
           phone: string | null
           primary_location: Json
+          service_areas: Json | null
           service_radius_miles: number
           updated_at: string
           user_id: string
         }
         Insert: {
           address?: string | null
+          auto_neighborhoods?: Json | null
           brand_synonyms?: string[] | null
           business_name: string
           categories?: string[]
+          category_location_combos?: Json | null
           competitor_overrides?: Json | null
           created_at?: string
           domain?: string | null
           gbp_url?: string | null
           id?: string
+          location_priority?: string | null
+          location_variants?: Json | null
           neighborhoods?: string[] | null
           org_id?: string | null
           phone?: string | null
           primary_location?: Json
+          service_areas?: Json | null
           service_radius_miles?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           address?: string | null
+          auto_neighborhoods?: Json | null
           brand_synonyms?: string[] | null
           business_name?: string
           categories?: string[]
+          category_location_combos?: Json | null
           competitor_overrides?: Json | null
           created_at?: string
           domain?: string | null
           gbp_url?: string | null
           id?: string
+          location_priority?: string | null
+          location_variants?: Json | null
           neighborhoods?: string[] | null
           org_id?: string | null
           phone?: string | null
           primary_location?: Json
+          service_areas?: Json | null
           service_radius_miles?: number
           updated_at?: string
           user_id?: string
@@ -1469,6 +1517,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      location_intelligence: {
+        Row: {
+          city: string
+          colloquial_names: Json | null
+          country: string | null
+          created_at: string | null
+          id: string
+          landmarks: Json | null
+          neighborhoods: Json | null
+          popular_categories: Json | null
+          semantic_variants: Json | null
+          state: string
+          updated_at: string | null
+        }
+        Insert: {
+          city: string
+          colloquial_names?: Json | null
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          landmarks?: Json | null
+          neighborhoods?: Json | null
+          popular_categories?: Json | null
+          semantic_variants?: Json | null
+          state: string
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string
+          colloquial_names?: Json | null
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          landmarks?: Json | null
+          neighborhoods?: Json | null
+          popular_categories?: Json | null
+          semantic_variants?: Json | null
+          state?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       optimizations_v2: {
         Row: {
@@ -1661,6 +1751,7 @@ export type Database = {
           llms_last_generated_at: string | null
           llms_pages: Json | null
           llms_txt: string | null
+          localization_config: Json | null
           name: string
           plan_tier: string
           products_services: string | null
@@ -1688,6 +1779,7 @@ export type Database = {
           llms_last_generated_at?: string | null
           llms_pages?: Json | null
           llms_txt?: string | null
+          localization_config?: Json | null
           name: string
           plan_tier: string
           products_services?: string | null
@@ -1715,6 +1807,7 @@ export type Database = {
           llms_last_generated_at?: string | null
           llms_pages?: Json | null
           llms_txt?: string | null
+          localization_config?: Json | null
           name?: string
           plan_tier?: string
           products_services?: string | null

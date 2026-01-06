@@ -17,6 +17,15 @@ import type {
 import { isLocalAuthorityEligible, getIneligibleTierMessage } from '@/lib/local-authority/plan-gating';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
 
+// Service area structure for multi-location support
+export interface ServiceArea {
+  city: string;
+  state: string;
+  country?: string;
+  zip_codes?: string[];
+  priority: 'primary' | 'secondary' | 'expansion';
+}
+
 // Wizard form data
 export interface LocalAuthorityFormData {
   // Step 1: Business Info
@@ -34,6 +43,10 @@ export interface LocalAuthorityFormData {
   phone: string;
   service_radius_miles: number;
   neighborhoods: string[];
+  
+  // Enhanced location fields
+  service_areas: ServiceArea[];
+  location_priority: 'primary' | 'secondary' | 'expansion';
   
   // Step 3: Categories & Competitors
   categories: string[];
@@ -58,7 +71,18 @@ type State = {
   runId: string | null;
   scanStage: ScanStage;
   scanError: string | null;
-  promptCounts: { geo_cluster: number; implicit: number; radius_neighborhood: number; problem_intent: number } | null;
+  promptCounts: { 
+    geo_cluster: number; 
+    implicit: number; 
+    radius_neighborhood: number; 
+    problem_intent: number;
+    semantic_local?: number;
+    time_context?: number;
+    competitor_gap?: number;
+    total?: number;
+  } | null;
+  hasLocationIntelligence: boolean;
+  autoNeighborhoods: string[];
   result: {
     profile: LocalProfile | null;
     run: LocalAuthorityRun | null;
@@ -79,6 +103,7 @@ type Action =
   | { type: 'SET_SCAN_STAGE'; stage: ScanStage }
   | { type: 'SET_SCAN_ERROR'; error: string }
   | { type: 'SET_PROMPT_COUNTS'; counts: State['promptCounts'] }
+  | { type: 'SET_LOCATION_INTEL'; hasLocationIntelligence: boolean; autoNeighborhoods: string[] }
   | { type: 'SET_RESULT'; result: State['result']; cached?: boolean }
   | { type: 'RESET' };
 
@@ -95,6 +120,8 @@ const initialFormData: LocalAuthorityFormData = {
   phone: '',
   service_radius_miles: 15,
   neighborhoods: [],
+  service_areas: [],
+  location_priority: 'primary',
   categories: [],
   competitor_overrides: [],
 };
@@ -109,6 +136,8 @@ const initialState: State = {
   promptCounts: null,
   result: null,
   cached: false,
+  hasLocationIntelligence: false,
+  autoNeighborhoods: [],
 };
 
 function reducer(state: State, action: Action): State {
@@ -127,6 +156,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, scanStage: 'error', scanError: action.error };
     case 'SET_PROMPT_COUNTS':
       return { ...state, promptCounts: action.counts };
+    case 'SET_LOCATION_INTEL':
+      return { ...state, hasLocationIntelligence: action.hasLocationIntelligence, autoNeighborhoods: action.autoNeighborhoods };
     case 'SET_RESULT':
       return { ...state, result: action.result, cached: action.cached ?? false, scanStage: 'complete' };
     case 'RESET':
@@ -203,13 +234,24 @@ export function useLocalAuthority() {
       };
 
       const { data: profileData, error: profileError } = await invokeEdge('local-authority-profile-upsert', {
-        body: profileInput,
+        body: {
+          ...profileInput,
+          service_areas: formData.service_areas.length > 0 ? formData.service_areas : undefined,
+          location_priority: formData.location_priority,
+        },
       });
 
       if (profileError) throw new Error(profileError.message || 'Failed to create profile');
       
       const profileId = profileData?.profile_id;
       if (!profileId) throw new Error('No profile ID returned');
+      
+      // Store location intelligence info
+      dispatch({ 
+        type: 'SET_LOCATION_INTEL', 
+        hasLocationIntelligence: profileData?.has_location_intelligence || false,
+        autoNeighborhoods: profileData?.auto_neighborhoods || [],
+      });
       
       dispatch({ type: 'SET_PROFILE_ID', profileId });
 
@@ -221,6 +263,15 @@ export function useLocalAuthority() {
       });
 
       if (promptError) throw new Error(promptError.message || 'Failed to generate prompts');
+      
+      // Update with location intel from prompt generation too
+      if (promptData?.has_location_intelligence) {
+        dispatch({ 
+          type: 'SET_LOCATION_INTEL', 
+          hasLocationIntelligence: true,
+          autoNeighborhoods: promptData?.auto_neighborhoods_count > 0 ? state.autoNeighborhoods : state.autoNeighborhoods,
+        });
+      }
       
       dispatch({ type: 'SET_PROMPT_COUNTS', counts: promptData?.counts || null });
 
