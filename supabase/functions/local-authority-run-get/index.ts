@@ -66,107 +66,146 @@ serve(async (req) => {
       .eq('run_id', run_id)
       .single();
 
-    // Load sample results (one per layer)
+    // Load sample results (get a variety across layers)
     const { data: results } = await supabase
       .from('local_authority_results')
       .select('*')
       .eq('run_id', run_id)
-      .limit(20);
+      .limit(50);
 
-    // Group results by layer and get one sample each
+    // Get sample responses (one per layer, preferring different models)
     const samplesByLayer: Record<string, any> = {};
+    const samplesArray: any[] = [];
     if (results) {
       for (const result of results) {
-        if (!samplesByLayer[result.layer]) {
-          samplesByLayer[result.layer] = {
+        const key = `${result.layer}-${result.model}`;
+        if (!samplesByLayer[result.layer] || !samplesByLayer[key]) {
+          samplesByLayer[result.layer] = true;
+          samplesByLayer[key] = true;
+          samplesArray.push({
             layer: result.layer,
             prompt_text: result.prompt_text,
             model: result.model,
-            snippet: result.raw_response?.slice(0, 300) + '...',
+            snippet: result.raw_response?.slice(0, 400) + (result.raw_response?.length > 400 ? '...' : ''),
             citations: result.citations,
-          };
+          });
         }
       }
     }
 
-    // Calculate top competitors from results
-    const competitorCounts: Record<string, number> = {};
-    if (results) {
-      for (const result of results) {
-        const extracted = result.extracted as any;
-        if (extracted?.competitor_mentions) {
-          for (const comp of extracted.competitor_mentions) {
-            competitorCounts[comp.name] = (competitorCounts[comp.name] || 0) + 1;
-          }
-        }
-      }
-    }
+    // Get breakdown data
+    const breakdown = scoreData?.breakdown as any || {};
+    
+    // Top competitors from breakdown
+    const topCompetitors = (breakdown.top_competitors || []).map((c: any) => ({
+      name: c.name,
+      mention_count: c.mentions,
+      mention_rate: results && results.length > 0 
+        ? Math.round((c.mentions / results.length) * 100) 
+        : 0,
+    }));
 
-    const topCompetitors = Object.entries(competitorCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({
-        name,
-        mention_count: count,
-        mention_rate: results ? Math.round((count / results.length) * 100) : 0,
-      }));
-
-    // Generate highlights
+    // Generate highlights based on exact breakdown data
     const highlights: any[] = [];
     
-    if (scoreData) {
-      const breakdown = scoreData.breakdown as any;
-      
-      if (breakdown.geo_rate > 0) {
+    if (breakdown.geo_presence_rate !== undefined) {
+      if (breakdown.geo_presence_rate > 0) {
         highlights.push({
           type: 'brand_present',
-          text: `Your brand appears in ${breakdown.geo_rate}% of geo-targeted prompts`,
+          text: `Your brand appears in ${breakdown.geo_presence_rate}% of geo-targeted prompts`,
+          value: breakdown.geo_presence_rate,
         });
-      }
-      
-      if (breakdown.geo_top3_rate > 0) {
+      } else {
         highlights.push({
-          type: 'top_position',
-          text: `Ranked in top 3 for ${breakdown.geo_top3_rate}% of geo prompts`,
-        });
-      }
-      
-      if (topCompetitors.length > 0) {
-        highlights.push({
-          type: 'competitor_top',
-          text: `Top competitor "${topCompetitors[0].name}" appears in ${topCompetitors[0].mention_rate}% of responses`,
-        });
-      }
-      
-      if (breakdown.sov_rate > 0) {
-        highlights.push({
-          type: 'share_of_voice',
-          text: `Your share of voice is ${breakdown.sov_rate}% compared to competitors`,
+          type: 'brand_absent',
+          text: 'Your brand is not appearing in geo-targeted AI responses',
+          value: 0,
         });
       }
     }
+    
+    if (breakdown.geo_top3_rate > 0) {
+      highlights.push({
+        type: 'top_position',
+        text: `Ranked in top 3 for ${breakdown.geo_top3_rate}% of geo prompts`,
+        value: breakdown.geo_top3_rate,
+      });
+    }
+    
+    if (breakdown.implicit_rate !== undefined) {
+      highlights.push({
+        type: 'implicit_recall',
+        text: `AI recalls your brand in ${breakdown.implicit_rate}% of implicit (non-local) queries`,
+        value: breakdown.implicit_rate,
+      });
+    }
+    
+    if (topCompetitors.length > 0) {
+      highlights.push({
+        type: 'competitor_top',
+        text: `Top competitor "${topCompetitors[0].name}" appears in ${topCompetitors[0].mention_rate}% of responses`,
+        value: topCompetitors[0].mention_rate,
+      });
+    }
+    
+    if (breakdown.sov_rate !== undefined) {
+      highlights.push({
+        type: 'share_of_voice',
+        text: `Your share of voice is ${breakdown.sov_rate}% compared to competitors`,
+        value: breakdown.sov_rate,
+      });
+    }
+    
+    if (breakdown.assoc_rate !== undefined && breakdown.assoc_rate > 0) {
+      highlights.push({
+        type: 'association',
+        text: `AI associates your brand with your location in ${breakdown.assoc_rate}% of responses`,
+        value: breakdown.assoc_rate,
+      });
+    }
 
-    // Determine confidence level
+    // Compute confidence level based on exact rules
+    const qualityFlags = run.quality_flags as any || {};
     let confidenceLevel: 'high' | 'medium' | 'low' = 'high';
     const confidenceReasons: string[] = [];
     
-    if (run.error_count > 0) {
-      confidenceLevel = run.error_count > 5 ? 'low' : 'medium';
-      confidenceReasons.push(`${run.error_count} API errors during scan`);
-    }
+    const coverage = (breakdown.coverage || 100) / 100;
     
-    if (results && results.length < 10) {
+    // Coverage checks
+    if (coverage < 0.70) {
       confidenceLevel = 'low';
-      confidenceReasons.push('Limited number of results collected');
+      confidenceReasons.push(`Only ${Math.round(coverage * 100)}% of prompts completed successfully (below 70% threshold)`);
+    } else if (coverage < 0.85) {
+      confidenceLevel = 'medium';
+      confidenceReasons.push(`${Math.round(coverage * 100)}% prompt completion (below 85% threshold)`);
     }
     
-    if (run.quality_flags?.partial_results) {
-      confidenceLevel = confidenceLevel === 'high' ? 'medium' : confidenceLevel;
-      confidenceReasons.push('Some prompts returned partial or incomplete data');
+    // Error count checks
+    if (run.error_count >= 3) {
+      if (confidenceLevel === 'high') confidenceLevel = 'medium';
+      else if (confidenceLevel === 'medium') confidenceLevel = 'low';
+      confidenceReasons.push(`${run.error_count} API errors occurred during scan`);
+    }
+    
+    // List detection quality
+    if (qualityFlags.list_detection_low > 0) {
+      const totalTemplates = results?.length || 1;
+      if (qualityFlags.list_detection_low > totalTemplates * 0.3) {
+        if (confidenceLevel === 'high') confidenceLevel = 'medium';
+        else if (confidenceLevel === 'medium') confidenceLevel = 'low';
+        confidenceReasons.push('Low confidence in recommendation list extraction');
+      }
+    }
+    
+    if (confidenceReasons.length === 0) {
+      confidenceReasons.push('Full scan completed successfully with high data quality');
     }
 
-    if (confidenceReasons.length === 0) {
-      confidenceReasons.push('Full scan completed successfully');
+    // Score threshold labels for UI
+    function getScoreLabel(score: number): 'Low' | 'Medium' | 'High' {
+      if (score <= 8) return 'Low';
+      if (score <= 17) return 'Medium';
+      return 'High';
     }
 
     const profile = run.local_profiles;
@@ -194,11 +233,19 @@ serve(async (req) => {
           implicit: scoreData.score_implicit,
           association: scoreData.score_association,
           sov: scoreData.score_sov,
+          labels: {
+            geo: getScoreLabel(scoreData.score_geo),
+            implicit: getScoreLabel(scoreData.score_implicit),
+            association: getScoreLabel(scoreData.score_association),
+            sov: getScoreLabel(scoreData.score_sov),
+          },
           breakdown: scoreData.breakdown,
         } : null,
         highlights,
         top_competitors: topCompetitors,
-        sample_responses: Object.values(samplesByLayer),
+        winning_intents: breakdown.winning_intents || [],
+        losing_intents: breakdown.losing_intents || [],
+        sample_responses: samplesArray.slice(0, 5),
         recommendations: scoreData?.recommendations || [],
         confidence: {
           level: confidenceLevel,
