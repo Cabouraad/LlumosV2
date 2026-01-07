@@ -387,6 +387,34 @@ Intent distribution within funnel stages:
 ${intelligenceContext.geographicScope.type !== 'global' ? '- Include 2-3 local_intent prompts spread across funnel stages' : ''}
 ${intelligenceContext.competitors.known.length > 0 ? '- Include at least 4 competitive interception prompts in MOFU/BOFU' : ''}
 
+## LLM PLATFORM VARIANTS (High-Priority Prompts Only)
+
+For prompts marked as "high" volume_tier, generate platform-optimized phrasing variants.
+The SAME meaning, but naturally different phrasing for each AI platform's conversational style.
+
+**Platform Styles:**
+
+1. **ChatGPT-style** (conversational, personal, context-rich):
+   - Uses first person, shares personal situation
+   - Casual, incomplete sentences, filler words
+   - Example: "I'm trying to figure out if I even need a CRM for my 8-person agency - we're just using spreadsheets now and it's getting messy"
+
+2. **Gemini-style** (factual, direct, slightly formal):
+   - More structured questions
+   - Clear and concise, less personal storytelling
+   - Example: "What are the key benefits of using a CRM for a small marketing agency compared to spreadsheets?"
+
+3. **Perplexity-style** (research-oriented, seeking sources/data):
+   - Implies wanting citations, comparisons, or data
+   - Often includes "according to", "what does research say", "compare"
+   - Example: "Compare the top CRM options for agencies under 10 people - what do reviews and case studies say?"
+
+**Rules:**
+- ONLY generate variants for prompts with volume_tier: "high"
+- Each variant must preserve the EXACT same search intent and meaning
+- Variants should feel natural on each platform, not forced
+- Include all 3 variants in the "platform_variants" field
+
 Return ONLY a JSON array:
 [
   {
@@ -396,7 +424,12 @@ Return ONLY a JSON array:
     "source": "brand_visibility",
     "reasoning": "Early awareness prompt - user doesn't know if they need the solution",
     "volume_tier": "high",
-    "estimated_volume": 5000
+    "estimated_volume": 5000,
+    "platform_variants": {
+      "chatgpt": "I keep hearing about marketing automation but honestly I have no idea what it actually does - is it something my small business needs or is it just for big companies?",
+      "gemini": "What is marketing automation and what are the key indicators that a small business would benefit from implementing it?",
+      "perplexity": "What does research say about marketing automation ROI for small businesses? Looking for data on when it's worth the investment."
+    }
   },
   {
     "text": "I've been using Notion but it's getting messy with 20 people - what do teams actually switch to?",
@@ -413,8 +446,13 @@ Return ONLY a JSON array:
     "intent": "recommendation",
     "source": "brand_visibility",
     "reasoning": "Decision-stage prompt - user is ready to choose between finalists",
-    "volume_tier": "medium",
-    "estimated_volume": 1800
+    "volume_tier": "high",
+    "estimated_volume": 4200,
+    "platform_variants": {
+      "chatgpt": "I'm stuck deciding between Monday.com and Asana for my remote design team of 15 - we need good visual project tracking but also easy collaboration. Which would you pick?",
+      "gemini": "Compare Monday.com vs Asana for a 15-person remote design team. Which platform offers better visual project management and collaboration features?",
+      "perplexity": "Monday.com vs Asana comparison for design teams: what do user reviews and industry analyses say about which is better for remote creative teams around 15 people?"
+    }
   }
 ]
 
@@ -456,7 +494,7 @@ IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${i
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 4000,
+        max_tokens: 6000,
         temperature: 0.75,
       }),
     });
@@ -521,7 +559,7 @@ IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${i
       return mapping[aiSource] || 'gap';
     };
 
-    // Insert suggestions into database with brand_id, AI-estimated search_volume, funnel stage, and intelligence context
+    // Insert suggestions into database with brand_id, AI-estimated search_volume, funnel stage, platform variants, and intelligence context
     const insertData = newSuggestions.map((suggestion: any) => ({
       org_id: userData.org_id,
       brand_id: brandId || null,
@@ -535,6 +573,8 @@ IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${i
         generated_for_brand: brandContext?.name || null,
         volume_tier: suggestion.volume_tier || null,
         volume_source: 'ai_estimated',
+        // Platform-optimized variants for high-priority prompts
+        platform_variants: suggestion.platform_variants || null,
         // Include intelligence context summary for traceability
         intelligence_context: {
           industry: intelligenceContext.industry,
