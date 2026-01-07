@@ -121,6 +121,12 @@ const INTENT_CONFIG: Record<IntentType, { label: string; icon: React.ElementType
   },
 };
 
+const FUNNEL_LABELS: Record<FunnelStage, string> = {
+  TOFU: 'Top of Funnel',
+  MOFU: 'Middle of Funnel',
+  BOFU: 'Bottom of Funnel',
+};
+
 const FUNNEL_COLORS: Record<FunnelStage, string> = {
   TOFU: 'bg-blue-100 text-blue-800',
   MOFU: 'bg-amber-100 text-amber-800',
@@ -945,7 +951,7 @@ function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept
             </Badge>
             
             <Badge variant="secondary" className={`text-[10px] ${FUNNEL_COLORS[prompt.funnel_stage]}`}>
-              {prompt.funnel_stage}
+              {FUNNEL_LABELS[prompt.funnel_stage]}
             </Badge>
             
             {prompt.target_offering !== 'general' && (

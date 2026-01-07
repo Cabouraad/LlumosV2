@@ -55,6 +55,12 @@ const SEED_TOPIC_CONFIG: Record<SeedTopic, { label: string; icon: React.ElementT
   switching: { label: 'Switching', icon: ArrowRight, color: 'bg-red-100 text-red-700' },
 };
 
+const FUNNEL_LABELS: Record<FunnelStage, string> = {
+  TOFU: 'Top of Funnel',
+  MOFU: 'Middle of Funnel',
+  BOFU: 'Bottom of Funnel',
+};
+
 // ============= COMPONENT =============
 interface CompetitivePromptViewProps {
   brandId?: string | null;
@@ -411,7 +417,7 @@ function CompetitivePromptCard({ prompt, isSelected, onToggleSelect, onAccept }:
                         : 'bg-amber-50 text-amber-700'
                     }`}
                   >
-                    {prompt.funnel_stage}
+                    {FUNNEL_LABELS[prompt.funnel_stage]}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
