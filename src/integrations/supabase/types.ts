@@ -1999,6 +1999,51 @@ export type Database = {
           },
         ]
       }
+      prompt_variants: {
+        Row: {
+          base_prompt_id: string
+          created_at: string
+          id: string
+          model: string
+          org_id: string
+          variant_hash: string
+          variant_text: string
+        }
+        Insert: {
+          base_prompt_id: string
+          created_at?: string
+          id?: string
+          model: string
+          org_id: string
+          variant_hash: string
+          variant_text: string
+        }
+        Update: {
+          base_prompt_id?: string
+          created_at?: string
+          id?: string
+          model?: string
+          org_id?: string
+          variant_hash?: string
+          variant_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_variants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "prompt_variants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prompts: {
         Row: {
           active: boolean

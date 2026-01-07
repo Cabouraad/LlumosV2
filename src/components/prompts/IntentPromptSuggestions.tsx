@@ -36,6 +36,7 @@ import {
 import { FunnelPromptView } from './FunnelPromptView';
 import { CompetitivePromptView } from './CompetitivePromptView';
 import { LocalGeoPromptView } from './LocalGeoPromptView';
+import { PromptVariantsExpander } from './PromptVariantsExpander';
 
 // ============= TYPES =============
 const INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'] as const;
@@ -130,6 +131,8 @@ export function IntentPromptSuggestions({
   const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive' | 'local'>('intent');
   const [includeCompetitiveInFunnel, setIncludeCompetitiveInFunnel] = useState(false);
   const [includeLocalInFunnel, setIncludeLocalInFunnel] = useState(false);
+  const [promptVariants, setPromptVariants] = useState<Record<string, { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[]>>({});
+  const [variantsLoading, setVariantsLoading] = useState(false);
 
   // Generate prompts
   const generatePrompts = async (forceNew = false) => {
@@ -187,9 +190,68 @@ export function IntentPromptSuggestions({
     }
   };
 
+  // Generate prompt variants
+  const generateVariants = async () => {
+    if (!user) return;
+    
+    setVariantsLoading(true);
+    try {
+      const response = await supabase.functions.invoke('generate-prompt-variants', {
+        body: { brandId },
+      });
+
+      if (response.error) {
+        console.error('Error generating variants:', response.error);
+        return;
+      }
+
+      // Fetch variants from database
+      await fetchVariants();
+    } catch (err) {
+      console.error('Error generating variants:', err);
+    } finally {
+      setVariantsLoading(false);
+    }
+  };
+
+  // Fetch existing variants
+  const fetchVariants = async () => {
+    if (!user) return;
+
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('org_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!userData?.org_id) return;
+
+      const { data: variants } = await supabase
+        .from('prompt_variants')
+        .select('base_prompt_id, model, variant_text')
+        .eq('org_id', userData.org_id);
+
+      if (variants) {
+        const grouped: Record<string, { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[]> = {};
+        for (const v of variants) {
+          if (!grouped[v.base_prompt_id]) grouped[v.base_prompt_id] = [];
+          grouped[v.base_prompt_id].push({
+            model: v.model as 'chatgpt' | 'gemini' | 'perplexity',
+            variant_text: v.variant_text,
+          });
+        }
+        setPromptVariants(grouped);
+      }
+    } catch (err) {
+      console.error('Error fetching variants:', err);
+    }
+  };
+
   // Load on mount
   useEffect(() => {
     generatePrompts();
+    fetchVariants();
   }, [brandId, user]);
 
   // Group prompts by intent
@@ -331,19 +393,35 @@ export function IntentPromptSuggestions({
               </Button>
             )}
             {viewMode === 'intent' && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => generatePrompts(true)}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                Generate More
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={generateVariants}
+                  disabled={variantsLoading || loading}
+                  className="text-xs"
+                >
+                  {variantsLoading ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-1" />
+                  )}
+                  Gen Variants
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => generatePrompts(true)}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  Generate More
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -479,9 +557,12 @@ interface PromptCardProps {
   isSelected: boolean;
   onToggleSelect: () => void;
   onAccept: () => void;
+  variants?: { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[];
+  basePromptId?: string;
+  onMonitorVariant?: (model: string, variantText: string) => void;
 }
 
-function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept }: PromptCardProps) {
+function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept, variants, basePromptId, onMonitorVariant }: PromptCardProps) {
   const Icon = intentConfig.icon;
   
   return (
@@ -549,6 +630,15 @@ function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          {/* Variants Expander */}
+          {variants && variants.length > 0 && basePromptId && (
+            <PromptVariantsExpander
+              basePromptId={basePromptId}
+              variants={variants}
+              onMonitorVariant={onMonitorVariant}
+            />
+          )}
         </div>
 
         {/* Actions */}

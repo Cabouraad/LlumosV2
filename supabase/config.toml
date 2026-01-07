@@ -341,3 +341,6 @@ verify_jwt = true
 
 [functions.generate-local-geo-prompts]
 verify_jwt = true
+
+[functions.generate-prompt-variants]
+verify_jwt = true
