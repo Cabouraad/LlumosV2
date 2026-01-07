@@ -3,9 +3,10 @@
  * 
  * Displays prompts grouped by intent taxonomy with funnel stage indicators.
  * Includes toggle between "By Intent" and "By Funnel" views.
+ * Now includes confidence scoring, filtering, and top prompts view.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -31,12 +32,15 @@ import {
   ChevronDown,
   ChevronUp,
   LayoutGrid,
-  Layers
+  Layers,
+  Trophy
 } from 'lucide-react';
 import { FunnelPromptView } from './FunnelPromptView';
 import { CompetitivePromptView } from './CompetitivePromptView';
 import { LocalGeoPromptView } from './LocalGeoPromptView';
 import { PromptVariantsExpander } from './PromptVariantsExpander';
+import { PromptConfidenceScore } from './PromptConfidenceScore';
+import { PromptFilters, defaultFilters, type PromptFiltersState } from './PromptFilters';
 
 // ============= TYPES =============
 const INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'] as const;
@@ -52,6 +56,8 @@ interface GeneratedPrompt {
   funnel_stage: FunnelStage;
   needs_geo_variant: boolean;
   seed_topic: string;
+  confidence_score?: number;
+  confidence_reasons?: string[];
 }
 
 interface PromptContext {
@@ -128,11 +134,13 @@ export function IntentPromptSuggestions({
   const [selectedPrompts, setSelectedPrompts] = useState<Set<string>>(new Set());
   const [countPerIntent, setCountPerIntent] = useState(5);
   const [showContext, setShowContext] = useState(false);
-  const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive' | 'local'>('intent');
+  const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive' | 'local' | 'top'>('top');
   const [includeCompetitiveInFunnel, setIncludeCompetitiveInFunnel] = useState(false);
   const [includeLocalInFunnel, setIncludeLocalInFunnel] = useState(false);
   const [promptVariants, setPromptVariants] = useState<Record<string, { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[]>>({});
   const [variantsLoading, setVariantsLoading] = useState(false);
+  const [filters, setFilters] = useState<PromptFiltersState>(defaultFilters);
+  const [scoringTriggered, setScoringTriggered] = useState(false);
 
   // Generate prompts
   const generatePrompts = async (forceNew = false) => {
@@ -172,14 +180,11 @@ export function IntentPromptSuggestions({
       setPrompts(result.data || result.partialData || []);
       setContext(result.context);
       
-      if (result.partialData) {
-        toast.warning('Some prompts failed validation', {
-          description: 'Showing partial results',
-        });
-      } else if (result.cached) {
-        toast.info('Loaded cached prompts', {
-          description: 'Click "Generate More" for new suggestions',
-        });
+      // Trigger scoring if prompts don't have scores
+      const hasScores = (result.data || result.partialData || []).some((p: GeneratedPrompt) => typeof p.confidence_score === 'number');
+      if (!hasScores && !scoringTriggered) {
+        setScoringTriggered(true);
+        triggerScoring();
       }
     } catch (err) {
       console.error('Error generating prompts:', err);
@@ -187,6 +192,19 @@ export function IntentPromptSuggestions({
       toast.error('Failed to generate prompts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Trigger scoring for prompts
+  const triggerScoring = async () => {
+    try {
+      await supabase.functions.invoke('score-prompt-suggestions', {
+        body: { brandId },
+      });
+      // Re-fetch prompts to get scores
+      await generatePrompts(false);
+    } catch (err) {
+      console.error('Error triggering scoring:', err);
     }
   };
 
@@ -254,9 +272,31 @@ export function IntentPromptSuggestions({
     fetchVariants();
   }, [brandId, user]);
 
+  // Filter and sort prompts
+  const filteredPrompts = useMemo(() => {
+    return prompts
+      .filter(p => {
+        // Apply score filter
+        if (filters.minScore > 0 && (p.confidence_score || 0) < filters.minScore) return false;
+        // Apply funnel filter
+        if (!filters.funnelStages.includes(p.funnel_stage)) return false;
+        // Apply intent filter
+        if (!filters.intentTypes.includes(p.intent_type)) return false;
+        return true;
+      })
+      .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0));
+  }, [prompts, filters]);
+
+  // Top 15 prompts sorted by score
+  const topPrompts = useMemo(() => {
+    return [...prompts]
+      .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0))
+      .slice(0, 15);
+  }, [prompts]);
+
   // Group prompts by intent
   const promptsByIntent = INTENT_TYPES.reduce((acc, intent) => {
-    acc[intent] = prompts.filter(p => p.intent_type === intent);
+    acc[intent] = filteredPrompts.filter(p => p.intent_type === intent);
     return acc;
   }, {} as Record<IntentType, GeneratedPrompt[]>);
 
@@ -349,9 +389,17 @@ export function IntentPromptSuggestions({
             <ToggleGroup 
               type="single" 
               value={viewMode} 
-              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel' | 'competitive' | 'local')}
+              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel' | 'competitive' | 'local' | 'top')}
               className="bg-muted rounded-md p-0.5"
             >
+              <ToggleGroupItem 
+                value="top" 
+                aria-label="Top Prompts"
+                className="text-xs px-2.5 py-1 h-7 data-[state=on]:bg-background"
+              >
+                <Trophy className="h-3.5 w-3.5 mr-1" />
+                Top 15
+              </ToggleGroupItem>
               <ToggleGroupItem 
                 value="intent" 
                 aria-label="View by Intent"
@@ -386,13 +434,18 @@ export function IntentPromptSuggestions({
               </ToggleGroupItem>
             </ToggleGroup>
 
-            {viewMode === 'intent' && selectedPrompts.size > 0 && (
+            {/* Filters - show in top and intent views */}
+            {(viewMode === 'top' || viewMode === 'intent') && (
+              <PromptFilters filters={filters} onChange={setFilters} />
+            )}
+
+            {(viewMode === 'intent' || viewMode === 'top') && selectedPrompts.size > 0 && (
               <Button size="sm" onClick={acceptSelected}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add {selectedPrompts.size} Selected
               </Button>
             )}
-            {viewMode === 'intent' && (
+            {(viewMode === 'intent' || viewMode === 'top') && (
               <>
                 <Button
                   size="sm"
@@ -426,8 +479,8 @@ export function IntentPromptSuggestions({
           </div>
         </div>
 
-        {/* Context Accordion - only show in intent view */}
-        {viewMode === 'intent' && context && (
+        {/* Context Accordion - show in intent and top views */}
+        {(viewMode === 'intent' || viewMode === 'top') && context && (
           <div className="mt-4">
             <Button
               variant="ghost"
@@ -455,8 +508,45 @@ export function IntentPromptSuggestions({
       </CardHeader>
 
       <CardContent>
-        {/* Funnel View */}
-        {viewMode === 'funnel' ? (
+        {/* Top View - Default */}
+        {viewMode === 'top' ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Top {Math.min(15, filteredPrompts.length)} prompts sorted by confidence score
+              </p>
+              {filteredPrompts.some(p => p.confidence_score !== undefined) && (
+                <Badge variant="outline" className="text-[10px]">
+                  Scored
+                </Badge>
+              )}
+            </div>
+            
+            {filteredPrompts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No prompts match your filters
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredPrompts.slice(0, 15).map((p, idx) => (
+                  <PromptCard
+                    key={`top-${idx}`}
+                    prompt={p}
+                    intentConfig={INTENT_CONFIG[p.intent_type]}
+                    isSelected={selectedPrompts.has(p.prompt)}
+                    onToggleSelect={() => togglePromptSelection(p.prompt)}
+                    onAccept={() => {
+                      if (onAcceptPrompt) {
+                        onAcceptPrompt(p.prompt);
+                        toast.success('Prompt added');
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : viewMode === 'funnel' ? (
           <FunnelPromptView 
             brandId={brandId} 
             onAcceptPrompt={onAcceptPrompt}
@@ -519,7 +609,7 @@ export function IntentPromptSuggestions({
 
                   {intentPrompts.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      No prompts generated for this intent type
+                      No prompts match your filters for this intent type
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -585,6 +675,12 @@ function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept
 
           {/* Chips */}
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Confidence Score */}
+            <PromptConfidenceScore 
+              score={prompt.confidence_score} 
+              reasons={prompt.confidence_reasons} 
+            />
+            
             <Badge variant="outline" className={`text-[10px] ${intentConfig.color}`}>
               <Icon className="h-3 w-3 mr-1" />
               {intentConfig.label}
