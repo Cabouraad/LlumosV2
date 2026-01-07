@@ -18,17 +18,21 @@ interface GeneratedPrompt {
   funnel_stage: FunnelStage;
   needs_geo_variant: boolean;
   seed_topic: string;
+  competitor_name?: string;
+  source?: 'core' | 'competitive';
 }
 
 interface FunnelParams {
   minPerBucket?: number;
   totalDefault?: number;
+  includeCompetitive?: boolean;
 }
 
 interface FunnelStats {
   counts: { TOFU: number; MOFU: number; BOFO: number };
   coverage_ok: boolean;
   missing: { TOFU: number; MOFU: number; BOFU: number };
+  competitive_merged?: number;
 }
 
 interface FunnelView {
@@ -45,7 +49,7 @@ const INTENT_TO_FUNNEL: Record<IntentType, FunnelStage> = {
   comparison: 'MOFU',
   recommendation: 'MOFU',
   action: 'BOFU',
-  local_intent: 'BOFU', // Default; may be MOFU for informational-local
+  local_intent: 'BOFU',
 };
 
 // Commercial intent priority within buckets (higher = more valuable)
@@ -60,16 +64,10 @@ const COMMERCIAL_PRIORITY: Record<IntentType, number> = {
 
 // ============= HELPER FUNCTIONS =============
 
-/**
- * Normalize a prompt for comparison (lowercase, collapse whitespace)
- */
 function normalizePrompt(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Deduplicate prompts by normalized text
- */
 function dedupePrompts(prompts: GeneratedPrompt[]): GeneratedPrompt[] {
   const seen = new Set<string>();
   const result: GeneratedPrompt[] = [];
@@ -83,9 +81,6 @@ function dedupePrompts(prompts: GeneratedPrompt[]): GeneratedPrompt[] {
   return result;
 }
 
-/**
- * Check if a local_intent prompt is informational (MOFU) vs transactional (BOFU)
- */
 function isInformationalLocal(prompt: string): boolean {
   const informationalPatterns = [
     /what (?:to|should|do) (?:i|you) look for/i,
@@ -98,30 +93,20 @@ function isInformationalLocal(prompt: string): boolean {
   return informationalPatterns.some(pattern => pattern.test(prompt));
 }
 
-/**
- * Enforce correct funnel mapping based on intent_type
- * Fixes any inconsistencies from generation
- */
 function enforceFunnelMapping(prompt: GeneratedPrompt): GeneratedPrompt {
   let expectedFunnel = INTENT_TO_FUNNEL[prompt.intent_type];
   
-  // Special case: local_intent can be MOFU if informational
   if (prompt.intent_type === 'local_intent' && isInformationalLocal(prompt.prompt)) {
     expectedFunnel = 'MOFU';
   }
   
-  // Only fix if different
   if (prompt.funnel_stage !== expectedFunnel) {
-    console.log(`Correcting funnel: ${prompt.intent_type} ${prompt.funnel_stage} -> ${expectedFunnel}`);
     return { ...prompt, funnel_stage: expectedFunnel };
   }
   
   return prompt;
 }
 
-/**
- * Bucketize prompts into TOFU/MOFU/BOFU arrays
- */
 function bucketizePrompts(prompts: GeneratedPrompt[]): { TOFU: GeneratedPrompt[]; MOFU: GeneratedPrompt[]; BOFU: GeneratedPrompt[] } {
   const buckets = { TOFU: [] as GeneratedPrompt[], MOFU: [] as GeneratedPrompt[], BOFU: [] as GeneratedPrompt[] };
   for (const p of prompts) {
@@ -130,36 +115,27 @@ function bucketizePrompts(prompts: GeneratedPrompt[]): { TOFU: GeneratedPrompt[]
   return buckets;
 }
 
-/**
- * Score a prompt for selection priority within its bucket
- */
 function scorePrompt(prompt: GeneratedPrompt, primaryOfferings: string[]): number {
   let score = 0;
   
-  // Commercial intent priority (0-6 points)
   score += COMMERCIAL_PRIORITY[prompt.intent_type] || 0;
   
-  // Offering priority (0-2 points)
   if (primaryOfferings.includes(prompt.target_offering)) {
     score += 2;
   } else if (prompt.target_offering !== 'general') {
     score += 1;
   }
   
-  // Length preference (35-110 chars is ideal, 0-1 points)
   const len = prompt.prompt.length;
   if (len >= 35 && len <= 110) {
     score += 1;
   } else if (len > 110) {
-    score -= 0.5; // Slight penalty for too long
+    score -= 0.5;
   }
   
   return score;
 }
 
-/**
- * Select top N prompts from a bucket, sorted by priority
- */
 function selectTopFromBucket(bucket: GeneratedPrompt[], n: number, primaryOfferings: string[]): GeneratedPrompt[] {
   return [...bucket]
     .map(p => ({ prompt: p, score: scorePrompt(p, primaryOfferings) }))
@@ -168,14 +144,11 @@ function selectTopFromBucket(bucket: GeneratedPrompt[], n: number, primaryOfferi
     .map(x => x.prompt);
 }
 
-/**
- * Compute coverage stats
- */
-function computeStats(buckets: { TOFU: GeneratedPrompt[]; MOFU: GeneratedPrompt[]; BOFU: GeneratedPrompt[] }, minPerBucket: number): FunnelStats {
+function computeStats(buckets: { TOFU: GeneratedPrompt[]; MOFU: GeneratedPrompt[]; BOFU: GeneratedPrompt[] }, minPerBucket: number, competitiveMerged = 0): FunnelStats {
   const counts = {
     TOFU: buckets.TOFU.length,
     MOFU: buckets.MOFU.length,
-    BOFO: buckets.BOFU.length, // Note: typo preserved for backwards compat
+    BOFO: buckets.BOFU.length,
   };
   
   const missing = {
@@ -186,7 +159,7 @@ function computeStats(buckets: { TOFU: GeneratedPrompt[]; MOFU: GeneratedPrompt[
   
   const coverage_ok = missing.TOFU === 0 && missing.MOFU === 0 && missing.BOFU === 0;
   
-  return { counts, coverage_ok, missing };
+  return { counts, coverage_ok, missing, competitive_merged: competitiveMerged };
 }
 
 // ============= MAIN HANDLER =============
@@ -202,7 +175,7 @@ Deno.serve(async (req) => {
 
     // Parse request
     let brandId: string | null = null;
-    let params: FunnelParams = { minPerBucket: 5, totalDefault: 15 };
+    let params: FunnelParams = { minPerBucket: 5, totalDefault: 15, includeCompetitive: false };
     
     try {
       const body = await req.json();
@@ -271,7 +244,10 @@ Deno.serve(async (req) => {
       throw new Error(generateResult.error || 'Failed to generate prompts');
     }
 
-    let allPrompts: GeneratedPrompt[] = generateResult.data || [];
+    let allPrompts: GeneratedPrompt[] = (generateResult.data || []).map((p: GeneratedPrompt) => ({
+      ...p,
+      source: 'core' as const
+    }));
     const context = generateResult.context;
     
     console.log(`Received ${allPrompts.length} prompts from generator`);
@@ -305,7 +281,10 @@ Deno.serve(async (req) => {
       if (retryResponse.ok) {
         const retryResult = await retryResponse.json();
         if (retryResult.success && retryResult.data) {
-          allPrompts = dedupePrompts(retryResult.data);
+          allPrompts = dedupePrompts(retryResult.data.map((p: GeneratedPrompt) => ({
+            ...p,
+            source: 'core' as const
+          })));
           allPrompts = allPrompts.map(enforceFunnelMapping);
           buckets = bucketizePrompts(allPrompts);
           stats = computeStats(buckets, minPerBucket);
@@ -314,7 +293,53 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step E: Select top prompts per bucket
+    // Step E: Optionally merge competitive prompts
+    let competitiveMerged = 0;
+    if (params.includeCompetitive) {
+      console.log('Fetching competitive prompts for merge...');
+      
+      // Fetch cached competitive prompts from database
+      const { data: competitiveRow } = await supabase
+        .from('prompt_suggestions')
+        .select('prompts_json')
+        .eq('org_id', orgId)
+        .eq('suggestion_type', 'competitive')
+        .eq('status', 'ready')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (competitiveRow && Array.isArray(competitiveRow.prompts_json)) {
+        const competitivePrompts: GeneratedPrompt[] = (competitiveRow.prompts_json as GeneratedPrompt[]).map(p => ({
+          ...p,
+          source: 'competitive' as const
+        }));
+        
+        console.log(`Found ${competitivePrompts.length} competitive prompts to merge`);
+        
+        // Add to appropriate buckets based on funnel_stage
+        for (const p of competitivePrompts) {
+          const stage = p.funnel_stage || 'MOFU';
+          if (buckets[stage]) {
+            buckets[stage].push(p);
+            competitiveMerged++;
+          }
+        }
+        
+        // Dedupe across merged sets
+        buckets.TOFU = dedupePrompts(buckets.TOFU);
+        buckets.MOFU = dedupePrompts(buckets.MOFU);
+        buckets.BOFU = dedupePrompts(buckets.BOFU);
+        
+        // Recombine for allPrompts
+        allPrompts = [...buckets.TOFU, ...buckets.MOFU, ...buckets.BOFU];
+      }
+    }
+
+    // Recompute stats after potential merge
+    stats = computeStats(buckets, minPerBucket, competitiveMerged);
+
+    // Step F: Select top prompts per bucket
     const funnelView: FunnelView = {
       TOFU: selectTopFromBucket(buckets.TOFU, minPerBucket, primaryOfferings),
       MOFU: selectTopFromBucket(buckets.MOFU, minPerBucket, primaryOfferings),
@@ -327,6 +352,7 @@ Deno.serve(async (req) => {
         },
         coverage_ok: stats.coverage_ok,
         missing: stats.missing,
+        competitive_merged: competitiveMerged,
       },
     };
 

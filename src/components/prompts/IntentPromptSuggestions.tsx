@@ -34,6 +34,7 @@ import {
   Layers
 } from 'lucide-react';
 import { FunnelPromptView } from './FunnelPromptView';
+import { CompetitivePromptView } from './CompetitivePromptView';
 
 // ============= TYPES =============
 const INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'] as const;
@@ -125,7 +126,8 @@ export function IntentPromptSuggestions({
   const [selectedPrompts, setSelectedPrompts] = useState<Set<string>>(new Set());
   const [countPerIntent, setCountPerIntent] = useState(5);
   const [showContext, setShowContext] = useState(false);
-  const [viewMode, setViewMode] = useState<'intent' | 'funnel'>('intent');
+  const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive'>('intent');
+  const [includeCompetitiveInFunnel, setIncludeCompetitiveInFunnel] = useState(false);
 
   // Generate prompts
   const generatePrompts = async (forceNew = false) => {
@@ -283,7 +285,7 @@ export function IntentPromptSuggestions({
             <ToggleGroup 
               type="single" 
               value={viewMode} 
-              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel')}
+              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel' | 'competitive')}
               className="bg-muted rounded-md p-0.5"
             >
               <ToggleGroupItem 
@@ -301,6 +303,14 @@ export function IntentPromptSuggestions({
               >
                 <Layers className="h-3.5 w-3.5 mr-1" />
                 By Funnel
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="competitive" 
+                aria-label="Competitive Prompts"
+                className="text-xs px-2.5 py-1 h-7 data-[state=on]:bg-background"
+              >
+                <Scale className="h-3.5 w-3.5 mr-1" />
+                Competitive
               </ToggleGroupItem>
             </ToggleGroup>
 
@@ -363,6 +373,15 @@ export function IntentPromptSuggestions({
             brandId={brandId} 
             onAcceptPrompt={onAcceptPrompt}
             onAcceptMultiple={onAcceptMultiple}
+            includeCompetitive={includeCompetitiveInFunnel}
+          />
+        ) : viewMode === 'competitive' ? (
+          <CompetitivePromptView
+            brandId={brandId}
+            onAcceptPrompt={onAcceptPrompt}
+            onAcceptMultiple={onAcceptMultiple}
+            includeFunnel={includeCompetitiveInFunnel}
+            onIncludeFunnelChange={setIncludeCompetitiveInFunnel}
           />
         ) : (
           /* Intent View */
