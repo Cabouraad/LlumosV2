@@ -10,7 +10,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -507,100 +507,167 @@ export function IntentPromptSuggestions({
   // Loading state with progress bar
   if (loading && prompts.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Intent-Driven Prompts
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Generating AI-native prompts...</span>
+      <div className="space-y-6">
+        <Card className="shadow-soft rounded-2xl border-0">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-96" />
+          </CardHeader>
+        </Card>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="shadow-soft rounded-2xl border-0">
+            <CardContent className="p-6">
+              <Skeleton className="h-20 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Loading/generating state with animated progress
+  if (loading && generationProgress > 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="shadow-soft rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-primary/5 to-accent/5">
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                    <Sparkles className="h-7 w-7 text-primary animate-bounce" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center">
+                    <Loader2 className="h-3 w-3 text-accent-foreground animate-spin" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground mb-1">
+                    Generating Intent-Driven Prompts
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {generationProgress < 30 && "Analyzing your business context..."}
+                    {generationProgress >= 30 && generationProgress < 70 && "Generating prompts for all intent types..."}
+                    {generationProgress >= 70 && generationProgress < 90 && "Validating and organizing prompts..."}
+                    {generationProgress >= 90 && "Almost done!"}
+                  </p>
+                </div>
               </div>
-              <span className="text-muted-foreground font-medium">{generationProgress}%</span>
+              <div className="space-y-2">
+                <Progress value={generationProgress} className="h-2" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Processing...</span>
+                  <span>{Math.round(generationProgress)}%</span>
+                </div>
+              </div>
             </div>
-            <Progress value={generationProgress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              {generationProgress < 30 && "Analyzing your business context..."}
-              {generationProgress >= 30 && generationProgress < 70 && "Generating prompts for all intent types..."}
-              {generationProgress >= 70 && generationProgress < 90 && "Validating and organizing prompts..."}
-              {generationProgress >= 90 && "Almost done!"}
-            </p>
-          </div>
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   // Error state
   if (error && prompts.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Intent-Driven Prompts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => generatePrompts()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="shadow-soft rounded-2xl border-0">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="h-6 w-6 text-destructive" />
+              Intent-Driven Prompts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Sparkles className="h-12 w-12 mx-auto mb-4 text-destructive/50" />
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={() => generatePrompts()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   // Empty state - no prompts yet, show generate button
   if (!loading && prompts.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Intent-Driven Prompts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12">
-            <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <h3 className="text-lg font-medium mb-2">No prompts generated yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Generate AI-native prompts tailored to your business context, organized by intent type and funnel stage.
-            </p>
-            <Button onClick={() => generatePrompts()} size="lg">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate Prompts
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="shadow-soft rounded-2xl border-0">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Sparkles className="h-6 w-6 text-accent" />
+                  Intent-Driven Prompts
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Generate AI-native prompts tailored to your business context
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-12">
+              <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-lg font-medium mb-2">No prompts generated yet</h3>
+              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                Generate AI-native prompts tailored to your business context, organized by intent type and funnel stage.
+              </p>
+              <Button onClick={() => generatePrompts()} size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-soft">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Prompts
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Intent-Driven Prompts
-          </CardTitle>
-          
-          <div className="flex items-center gap-3">
+    <div className="space-y-6">
+      {/* Header Card */}
+      <Card className="shadow-soft rounded-2xl border-0">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Sparkles className="h-6 w-6 text-accent" />
+                Intent-Driven Prompts
+              </CardTitle>
+              <CardDescription className="mt-2">
+                {prompts.length} AI-native prompts organized by intent type and funnel stage
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedPrompts.size > 0 && (
+                <Button size="sm" onClick={acceptSelected}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add {selectedPrompts.size} Selected
+                </Button>
+              )}
+              <Button
+                onClick={() => generatePrompts(true)}
+                disabled={loading}
+                className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-soft"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {prompts.length > 0 ? 'Generate More' : 'Generate Prompts'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    
+      {/* View Toggle Card */}
+      <Card className="shadow-soft rounded-2xl border-0">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             {/* View Toggle */}
             <ToggleGroup 
               type="single" 
@@ -647,195 +714,177 @@ export function IntentPromptSuggestions({
               <PromptFilters filters={filters} onChange={setFilters} />
             )}
 
-            {(viewMode === 'intent' || viewMode === 'top') && selectedPrompts.size > 0 && (
-              <Button size="sm" onClick={acceptSelected}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add {selectedPrompts.size} Selected
+            {(viewMode === 'intent' || viewMode === 'top') && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={generateVariants}
+                disabled={variantsLoading || loading}
+                className="text-xs"
+              >
+                {variantsLoading ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Gen Variants
               </Button>
             )}
-            {(viewMode === 'intent' || viewMode === 'top') && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={generateVariants}
-                  disabled={variantsLoading || loading}
-                  className="text-xs"
-                >
-                  {variantsLoading ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-1" />
-                  )}
-                  Gen Variants
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => generatePrompts(true)}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                  )}
-                  Generate More
-                </Button>
-              </>
-            )}
           </div>
-        </div>
 
-        {/* Context Accordion - show in intent and top views */}
-        {(viewMode === 'intent' || viewMode === 'top') && context && (
-          <div className="mt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-between text-muted-foreground hover:text-foreground"
-              onClick={() => setShowContext(!showContext)}
-            >
-              <span className="flex items-center gap-2">
-                <Info className="h-4 w-4" />
-                Context: {context.businessName} • {context.industry}
-              </span>
-              {showContext ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-            
-            {showContext && (
-              <div className="mt-2 p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-                <p><strong>Business:</strong> {context.businessName}</p>
-                <p><strong>Industry:</strong> {context.industry}</p>
-                <p><strong>Geographic Scope:</strong> {context.geographicScope?.type || 'global'}</p>
-                <p><strong>Brand Strength:</strong> {context.brandStrength?.type || 'emerging'}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </CardHeader>
-
-      <CardContent>
-        {/* Top View - Default */}
-        {viewMode === 'top' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Top {Math.min(15, filteredPrompts.length)} prompts sorted by confidence score
-              </p>
-              {filteredPrompts.some(p => p.confidence_score !== undefined) && (
-                <Badge variant="outline" className="text-[10px]">
-                  Scored
-                </Badge>
+          {/* Context Accordion - show in intent and top views */}
+          {(viewMode === 'intent' || viewMode === 'top') && context && (
+            <div className="mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between text-muted-foreground hover:text-foreground"
+                onClick={() => setShowContext(!showContext)}
+              >
+                <span className="flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  Context: {context.businessName} • {context.industry}
+                </span>
+                {showContext ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              
+              {showContext && (
+                <div className="mt-2 p-3 rounded-lg bg-muted/50 text-sm space-y-1">
+                  <p><strong>Business:</strong> {context.businessName}</p>
+                  <p><strong>Industry:</strong> {context.industry}</p>
+                  <p><strong>Geographic Scope:</strong> {context.geographicScope?.type || 'global'}</p>
+                  <p><strong>Brand Strength:</strong> {context.brandStrength?.type || 'emerging'}</p>
+                </div>
               )}
             </div>
-            
-            {filteredPrompts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No prompts match your filters
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Prompts Content Card */}
+      <Card className="shadow-soft rounded-2xl border-0">
+        <CardContent className="p-6">
+          {/* Top View - Default */}
+          {viewMode === 'top' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Top {Math.min(15, filteredPrompts.length)} prompts sorted by confidence score
+                </p>
+                {filteredPrompts.some(p => p.confidence_score !== undefined) && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Scored
+                  </Badge>
+                )}
               </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredPrompts.slice(0, 15).map((p, idx) => (
-                  <PromptCard
-                    key={`top-${idx}`}
-                    prompt={p}
-                    intentConfig={INTENT_CONFIG[p.intent_type]}
-                    isSelected={selectedPrompts.has(p.prompt)}
-                    onToggleSelect={() => togglePromptSelection(p.prompt)}
-                    onAccept={() => {
-                      if (onAcceptPrompt) {
-                        onAcceptPrompt(p.prompt);
-                        toast.success('Prompt added');
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ) : viewMode === 'funnel' ? (
-          <FunnelPromptView 
-            brandId={brandId} 
-            onAcceptPrompt={onAcceptPrompt}
-            onAcceptMultiple={onAcceptMultiple}
-            includeCompetitive={includeCompetitiveInFunnel}
-          />
-        ) : viewMode === 'competitive' ? (
-          <CompetitivePromptView
-            brandId={brandId}
-            onAcceptPrompt={onAcceptPrompt}
-            onAcceptMultiple={onAcceptMultiple}
-            includeFunnel={includeCompetitiveInFunnel}
-            onIncludeFunnelChange={setIncludeCompetitiveInFunnel}
-          />
-        ) : (
-          /* Intent View */
-          <Tabs value={selectedIntent} onValueChange={(v) => setSelectedIntent(v as IntentType)}>
-            <TabsList className="w-full flex-wrap h-auto gap-1 mb-4">
+              
+              {filteredPrompts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No prompts match your filters
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredPrompts.slice(0, 15).map((p, idx) => (
+                    <PromptCard
+                      key={`top-${idx}`}
+                      prompt={p}
+                      intentConfig={INTENT_CONFIG[p.intent_type]}
+                      isSelected={selectedPrompts.has(p.prompt)}
+                      onToggleSelect={() => togglePromptSelection(p.prompt)}
+                      onAccept={() => {
+                        if (onAcceptPrompt) {
+                          onAcceptPrompt(p.prompt);
+                          toast.success('Prompt added');
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : viewMode === 'funnel' ? (
+            <FunnelPromptView 
+              brandId={brandId} 
+              onAcceptPrompt={onAcceptPrompt}
+              onAcceptMultiple={onAcceptMultiple}
+              includeCompetitive={includeCompetitiveInFunnel}
+            />
+          ) : viewMode === 'competitive' ? (
+            <CompetitivePromptView
+              brandId={brandId}
+              onAcceptPrompt={onAcceptPrompt}
+              onAcceptMultiple={onAcceptMultiple}
+              includeFunnel={includeCompetitiveInFunnel}
+              onIncludeFunnelChange={setIncludeCompetitiveInFunnel}
+            />
+          ) : (
+            /* Intent View */
+            <Tabs value={selectedIntent} onValueChange={(v) => setSelectedIntent(v as IntentType)}>
+              <TabsList className="w-full flex-wrap h-auto gap-1 mb-4">
+                {INTENT_TYPES.map(intent => {
+                  const config = INTENT_CONFIG[intent];
+                  const count = promptsByIntent[intent]?.length || 0;
+                  const Icon = config.icon;
+                  
+                  return (
+                    <TabsTrigger 
+                      key={intent} 
+                      value={intent}
+                      className="flex items-center gap-1.5 text-xs"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {config.label}
+                      {count > 0 && (
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                          {count}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
               {INTENT_TYPES.map(intent => {
+                const intentPrompts = promptsByIntent[intent] || [];
                 const config = INTENT_CONFIG[intent];
-                const count = promptsByIntent[intent]?.length || 0;
-                const Icon = config.icon;
                 
                 return (
-                  <TabsTrigger 
-                    key={intent} 
-                    value={intent}
-                    className="flex items-center gap-1.5 text-xs"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {config.label}
-                    {count > 0 && (
-                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                        {count}
-                      </Badge>
+                  <TabsContent key={intent} value={intent} className="mt-0">
+                    <div className="text-sm text-muted-foreground mb-3">
+                      {config.description}
+                    </div>
+
+                    {intentPrompts.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No prompts match your filters for this intent type
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {intentPrompts.map((p, idx) => (
+                          <PromptCard
+                            key={`${intent}-${idx}`}
+                            prompt={p}
+                            intentConfig={config}
+                            isSelected={selectedPrompts.has(p.prompt)}
+                            onToggleSelect={() => togglePromptSelection(p.prompt)}
+                            onAccept={() => {
+                              if (onAcceptPrompt) {
+                                onAcceptPrompt(p.prompt);
+                                toast.success('Prompt added');
+                              }
+                            }}
+                          />
+                        ))}
+                      </div>
                     )}
-                  </TabsTrigger>
+                  </TabsContent>
                 );
               })}
-            </TabsList>
-
-            {INTENT_TYPES.map(intent => {
-              const intentPrompts = promptsByIntent[intent] || [];
-              const config = INTENT_CONFIG[intent];
-              
-              return (
-                <TabsContent key={intent} value={intent} className="mt-0">
-                  <div className="text-sm text-muted-foreground mb-3">
-                    {config.description}
-                  </div>
-
-                  {intentPrompts.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No prompts match your filters for this intent type
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {intentPrompts.map((p, idx) => (
-                        <PromptCard
-                          key={`${intent}-${idx}`}
-                          prompt={p}
-                          intentConfig={config}
-                          isSelected={selectedPrompts.has(p.prompt)}
-                          onToggleSelect={() => togglePromptSelection(p.prompt)}
-                          onAccept={() => {
-                            if (onAcceptPrompt) {
-                              onAcceptPrompt(p.prompt);
-                              toast.success('Prompt added');
-                            }
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        )}
-      </CardContent>
-    </Card>
+            </Tabs>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
