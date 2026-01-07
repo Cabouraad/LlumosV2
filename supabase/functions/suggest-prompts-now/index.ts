@@ -124,6 +124,7 @@ Deno.serve(async (req) => {
     console.log('Brand Strength:', intelligenceContext.brandStrength.type);
     console.log('Geographic Scope:', intelligenceContext.geographicScope.type);
     console.log('Conversion Goal:', intelligenceContext.conversionGoal);
+    console.log('AI Intent Focus:', JSON.stringify(intelligenceContext.aiIntentFocus));
     console.log('Inference Notes:', intelligenceContext.inferenceNotes);
     console.log('====================================');
 
@@ -191,111 +192,119 @@ LOCALIZATION ENABLED (${intelligenceContext.geographicScope.type} scope):
 LOCALIZATION DISABLED: Generate only industry/category-focused prompts without geographic specificity.`;
     }
 
-    // Build the enhanced system prompt using the intelligence context
-    const systemPrompt = `You are an expert prompt strategist for AI visibility optimization. Your task is to generate high-quality search prompts that real users would type into AI assistants (ChatGPT, Claude, Perplexity) when looking for solutions.
+    // Build the enhanced system prompt using AI-native intent categories
+    const systemPrompt = `You are an expert at generating REAL AI search prompts - exactly how humans naturally speak to ChatGPT, Claude, or Perplexity.
 
 ${formattedContext}
 ${locationInstructions}
 
-## PROMPT GENERATION STRATEGY
+## AI-NATIVE INTENT CATEGORIES
 
-Based on the Prompt Intelligence Context above, generate prompts that:
+Classify each prompt into ONE of these categories based on real AI search behavior:
 
-### 1. BUYER INTENT DISTRIBUTION
-${intelligenceContext.buyerIntentTypes.informational ? '- 30% INFORMATIONAL: "How does...", "What is the best way to...", "Guide to..."' : ''}
-${intelligenceContext.buyerIntentTypes.comparative ? '- 35% COMPARATIVE: "X vs Y", "Best alternatives to...", "Top 10...", "Compare..."' : ''}
-${intelligenceContext.buyerIntentTypes.transactional ? '- 25% TRANSACTIONAL: "Best [product] for...", "Top rated...", "Which [product] should I..."' : ''}
-- 10% DISCOVERY: Category/industry exploration queries
+1. **DISCOVERY** (Learning / Awareness)
+   - User is exploring, learning, or becoming aware of solutions
+   - Examples: "I'm trying to understand...", "What should I know about...", "Help me learn about..."
 
-### 2. BRAND POSITIONING STRATEGY (${intelligenceContext.brandStrength.type})
+2. **VALIDATION** (Trust / Reviews / Proof)
+   - User wants social proof, reviews, case studies, or credibility signals
+   - Examples: "Is [solution] actually good?", "What do people say about...", "Has anyone used..."
+
+3. **COMPARISON** (Alternatives / vs / Best)
+   - User is actively comparing options or looking for alternatives
+   - Examples: "What's better, X or Y?", "Give me alternatives to...", "How does X compare to..."
+
+4. **RECOMMENDATION** (What should I choose)
+   - User wants a specific recommendation tailored to their situation
+   - Examples: "What would you recommend for...", "Which [product] is best if I...", "Help me pick..."
+
+5. **ACTION** (Buy / Visit / Contact)
+   - User is ready to take action and needs the final push
+   - Examples: "Where can I get...", "How do I sign up for...", "What's the best way to start with..."
+
+6. **LOCAL_INTENT** (Near me / In [city])
+   - User wants geographically relevant results
+   - Examples: "...in [city]", "...near me", "...in my area"
+
+## PROMPT GENERATION RULES
+
+### ✅ DO:
+- Write EXACTLY how a human would speak or type to ChatGPT
+- Use incomplete sentences, casual phrasing, and natural speech patterns
+- Include context and personal situation details
+- Use first person ("I need...", "I'm looking for...", "Can you help me...")
+- Add qualifiers like "honestly", "actually", "I think"
+- Express uncertainty or emotion where natural
+
+### ❌ DON'T:
+- Use SEO-style keyword phrases ("best top rated affordable")
+- Stuff multiple keywords together unnaturally
+- Write perfect grammatically formal questions
+- Use marketing buzzwords
+- Include the business name "${intelligenceContext.businessName}" or domain
+
+### NATURAL PROMPT EXAMPLES:
+- ❌ BAD: "best CRM software small business affordable 2024"
+- ✅ GOOD: "I run a small marketing agency and I'm drowning in spreadsheets - what CRM would actually help without breaking the bank?"
+
+- ❌ BAD: "top project management tools comparison features pricing"  
+- ✅ GOOD: "my team keeps missing deadlines because we use like 5 different apps to track projects, what should we switch to?"
+
+- ❌ BAD: "enterprise SaaS solution reviews ratings"
+- ✅ GOOD: "has anyone actually used [competitor] for a team of 50+? is it worth the price?"
+
+## BRAND POSITIONING: ${intelligenceContext.brandStrength.type.toUpperCase()}
 ${intelligenceContext.brandStrength.type === 'known' 
-  ? '- Include prompts where the brand would naturally be mentioned as a leader\n- Focus on differentiation and premium positioning' 
+  ? 'Generate prompts where a market leader would naturally be mentioned or recommended.'
   : intelligenceContext.brandStrength.type === 'challenger'
-    ? '- Focus on comparison queries against larger competitors\n- Include "alternatives to [competitor]" patterns\n- Emphasize unique value propositions'
-    : '- Focus on category/niche discovery queries\n- Include problem-focused prompts where brand can emerge as a solution\n- Target underserved segments'}
+    ? 'Focus on "alternatives to [competitor]" and comparison prompts where challenger brands get discovered.'
+    : 'Focus on problem/pain-point prompts where emerging solutions get recommended as hidden gems.'}
 
-### 3. CONVERSION GOAL ALIGNMENT (${intelligenceContext.conversionGoal})
-${intelligenceContext.conversionGoal === 'lead' ? '- Emphasize research/evaluation stage queries' : ''}
-${intelligenceContext.conversionGoal === 'trial' ? '- Include "try", "free", "test" oriented queries' : ''}
-${intelligenceContext.conversionGoal === 'purchase' ? '- Include pricing, buying, "best for" queries' : ''}
-${intelligenceContext.conversionGoal === 'demo' ? '- Focus on enterprise evaluation queries' : ''}
-${intelligenceContext.conversionGoal === 'store_visit' ? '- Include local discovery and "near me" queries' : ''}
+## CONVERSION GOAL: ${intelligenceContext.conversionGoal.toUpperCase()}
+${intelligenceContext.conversionGoal === 'lead' ? 'Emphasize research-stage prompts where users are gathering information.' : ''}
+${intelligenceContext.conversionGoal === 'trial' ? 'Include prompts about trying, testing, or getting started easily.' : ''}
+${intelligenceContext.conversionGoal === 'purchase' ? 'Include prompts about buying decisions, pricing concerns, and value.' : ''}
+${intelligenceContext.conversionGoal === 'demo' ? 'Focus on enterprise evaluation and seeing the product in action.' : ''}
+${intelligenceContext.conversionGoal === 'store_visit' ? 'Include prompts about finding locations and visiting in person.' : ''}
 
-### 4. ICP TARGETING
-Target audience segments: ${intelligenceContext.idealCustomerProfile.segments.join(', ')}
-Address pain points: ${intelligenceContext.idealCustomerProfile.painPoints.join(', ')}
+## TARGET AUDIENCE
+- Segments: ${intelligenceContext.idealCustomerProfile.segments.join(', ')}
+- Pain points: ${intelligenceContext.idealCustomerProfile.painPoints.join(', ')}
+${intelligenceContext.competitors.known.length > 0 ? `- Competitors to reference: ${intelligenceContext.competitors.known.join(', ')}` : ''}
 
-### CRITICAL RULES
-- NEVER include the business name "${intelligenceContext.businessName}" or domain in prompts
-- Make prompts sound natural and conversational
-- Each prompt should be unique and serve a distinct search intent
-${intelligenceContext.competitors.known.length > 0 ? `- You may reference these competitors in comparison prompts: ${intelligenceContext.competitors.known.join(', ')}` : '- Focus on category-level comparisons since no specific competitors were provided'}
+Generate 15 prompts with this intent distribution:
+- 3 DISCOVERY prompts (learning/awareness)
+- 2 VALIDATION prompts (trust/proof seeking)
+- 4 COMPARISON prompts (alternatives/vs)
+- 3 RECOMMENDATION prompts (what should I choose)
+- 2 ACTION prompts (ready to move forward)
+${intelligenceContext.geographicScope.type !== 'global' ? '- 1 LOCAL_INTENT prompt (location-specific)' : ''}
 
-Your task is to create realistic search queries that potential customers might use when looking for solutions in this business space. These should sound like genuine questions people ask AI assistants.
-
-CRITICAL: NEVER include the company name "${contextName}" or domain "${contextDomain}" in any of the generated prompts. Focus on the industry, problems, and solutions without mentioning the specific company.
-${locationInstructions}
-
-Business Context (for understanding the industry, not for including in prompts):
-- Industry/Description: ${businessDescription || 'Not specified'}
-- Products/Services: ${productsServices || 'Not specified'}
-- Keywords: ${keywords?.join(', ') || 'Not specified'}
-- Target Audience: ${targetAudience || 'Not specified'}${locationContext}
-
-Generate 15 diverse, natural search prompts that potential customers might use when looking for solutions in this industry. Each prompt should:
-
-1. Sound like a real question someone would ask an AI assistant
-2. Be relevant to the business context and industry
-3. Help monitor brand visibility or competitor analysis
-4. Be conversational and natural (not keyword-stuffed)
-5. Cover different aspects: comparison, recommendations, best practices, selection criteria
-6. NEVER mention the company name, brand name, or domain
-
-Categorize each prompt as one of:
-- "brand_visibility" (for prompts where their brand should appear)
-- "competitor_analysis" (for competitor comparison queries)  
-- "market_research" (for industry/solution discovery)
-
-For each prompt, estimate the monthly search volume using this scale:
-- "high" (10000+): Very common questions asked frequently across the industry
-- "medium" (1000-10000): Moderately popular queries with good search intent
-- "low" (100-1000): More specific/niche queries but still valuable
-- "very_low" (<100): Highly specific or emerging queries
-
-Also provide a numeric estimate (your best guess of monthly searches).
-
-Generate 15 prompts with this distribution:
-- 5 informational/educational prompts
-- 5 comparative/evaluation prompts  
-- 3 transactional/solution-seeking prompts
-- 2 discovery/exploration prompts
-
-Return ONLY a JSON array with this exact format:
+Return ONLY a JSON array:
 [
   {
-    "text": "What are the best project management tools for remote teams?",
-    "intent": "comparative",
+    "text": "I've been using Notion but it's getting messy with 20 people - what do teams actually switch to?",
+    "intent": "comparison",
     "source": "brand_visibility",
-    "reasoning": "Targets remote work segment with comparative intent - high purchase potential",
-    "volume_tier": "high",
-    "estimated_volume": 15000
+    "reasoning": "Comparison intent from Notion user - targets teams outgrowing basic tools",
+    "volume_tier": "medium",
+    "estimated_volume": 2500
   }
 ]
 
-Categorize each prompt source as:
-- "brand_visibility" - prompts where this brand should appear
-- "competitor_analysis" - competitor comparison queries
-- "market_research" - industry/solution discovery`;
+Intent must be one of: discovery, validation, comparison, recommendation, action, local_intent
+Source must be one of: brand_visibility, competitor_analysis, market_research`;
 
-    const userPrompt = `Generate 15 high-quality search prompts based on the Prompt Intelligence Context provided. 
+    const userPrompt = `Generate 15 natural, conversational AI search prompts for this business context.
 
-Focus on:
-1. The ${intelligenceContext.idealCustomerProfile.segments[0] || 'target'} segment
-2. Addressing: ${intelligenceContext.idealCustomerProfile.painPoints.slice(0, 3).join(', ')}
-3. The ${intelligenceContext.conversionGoal} conversion goal
-${intelligenceContext.competitors.known.length > 0 ? `4. Competitive positioning against: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
+Key targeting:
+- Primary segment: ${intelligenceContext.idealCustomerProfile.segments[0] || 'business professionals'}
+- Key pain points: ${intelligenceContext.idealCustomerProfile.painPoints.slice(0, 3).join(', ')}
+- Conversion goal: ${intelligenceContext.conversionGoal}
+${intelligenceContext.competitors.known.length > 0 ? `- Reference competitors: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
+${intelligenceContext.geographicScope.type !== 'global' ? `- Include 1 location-specific prompt for: ${[intelligenceContext.geographicScope.primaryLocation?.city, intelligenceContext.geographicScope.primaryLocation?.state].filter(Boolean).join(', ')}` : ''}
 
-Make each prompt sound like a real question someone would ask ChatGPT or Claude.`;
+Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be casual, use first person, include context about their situation.`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
