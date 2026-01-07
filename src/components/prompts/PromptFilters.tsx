@@ -25,7 +25,7 @@ interface PromptFiltersProps {
   availableIntentTypes?: string[];
 }
 
-const DEFAULT_FUNNEL_STAGES = ['TOFU', 'MOFU', 'BOFU'];
+const DEFAULT_FUNNEL_STAGES = ['Top of Funnel', 'Middle of Funnel', 'Bottom of Funnel'];
 const DEFAULT_INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'];
 
 const INTENT_LABELS: Record<string, string> = {

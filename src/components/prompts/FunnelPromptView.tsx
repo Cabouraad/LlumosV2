@@ -67,7 +67,7 @@ const FUNNEL_CONFIG: Record<FunnelStage, {
   bgColor: string;
 }> = {
   TOFU: {
-    label: 'TOFU',
+    label: 'Top of Funnel',
     fullName: 'Top of Funnel',
     icon: Search,
     description: 'Awareness & Discovery',
@@ -75,7 +75,7 @@ const FUNNEL_CONFIG: Record<FunnelStage, {
     bgColor: 'bg-blue-50 border-blue-200',
   },
   MOFU: {
-    label: 'MOFU',
+    label: 'Middle of Funnel',
     fullName: 'Middle of Funnel',
     icon: Target,
     description: 'Consideration & Comparison',
@@ -83,7 +83,7 @@ const FUNNEL_CONFIG: Record<FunnelStage, {
     bgColor: 'bg-amber-50 border-amber-200',
   },
   BOFU: {
-    label: 'BOFU',
+    label: 'Bottom of Funnel',
     fullName: 'Bottom of Funnel',
     icon: ShoppingCart,
     description: 'Decision & Action',
