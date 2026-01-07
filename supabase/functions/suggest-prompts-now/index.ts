@@ -291,6 +291,39 @@ ${intelligenceContext.conversionGoal === 'store_visit' ? 'Include prompts about 
 - Pain points: ${intelligenceContext.idealCustomerProfile.painPoints.join(', ')}
 ${intelligenceContext.competitors.known.length > 0 ? `- Competitors to reference: ${intelligenceContext.competitors.known.join(', ')}` : ''}
 
+${intelligenceContext.competitors.known.length > 0 ? `
+## COMPETITIVE INTERCEPTION PROMPTS (MANDATORY)
+
+Since competitors are known, you MUST include at least 4 competitive interception prompts. These target users actively researching or using competitors.
+
+Write these EXACTLY how a real person would ask ChatGPT - casual, first-person, with context:
+
+**Patterns to use (pick naturally based on competitor):**
+- "[Competitor] vs alternatives" → "I'm using [Competitor] but honestly it's frustrating me - what else is out there?"
+- "Best alternative to [Competitor]" → "what's a good alternative to [Competitor]? I need something that actually [pain point]"
+- "Is [something] better than [Competitor]" → "has anyone switched from [Competitor] to something else? was it worth it?"
+- "[Competitor] or [other option]" → "trying to decide between [Competitor] and something simpler - which would you recommend for [use case]?"
+
+**Competitive Interception Examples:**
+- ❌ BAD: "Salesforce vs HubSpot CRM comparison features pricing 2024"
+- ✅ GOOD: "I've been on Salesforce for 2 years and it's honestly overkill for our 10-person team - what do people switch to?"
+
+- ❌ BAD: "best alternative to Monday.com project management"
+- ✅ GOOD: "Monday.com is driving me crazy with all the clicking - is there something more streamlined for a small dev team?"
+
+- ❌ BAD: "is Asana better than Trello"
+- ✅ GOOD: "we've outgrown Trello but Asana seems complicated - what would you actually recommend for a marketing team of 8?"
+
+- ❌ BAD: "Slack vs Microsoft Teams comparison"
+- ✅ GOOD: "my company is pushing us to Teams but I love Slack - is Teams actually that bad or am I being dramatic?"
+
+**Known competitors to target: ${intelligenceContext.competitors.known.join(', ')}**
+
+Distribute competitive prompts across funnel stages:
+- 1-2 in MOFU (comparison/validation stage)
+- 2-3 in BOFU (decision stage)
+` : ''}
+
 ## REQUIRED FUNNEL DISTRIBUTION (MANDATORY)
 
 You MUST generate exactly 18 prompts with this distribution:
@@ -303,6 +336,7 @@ Intent distribution within funnel stages:
 - MOFU: mix of validation, comparison, recommendation intents
 - BOFU: primarily recommendation and action intents
 ${intelligenceContext.geographicScope.type !== 'global' ? '- Include 2-3 local_intent prompts spread across funnel stages' : ''}
+${intelligenceContext.competitors.known.length > 0 ? '- Include at least 4 competitive interception prompts in MOFU/BOFU' : ''}
 
 Return ONLY a JSON array:
 [
@@ -350,12 +384,16 @@ Key targeting:
 - Primary segment: ${intelligenceContext.idealCustomerProfile.segments[0] || 'business professionals'}
 - Key pain points: ${intelligenceContext.idealCustomerProfile.painPoints.slice(0, 3).join(', ')}
 - Conversion goal: ${intelligenceContext.conversionGoal}
-${intelligenceContext.competitors.known.length > 0 ? `- Reference competitors in MOFU/BOFU: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
+${intelligenceContext.competitors.known.length > 0 ? `
+COMPETITIVE INTERCEPTION REQUIRED:
+- Include at least 4 prompts that directly reference these competitors: ${intelligenceContext.competitors.known.slice(0, 5).join(', ')}
+- Use natural patterns like "I'm using [Competitor] but...", "what's better than [Competitor]", "anyone switched from [Competitor]?"
+- Place 1-2 in MOFU, 2-3 in BOFU` : ''}
 ${intelligenceContext.geographicScope.type !== 'global' ? `- Include 2-3 location-specific prompts for: ${[intelligenceContext.geographicScope.primaryLocation?.city, intelligenceContext.geographicScope.primaryLocation?.state].filter(Boolean).join(', ')}` : ''}
 
 Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be casual, use first person, include context about their situation.
 
-IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).`;
+IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${intelligenceContext.competitors.known.length > 0 ? ' At least 4 must be competitive interception prompts targeting known competitors.' : ''}`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
