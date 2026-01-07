@@ -1933,6 +1933,8 @@ export type Database = {
           created_at: string
           error_message: string | null
           generation_params: Json
+          guidance_generated_at: string | null
+          guidance_version: number
           id: string
           llm_model: string | null
           org_id: string
@@ -1951,6 +1953,8 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           generation_params?: Json
+          guidance_generated_at?: string | null
+          guidance_version?: number
           id?: string
           llm_model?: string | null
           org_id: string
@@ -1969,6 +1973,8 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           generation_params?: Json
+          guidance_generated_at?: string | null
+          guidance_version?: number
           id?: string
           llm_model?: string | null
           org_id?: string

@@ -347,3 +347,6 @@ verify_jwt = true
 
 [functions.score-prompt-suggestions]
 verify_jwt = true
+
+[functions.generate-optimization-guidance]
+verify_jwt = true
