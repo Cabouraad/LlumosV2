@@ -338,3 +338,6 @@ verify_jwt = true
 
 [functions.generate-competitor-prompts]
 verify_jwt = true
+
+[functions.generate-local-geo-prompts]
+verify_jwt = true
