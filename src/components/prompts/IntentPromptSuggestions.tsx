@@ -6,7 +6,7 @@
  * Now includes confidence scoring, filtering, and top prompts view.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
 import { 
@@ -155,13 +156,51 @@ export function IntentPromptSuggestions({
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [filters, setFilters] = useState<PromptFiltersState>(defaultFilters);
   const [scoringTriggered, setScoringTriggered] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const initialLoadDone = useRef(false);
+  const isGenerating = useRef(false);
 
-  // Generate prompts
-  const generatePrompts = async (forceNew = false) => {
-    if (!user) return;
+  // Fetch cached prompts from database (no generation)
+  const fetchCachedPrompts = useCallback(async () => {
+    if (!user) return null;
     
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('org_id')
+        .eq('id', user.id)
+        .single();
+
+      if (!userData?.org_id) return null;
+
+      const { data: suggestions } = await supabase
+        .from('prompt_suggestions')
+        .select('prompts_json, generation_params')
+        .eq('org_id', userData.org_id)
+        .eq('suggestion_type', 'core_intent')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (suggestions?.prompts_json) {
+        const promptsData = suggestions.prompts_json as unknown as GeneratedPrompt[];
+        return promptsData;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching cached prompts:', err);
+      return null;
+    }
+  }, [user]);
+
+  // Generate prompts (only when explicitly called)
+  const generatePrompts = useCallback(async (forceNew = false) => {
+    if (!user || isGenerating.current) return;
+    
+    isGenerating.current = true;
     setLoading(true);
     setError(null);
+    setGenerationProgress(10);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -171,15 +210,19 @@ export function IntentPromptSuggestions({
         throw new Error('No authentication token');
       }
 
+      setGenerationProgress(20);
+
       const response = await supabase.functions.invoke('generate-intent-prompts', {
         body: { 
           brandId, 
           params: { 
-            countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent, // Request more on regenerate
+            countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent,
             language: 'en-US' 
           } 
         },
       });
+
+      setGenerationProgress(70);
 
       if (response.error) {
         throw new Error(response.error.message || 'Failed to generate prompts');
@@ -191,37 +234,44 @@ export function IntentPromptSuggestions({
         throw new Error(result.error || 'Generation failed');
       }
 
-      setPrompts(result.data || result.partialData || []);
+      const newPrompts = result.data || result.partialData || [];
+      setPrompts(newPrompts);
       setContext(result.context);
+      setGenerationProgress(85);
       
-      // Trigger scoring if prompts don't have scores
-      const hasScores = (result.data || result.partialData || []).some((p: GeneratedPrompt) => typeof p.confidence_score === 'number');
+      // Trigger scoring if prompts don't have scores (only once)
+      const hasScores = newPrompts.some((p: GeneratedPrompt) => typeof p.confidence_score === 'number');
       if (!hasScores && !scoringTriggered) {
         setScoringTriggered(true);
-        triggerScoring();
+        // Score in background, don't wait or refetch
+        triggerScoringBackground();
       }
+      
+      setGenerationProgress(100);
     } catch (err) {
       console.error('Error generating prompts:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate prompts');
       toast.error('Failed to generate prompts');
     } finally {
       setLoading(false);
+      isGenerating.current = false;
+      // Reset progress after a delay
+      setTimeout(() => setGenerationProgress(0), 500);
     }
-  };
+  }, [user, brandId, countPerIntent, scoringTriggered]);
 
-  // Trigger scoring for prompts + guidance
-  const triggerScoring = async () => {
+  // Trigger scoring in background (no refetch to avoid loop)
+  const triggerScoringBackground = async () => {
     try {
-      // First score prompts
       await supabase.functions.invoke('score-prompt-suggestions', {
         body: { brandId },
       });
-      // Then generate optimization guidance
       await supabase.functions.invoke('generate-optimization-guidance', {
         body: { brandId },
       });
-      // Re-fetch prompts to get scores and guidance
-      await generatePrompts(false);
+      // Fetch updated prompts from cache
+      const updated = await fetchCachedPrompts();
+      if (updated) setPrompts(updated);
     } catch (err) {
       console.error('Error triggering scoring/guidance:', err);
     }
@@ -285,11 +335,37 @@ export function IntentPromptSuggestions({
     }
   };
 
-  // Load on mount
+  // Load on mount - only once per brandId
   useEffect(() => {
-    generatePrompts();
-    fetchVariants();
-  }, [brandId, user]);
+    if (!user) return;
+    
+    // Prevent duplicate calls
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    
+    const init = async () => {
+      // Try to fetch cached prompts first
+      const cached = await fetchCachedPrompts();
+      if (cached && cached.length > 0) {
+        setPrompts(cached);
+      } else {
+        // Only generate if no cached prompts
+        await generatePrompts();
+      }
+      fetchVariants();
+    };
+    
+    init();
+  }, [user, fetchCachedPrompts]);
+
+  // Reset on brandId change
+  useEffect(() => {
+    if (brandId) {
+      initialLoadDone.current = false;
+      setScoringTriggered(false);
+      setPrompts([]);
+    }
+  }, [brandId]);
 
   // Filter and sort prompts
   const filteredPrompts = useMemo(() => {
@@ -346,7 +422,7 @@ export function IntentPromptSuggestions({
     toast.success(`Added ${selectedPrompts.size} prompts`);
   };
 
-  // Loading state
+  // Loading state with progress bar
   if (loading && prompts.length === 0) {
     return (
       <Card>
@@ -357,9 +433,21 @@ export function IntentPromptSuggestions({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Generating AI-native prompts...</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Generating AI-native prompts...</span>
+              </div>
+              <span className="text-muted-foreground font-medium">{generationProgress}%</span>
+            </div>
+            <Progress value={generationProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              {generationProgress < 30 && "Analyzing your business context..."}
+              {generationProgress >= 30 && generationProgress < 70 && "Generating prompts for all intent types..."}
+              {generationProgress >= 70 && generationProgress < 90 && "Validating and organizing prompts..."}
+              {generationProgress >= 90 && "Almost done!"}
+            </p>
           </div>
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map(i => (
