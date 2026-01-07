@@ -18,6 +18,7 @@ import { getSuggestedPrompts, acceptSuggestion, dismissSuggestion, generateSugge
 import { PromptList } from '@/components/PromptList';
 import { KeywordManagement } from '@/components/KeywordManagement';
 import { PromptSuggestions } from '@/components/PromptSuggestions';
+import { IntentPromptSuggestions } from '@/components/prompts/IntentPromptSuggestions';
 import { BatchPromptRunner } from '@/components/BatchPromptRunner';
 import { ProviderDebugPanel } from '@/components/ProviderDebugPanel';
 import { DateRangePicker } from '@/components/DateRangePicker';
@@ -25,7 +26,7 @@ import { getPromptCategory } from '@/lib/prompt-utils';
 import { useAdminAccess } from '@/hooks/useAdminAccess';
 import { useClusterPrompts } from '@/hooks/useClusterPrompts';
 import { usePromptsOnboardingTour } from '@/hooks/usePromptsOnboardingTour';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Sparkles, Zap } from 'lucide-react';
 import { FreeTierUpgradeModal } from '@/components/FreeTierUpgradeModal';
 
 // Transform the existing prompt data to match the PromptList interface
@@ -713,9 +714,13 @@ export default function Prompts() {
             </div>
 
             <Tabs defaultValue="prompts" className="w-full">
-              <TabsList className={`grid w-full ${isTestUser ? 'grid-cols-4' : 'grid-cols-3'} rounded-2xl bg-card/80 backdrop-blur-sm shadow-soft p-1 border border-border/50`}>
+              <TabsList className={`grid w-full ${isTestUser ? 'grid-cols-5' : 'grid-cols-4'} rounded-2xl bg-card/80 backdrop-blur-sm shadow-soft p-1 border border-border/50`}>
                 <TabsTrigger value="prompts" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">My Prompts</TabsTrigger>
-                <TabsTrigger value="suggestions" data-tour="prompt-suggestions" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Prompt Suggestions</TabsTrigger>
+                <TabsTrigger value="intent-suggestions" data-tour="intent-prompts" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-1">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>Intent Prompts</span>
+                </TabsTrigger>
+                <TabsTrigger value="suggestions" data-tour="prompt-suggestions" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Classic Suggestions</TabsTrigger>
                 <TabsTrigger value="keywords" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Business Context</TabsTrigger>
                 {isTestUser && (
                   <TabsTrigger value="debug" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Debug Tools</TabsTrigger>
@@ -733,6 +738,81 @@ export default function Prompts() {
                   onEditPrompt={handleEditPrompt}
                   onDuplicatePrompt={handleDuplicatePrompt}
                   onAddPrompt={() => setIsAddModalOpen(true)}
+                />
+              </TabsContent>
+
+              <TabsContent value="intent-suggestions" className="mt-6">
+                <IntentPromptSuggestions
+                  brandId={selectedBrand?.id}
+                  onAcceptPrompt={async (promptText) => {
+                    // Check billing limits before adding prompt
+                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
+                    const canCreate = canCreatePrompts(activePromptsCount);
+                    if (!canCreate.hasAccess) {
+                      if (limits.isFreeTier) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        toast({ 
+                          title: 'Subscription Limit Reached', 
+                          description: canCreate.reason, 
+                          variant: 'destructive' 
+                        });
+                      }
+                      return;
+                    }
+
+                    // Create prompt directly
+                    const insertData: any = {
+                      org_id: orgData?.organizations?.id,
+                      text: promptText.trim(),
+                      active: true
+                    };
+                    if (selectedBrand) {
+                      insertData.brand_id = selectedBrand.id;
+                    }
+                    
+                    const { error } = await supabase.from('prompts').insert(insertData);
+                    if (error) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } else {
+                      invalidateCache(['dashboard-data', 'prompt-data']);
+                      loadPromptsData();
+                    }
+                  }}
+                  onAcceptMultiple={async (promptTexts) => {
+                    // Check billing limits
+                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
+                    const canCreate = canCreatePrompts(activePromptsCount + promptTexts.length - 1);
+                    if (!canCreate.hasAccess) {
+                      if (limits.isFreeTier) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        toast({ 
+                          title: 'Subscription Limit Reached', 
+                          description: canCreate.reason, 
+                          variant: 'destructive' 
+                        });
+                      }
+                      return;
+                    }
+
+                    // Create prompts in bulk
+                    const insertData = promptTexts.map(text => ({
+                      org_id: orgData?.organizations?.id,
+                      text: text.trim(),
+                      active: true,
+                      ...(selectedBrand ? { brand_id: selectedBrand.id } : {})
+                    }));
+                    
+                    const { error } = await supabase.from('prompts').insert(insertData);
+                    if (error) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: 'Success', description: `Added ${promptTexts.length} prompts` });
+                      invalidateCache(['dashboard-data', 'prompt-data']);
+                      loadPromptsData();
+                    }
+                  }}
                 />
               </TabsContent>
 

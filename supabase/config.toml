@@ -329,3 +329,6 @@ verify_jwt = false
 
 [functions.local-authority-run-get]
 verify_jwt = false
+
+[functions.generate-intent-prompts]
+verify_jwt = true
