@@ -1926,6 +1926,76 @@ export type Database = {
           },
         ]
       }
+      prompt_suggestions: {
+        Row: {
+          brand_id: string | null
+          context_id: string | null
+          created_at: string
+          error_message: string | null
+          generation_params: Json
+          id: string
+          llm_model: string | null
+          org_id: string
+          prompt_hash: string
+          prompts_json: Json
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          brand_id?: string | null
+          context_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          generation_params?: Json
+          id?: string
+          llm_model?: string | null
+          org_id: string
+          prompt_hash: string
+          prompts_json?: Json
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          brand_id?: string | null
+          context_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          generation_params?: Json
+          id?: string
+          llm_model?: string | null
+          org_id?: string
+          prompt_hash?: string
+          prompts_json?: Json
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_suggestions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prompt_suggestions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "org_brand_detection_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "prompt_suggestions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prompts: {
         Row: {
           active: boolean
