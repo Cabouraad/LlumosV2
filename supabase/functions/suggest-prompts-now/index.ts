@@ -192,39 +192,61 @@ LOCALIZATION ENABLED (${intelligenceContext.geographicScope.type} scope):
 LOCALIZATION DISABLED: Generate only industry/category-focused prompts without geographic specificity.`;
     }
 
-    // Build the enhanced system prompt using AI-native intent categories
+    // Build the enhanced system prompt using AI-native intent categories and funnel stages
     const systemPrompt = `You are an expert at generating REAL AI search prompts - exactly how humans naturally speak to ChatGPT, Claude, or Perplexity.
 
 ${formattedContext}
 ${locationInstructions}
 
+## FUNNEL STAGE CLASSIFICATION
+
+Every prompt MUST be classified into one of three funnel stages:
+
+### TOFU (Top of Funnel) - Awareness & Education
+Users are just becoming aware of a problem or exploring solutions.
+Patterns: "What is...", "How does...", "Why would I...", "I'm trying to understand...", "Can you explain..."
+Examples:
+- "What even is a CRM and do I actually need one for my 5-person team?"
+- "How does project management software actually help with deadlines?"
+- "Why would I pay for email marketing when I can just use Gmail?"
+
+### MOFU (Middle of Funnel) - Consideration & Evaluation  
+Users are actively comparing options and evaluating solutions.
+Patterns: "Is [brand] good", "Best option for...", "Alternatives to...", "[X] vs [Y]", "What do people think of..."
+Examples:
+- "Is Slack actually worth it or is Teams good enough?"
+- "What are the best options for a small business CRM under $50/month?"
+- "I've been using Trello but need something more powerful - alternatives?"
+
+### BOFU (Bottom of Funnel) - Decision & Action
+Users are ready to make a decision and take action.
+Patterns: "Should I choose...", "Where can I buy...", "Who offers...", "How do I get started with...", "What's the pricing for..."
+Examples:
+- "Should I go with HubSpot or Salesforce for a 20-person sales team?"
+- "Where can I get a free trial of Notion for my team?"
+- "Who offers the best onboarding support for accounting software?"
+
 ## AI-NATIVE INTENT CATEGORIES
 
 Classify each prompt into ONE of these categories based on real AI search behavior:
 
-1. **DISCOVERY** (Learning / Awareness)
+1. **DISCOVERY** (Learning / Awareness) → Usually TOFU
    - User is exploring, learning, or becoming aware of solutions
-   - Examples: "I'm trying to understand...", "What should I know about...", "Help me learn about..."
 
-2. **VALIDATION** (Trust / Reviews / Proof)
+2. **VALIDATION** (Trust / Reviews / Proof) → Usually MOFU
    - User wants social proof, reviews, case studies, or credibility signals
-   - Examples: "Is [solution] actually good?", "What do people say about...", "Has anyone used..."
 
-3. **COMPARISON** (Alternatives / vs / Best)
+3. **COMPARISON** (Alternatives / vs / Best) → Usually MOFU
    - User is actively comparing options or looking for alternatives
-   - Examples: "What's better, X or Y?", "Give me alternatives to...", "How does X compare to..."
 
-4. **RECOMMENDATION** (What should I choose)
+4. **RECOMMENDATION** (What should I choose) → Can be MOFU or BOFU
    - User wants a specific recommendation tailored to their situation
-   - Examples: "What would you recommend for...", "Which [product] is best if I...", "Help me pick..."
 
-5. **ACTION** (Buy / Visit / Contact)
+5. **ACTION** (Buy / Visit / Contact) → Usually BOFU
    - User is ready to take action and needs the final push
-   - Examples: "Where can I get...", "How do I sign up for...", "What's the best way to start with..."
 
-6. **LOCAL_INTENT** (Near me / In [city])
+6. **LOCAL_INTENT** (Near me / In [city]) → Can be any funnel stage
    - User wants geographically relevant results
-   - Examples: "...in [city]", "...near me", "...in my area"
 
 ## PROMPT GENERATION RULES
 
@@ -250,9 +272,6 @@ Classify each prompt into ONE of these categories based on real AI search behavi
 - ❌ BAD: "top project management tools comparison features pricing"  
 - ✅ GOOD: "my team keeps missing deadlines because we use like 5 different apps to track projects, what should we switch to?"
 
-- ❌ BAD: "enterprise SaaS solution reviews ratings"
-- ✅ GOOD: "has anyone actually used [competitor] for a team of 50+? is it worth the price?"
-
 ## BRAND POSITIONING: ${intelligenceContext.brandStrength.type.toUpperCase()}
 ${intelligenceContext.brandStrength.type === 'known' 
   ? 'Generate prompts where a market leader would naturally be mentioned or recommended.'
@@ -272,39 +291,71 @@ ${intelligenceContext.conversionGoal === 'store_visit' ? 'Include prompts about 
 - Pain points: ${intelligenceContext.idealCustomerProfile.painPoints.join(', ')}
 ${intelligenceContext.competitors.known.length > 0 ? `- Competitors to reference: ${intelligenceContext.competitors.known.join(', ')}` : ''}
 
-Generate 15 prompts with this intent distribution:
-- 3 DISCOVERY prompts (learning/awareness)
-- 2 VALIDATION prompts (trust/proof seeking)
-- 4 COMPARISON prompts (alternatives/vs)
-- 3 RECOMMENDATION prompts (what should I choose)
-- 2 ACTION prompts (ready to move forward)
-${intelligenceContext.geographicScope.type !== 'global' ? '- 1 LOCAL_INTENT prompt (location-specific)' : ''}
+## REQUIRED FUNNEL DISTRIBUTION (MANDATORY)
+
+You MUST generate exactly 18 prompts with this distribution:
+- 6 TOFU prompts (awareness/education - "what is", "how does", "why would I")
+- 6 MOFU prompts (consideration - "is X good", "best for", "alternatives to") 
+- 6 BOFU prompts (decision - "should I choose", "where can I", "who offers")
+
+Intent distribution within funnel stages:
+- TOFU: primarily discovery intents
+- MOFU: mix of validation, comparison, recommendation intents
+- BOFU: primarily recommendation and action intents
+${intelligenceContext.geographicScope.type !== 'global' ? '- Include 2-3 local_intent prompts spread across funnel stages' : ''}
 
 Return ONLY a JSON array:
 [
   {
-    "text": "I've been using Notion but it's getting messy with 20 people - what do teams actually switch to?",
-    "intent": "comparison",
+    "text": "What even is marketing automation and do I need it for my small business?",
+    "funnel_stage": "tofu",
+    "intent": "discovery",
     "source": "brand_visibility",
+    "reasoning": "Early awareness prompt - user doesn't know if they need the solution",
+    "volume_tier": "high",
+    "estimated_volume": 5000
+  },
+  {
+    "text": "I've been using Notion but it's getting messy with 20 people - what do teams actually switch to?",
+    "funnel_stage": "mofu",
+    "intent": "comparison",
+    "source": "competitor_analysis",
     "reasoning": "Comparison intent from Notion user - targets teams outgrowing basic tools",
     "volume_tier": "medium",
     "estimated_volume": 2500
+  },
+  {
+    "text": "Should I go with Monday.com or Asana for a remote design team of 15?",
+    "funnel_stage": "bofu",
+    "intent": "recommendation",
+    "source": "brand_visibility",
+    "reasoning": "Decision-stage prompt - user is ready to choose between finalists",
+    "volume_tier": "medium",
+    "estimated_volume": 1800
   }
 ]
 
+funnel_stage must be one of: tofu, mofu, bofu
 Intent must be one of: discovery, validation, comparison, recommendation, action, local_intent
 Source must be one of: brand_visibility, competitor_analysis, market_research`;
 
-    const userPrompt = `Generate 15 natural, conversational AI search prompts for this business context.
+    const userPrompt = `Generate exactly 18 natural, conversational AI search prompts for this business context.
+
+MANDATORY FUNNEL DISTRIBUTION:
+- 6 TOFU prompts (awareness stage - "what is", "how does", "why would I")
+- 6 MOFU prompts (consideration stage - "is X good", "best for", "alternatives")
+- 6 BOFU prompts (decision stage - "should I choose", "where can I", "who offers")
 
 Key targeting:
 - Primary segment: ${intelligenceContext.idealCustomerProfile.segments[0] || 'business professionals'}
 - Key pain points: ${intelligenceContext.idealCustomerProfile.painPoints.slice(0, 3).join(', ')}
 - Conversion goal: ${intelligenceContext.conversionGoal}
-${intelligenceContext.competitors.known.length > 0 ? `- Reference competitors: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
-${intelligenceContext.geographicScope.type !== 'global' ? `- Include 1 location-specific prompt for: ${[intelligenceContext.geographicScope.primaryLocation?.city, intelligenceContext.geographicScope.primaryLocation?.state].filter(Boolean).join(', ')}` : ''}
+${intelligenceContext.competitors.known.length > 0 ? `- Reference competitors in MOFU/BOFU: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
+${intelligenceContext.geographicScope.type !== 'global' ? `- Include 2-3 location-specific prompts for: ${[intelligenceContext.geographicScope.primaryLocation?.city, intelligenceContext.geographicScope.primaryLocation?.state].filter(Boolean).join(', ')}` : ''}
 
-Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be casual, use first person, include context about their situation.`;
+Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be casual, use first person, include context about their situation.
+
+IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -318,7 +369,7 @@ Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 2500,
+        max_tokens: 4000,
         temperature: 0.75,
       }),
     });
@@ -348,15 +399,18 @@ Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be
       throw new Error('Invalid AI response format');
     }
 
-    // Filter out duplicates and validate format
+    // Validate funnel stage distribution and filter duplicates
+    const validFunnelStages = ['tofu', 'mofu', 'bofu'];
     const newSuggestions = suggestions
       .filter(suggestion => {
         const isValid = suggestion.text && suggestion.source && typeof suggestion.text === 'string';
+        const hasFunnelStage = validFunnelStages.includes(suggestion.funnel_stage?.toLowerCase());
         const isDuplicate = existingPromptTexts.includes(suggestion.text.toLowerCase()) || 
                            existingSuggestionTexts.includes(suggestion.text.toLowerCase());
-        return isValid && !isDuplicate;
+        return isValid && hasFunnelStage && !isDuplicate;
       })
-      .slice(0, 10);
+      .map(s => ({ ...s, funnel_stage: s.funnel_stage?.toLowerCase() }))
+      .slice(0, 18);
 
     if (newSuggestions.length === 0) {
       console.log('No new unique suggestions generated');
@@ -380,7 +434,7 @@ Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be
       return mapping[aiSource] || 'gap';
     };
 
-    // Insert suggestions into database with brand_id, AI-estimated search_volume, and intelligence context
+    // Insert suggestions into database with brand_id, AI-estimated search_volume, funnel stage, and intelligence context
     const insertData = newSuggestions.map((suggestion: any) => ({
       org_id: userData.org_id,
       brand_id: brandId || null,
@@ -390,6 +444,7 @@ Write each prompt EXACTLY as a real person would type or speak it to ChatGPT. Be
       metadata: {
         reasoning: suggestion.reasoning,
         intent: suggestion.intent || null,
+        funnel_stage: suggestion.funnel_stage || null,
         generated_for_brand: brandContext?.name || null,
         volume_tier: suggestion.volume_tier || null,
         volume_source: 'ai_estimated',
