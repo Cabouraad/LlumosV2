@@ -38,7 +38,6 @@ import {
 } from 'lucide-react';
 import { FunnelPromptView } from './FunnelPromptView';
 import { CompetitivePromptView } from './CompetitivePromptView';
-import { LocalGeoPromptView } from './LocalGeoPromptView';
 import { PromptVariantsExpander } from './PromptVariantsExpander';
 import { PromptConfidenceScore } from './PromptConfidenceScore';
 import { PromptFilters, defaultFilters, type PromptFiltersState } from './PromptFilters';
@@ -149,9 +148,8 @@ export function IntentPromptSuggestions({
   const [selectedPrompts, setSelectedPrompts] = useState<Set<string>>(new Set());
   const [countPerIntent, setCountPerIntent] = useState(5);
   const [showContext, setShowContext] = useState(false);
-  const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive' | 'local' | 'top'>('top');
+  const [viewMode, setViewMode] = useState<'intent' | 'funnel' | 'competitive' | 'top'>('top');
   const [includeCompetitiveInFunnel, setIncludeCompetitiveInFunnel] = useState(false);
-  const [includeLocalInFunnel, setIncludeLocalInFunnel] = useState(false);
   const [promptVariants, setPromptVariants] = useState<Record<string, { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[]>>({});
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [filters, setFilters] = useState<PromptFiltersState>(defaultFilters);
@@ -607,7 +605,7 @@ export function IntentPromptSuggestions({
             <ToggleGroup 
               type="single" 
               value={viewMode} 
-              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel' | 'competitive' | 'local' | 'top')}
+              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel' | 'competitive' | 'top')}
               className="bg-muted rounded-md p-0.5"
             >
               <ToggleGroupItem 
@@ -641,14 +639,6 @@ export function IntentPromptSuggestions({
               >
                 <Scale className="h-3.5 w-3.5 mr-1" />
                 Competitive
-              </ToggleGroupItem>
-              <ToggleGroupItem 
-                value="local" 
-                aria-label="Local Prompts"
-                className="text-xs px-2.5 py-1 h-7 data-[state=on]:bg-background"
-              >
-                <MapPin className="h-3.5 w-3.5 mr-1" />
-                Local
               </ToggleGroupItem>
             </ToggleGroup>
 
@@ -770,7 +760,6 @@ export function IntentPromptSuggestions({
             onAcceptPrompt={onAcceptPrompt}
             onAcceptMultiple={onAcceptMultiple}
             includeCompetitive={includeCompetitiveInFunnel}
-            includeLocal={includeLocalInFunnel}
           />
         ) : viewMode === 'competitive' ? (
           <CompetitivePromptView
@@ -779,14 +768,6 @@ export function IntentPromptSuggestions({
             onAcceptMultiple={onAcceptMultiple}
             includeFunnel={includeCompetitiveInFunnel}
             onIncludeFunnelChange={setIncludeCompetitiveInFunnel}
-          />
-        ) : viewMode === 'local' ? (
-          <LocalGeoPromptView
-            brandId={brandId}
-            onAcceptPrompt={onAcceptPrompt}
-            onAcceptMultiple={onAcceptMultiple}
-            includeInFunnel={includeLocalInFunnel}
-            onIncludeInFunnelChange={setIncludeLocalInFunnel}
           />
         ) : (
           /* Intent View */
