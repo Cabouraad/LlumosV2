@@ -22,12 +22,14 @@ export interface PromptIntelligenceContext {
     painPoints: string[];
   };
   
-  // Buyer Intent Classification
-  buyerIntentTypes: {
-    informational: boolean;  // "How does X work?"
-    comparative: boolean;     // "X vs Y comparison"
-    transactional: boolean;   // "Buy X", "X pricing"
-    navigational: boolean;    // "X login", "X support"
+  // AI-Native Intent Categories
+  aiIntentFocus: {
+    discovery: boolean;      // Learning / awareness
+    validation: boolean;     // Trust, reviews, proof
+    comparison: boolean;     // Alternatives, vs, best
+    recommendation: boolean; // What should I choose
+    action: boolean;         // Buy, visit, contact
+    localIntent: boolean;    // Near me, in [city]
   };
   
   // Brand Positioning
@@ -156,21 +158,31 @@ function inferICP(targetAudience?: string, industry?: string): PromptIntelligenc
 }
 
 /**
- * Determines buyer intent types based on business context
+ * Determines AI-native intent focus based on business context
  */
-function determineBuyerIntents(industry: string, conversionGoal: string): PromptIntelligenceContext['buyerIntentTypes'] {
-  // Most businesses benefit from all intent types, but weight varies
+function determineAIIntentFocus(
+  industry: string, 
+  conversionGoal: string,
+  hasLocation: boolean
+): PromptIntelligenceContext['aiIntentFocus'] {
+  // Most businesses benefit from all intent types
   const base = {
-    informational: true,
-    comparative: true,
-    transactional: true,
-    navigational: true,
+    discovery: true,
+    validation: true,
+    comparison: true,
+    recommendation: true,
+    action: true,
+    localIntent: hasLocation,
   };
   
-  // Adjust based on business model
-  if (['lead', 'demo', 'consultation'].includes(conversionGoal)) {
-    // B2B focused - comparative and informational are key
-    base.transactional = false; // Less direct purchase intent
+  // Adjust based on conversion goal
+  if (['lead', 'consultation'].includes(conversionGoal)) {
+    // B2B focused - discovery and recommendation are key
+    base.action = false; // Less direct action intent
+  }
+  
+  if (['store_visit'].includes(conversionGoal)) {
+    base.localIntent = true; // Always include local for physical businesses
   }
   
   return base;
@@ -345,8 +357,9 @@ export function buildPromptIntelligenceContext(input: BuildContextInput): Prompt
     inferenceNotes.push('ICP inferred from industry patterns');
   }
   
-  // Determine buyer intents
-  const buyerIntentTypes = determineBuyerIntents(industry, conversionGoal);
+  // Determine AI-native intent focus
+  const hasLocation = !!(input.businessCity || input.businessState);
+  const aiIntentFocus = determineAIIntentFocus(industry, conversionGoal, hasLocation);
   
   // Infer brand strength
   const brandStrength = inferBrandStrength(domain, competitors, input.hasLlmsTxt);
@@ -366,7 +379,7 @@ export function buildPromptIntelligenceContext(input: BuildContextInput): Prompt
     primaryProducts,
     serviceCategories: primaryProducts.slice(0, 5),
     idealCustomerProfile: icp,
-    buyerIntentTypes,
+    aiIntentFocus,
     brandStrength,
     geographicScope,
     competitors: {
@@ -399,11 +412,13 @@ export function formatContextForPrompt(ctx: PromptIntelligenceContext): string {
 - Segments: ${ctx.idealCustomerProfile.segments.join(', ')}
 - Pain Points: ${ctx.idealCustomerProfile.painPoints.join(', ')}`);
 
-  sections.push(`## Buyer Intent Focus
-- Informational queries: ${ctx.buyerIntentTypes.informational ? 'Yes' : 'No'}
-- Comparative queries: ${ctx.buyerIntentTypes.comparative ? 'Yes' : 'No'}
-- Transactional queries: ${ctx.buyerIntentTypes.transactional ? 'Yes' : 'No'}
-- Navigational queries: ${ctx.buyerIntentTypes.navigational ? 'No (excluded)' : 'No'}`);
+  sections.push(`## AI-Native Intent Focus
+- Discovery (learning/awareness): ${ctx.aiIntentFocus.discovery ? 'Yes' : 'No'}
+- Validation (trust/proof): ${ctx.aiIntentFocus.validation ? 'Yes' : 'No'}
+- Comparison (alternatives/vs): ${ctx.aiIntentFocus.comparison ? 'Yes' : 'No'}
+- Recommendation (what to choose): ${ctx.aiIntentFocus.recommendation ? 'Yes' : 'No'}
+- Action (buy/visit/contact): ${ctx.aiIntentFocus.action ? 'Yes' : 'No'}
+- Local Intent (near me/in city): ${ctx.aiIntentFocus.localIntent ? 'Yes' : 'No'}`);
 
   sections.push(`## Brand Positioning
 - Brand Type: ${ctx.brandStrength.type}
