@@ -19,19 +19,22 @@ interface GeneratedPrompt {
   needs_geo_variant: boolean;
   seed_topic: string;
   competitor_name?: string;
-  source?: 'core' | 'competitive';
+  geo_target?: string;
+  source?: 'core' | 'competitive' | 'local';
 }
 
 interface FunnelParams {
   minPerBucket?: number;
   totalDefault?: number;
   includeCompetitive?: boolean;
+  includeLocal?: boolean;
 }
 
 interface FunnelStats {
   counts: { TOFU: number; MOFU: number; BOFO: number };
   coverage_ok: boolean;
   missing: { TOFU: number; MOFU: number; BOFU: number };
+  local_merged?: number;
   competitive_merged?: number;
 }
 
@@ -159,7 +162,7 @@ function computeStats(buckets: { TOFU: GeneratedPrompt[]; MOFU: GeneratedPrompt[
   
   const coverage_ok = missing.TOFU === 0 && missing.MOFU === 0 && missing.BOFU === 0;
   
-  return { counts, coverage_ok, missing, competitive_merged: competitiveMerged };
+  return { counts, coverage_ok, missing, competitive_merged: competitiveMerged, local_merged: 0 };
 }
 
 // ============= MAIN HANDLER =============
@@ -175,7 +178,7 @@ Deno.serve(async (req) => {
 
     // Parse request
     let brandId: string | null = null;
-    let params: FunnelParams = { minPerBucket: 5, totalDefault: 15, includeCompetitive: false };
+    let params: FunnelParams = { minPerBucket: 5, totalDefault: 15, includeCompetitive: false, includeLocal: false };
     
     try {
       const body = await req.json();
@@ -336,8 +339,52 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Step E2: Optionally merge local geo prompts
+    let localMerged = 0;
+    if (params.includeLocal) {
+      console.log('Fetching local geo prompts for merge...');
+      
+      // Fetch cached local geo prompts from database
+      const { data: localRow } = await supabase
+        .from('prompt_suggestions')
+        .select('prompts_json')
+        .eq('org_id', orgId)
+        .eq('suggestion_type', 'local_geo')
+        .in('status', ['ready', 'partial'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (localRow && Array.isArray(localRow.prompts_json)) {
+        const localPrompts: GeneratedPrompt[] = (localRow.prompts_json as GeneratedPrompt[]).map(p => ({
+          ...p,
+          source: 'local' as const
+        }));
+        
+        console.log(`Found ${localPrompts.length} local geo prompts to merge`);
+        
+        // Add to appropriate buckets based on funnel_stage (mostly BOFU, some MOFU)
+        for (const p of localPrompts) {
+          const stage = p.funnel_stage || 'BOFU';
+          if (buckets[stage]) {
+            buckets[stage].push(p);
+            localMerged++;
+          }
+        }
+        
+        // Dedupe across merged sets
+        buckets.TOFU = dedupePrompts(buckets.TOFU);
+        buckets.MOFU = dedupePrompts(buckets.MOFU);
+        buckets.BOFU = dedupePrompts(buckets.BOFU);
+        
+        // Recombine for allPrompts
+        allPrompts = [...buckets.TOFU, ...buckets.MOFU, ...buckets.BOFU];
+      }
+    }
+
     // Recompute stats after potential merge
     stats = computeStats(buckets, minPerBucket, competitiveMerged);
+    stats.local_merged = localMerged;
 
     // Step F: Select top prompts per bucket
     const funnelView: FunnelView = {
@@ -353,6 +400,7 @@ Deno.serve(async (req) => {
         coverage_ok: stats.coverage_ok,
         missing: stats.missing,
         competitive_merged: competitiveMerged,
+        local_merged: localMerged,
       },
     };
 
