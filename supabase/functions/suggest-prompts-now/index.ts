@@ -1,5 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
+import { 
+  buildPromptIntelligenceContext, 
+  formatContextForPrompt,
+  type PromptIntelligenceContext 
+} from '../_shared/prompt-intelligence/context.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -65,31 +70,17 @@ Deno.serve(async (req) => {
       if (!brandError && brand) {
         brandContext = brand;
         console.log(`Using brand context: ${brand.name} (${brand.id})`);
-        console.log(`Brand has business_description: ${!!brand.business_description}`);
-        console.log(`Brand has keywords: ${!!brand.keywords?.length}`);
       }
     }
 
-    // Get organization settings
-    const { data: orgSettings, error: settingsError } = await supabase
-      .from('organizations')
-      .select('enable_localized_prompts')
-      .eq('id', userData.org_id)
-      .single();
-
-    if (settingsError || !orgSettings) {
-      console.error('Organization settings error:', settingsError);
-      throw new Error('Could not get organization settings');
-    }
-
-    // Get organization details
-    const locationFields = orgSettings.enable_localized_prompts 
-      ? ', business_city, business_state, business_country' 
-      : '';
-    
+    // Get full organization data including competitors and localization
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')
-      .select(`name, business_description, products_services, keywords, target_audience, domain, enable_localized_prompts${locationFields}`)
+      .select(`
+        name, domain, business_description, products_services, keywords, target_audience,
+        competitors, enable_localized_prompts, localization_config,
+        business_city, business_state, business_country, llms_txt
+      `)
       .eq('id', userData.org_id)
       .single();
 
@@ -98,20 +89,45 @@ Deno.serve(async (req) => {
       throw new Error('Could not get organization details');
     }
 
-    // Use brand context if available, otherwise fall back to org context
-    const contextName = brandContext?.name || orgData.name;
-    const contextDomain = brandContext?.domain || orgData.domain;
+    // ===== BUILD PROMPT INTELLIGENCE CONTEXT =====
+    const intelligenceContext = buildPromptIntelligenceContext({
+      // Organization data
+      orgName: orgData.name,
+      orgDomain: orgData.domain,
+      businessDescription: orgData.business_description,
+      productsServices: orgData.products_services,
+      targetAudience: orgData.target_audience,
+      keywords: orgData.keywords,
+      competitors: orgData.competitors,
+      
+      // Location data
+      businessCity: orgData.business_city,
+      businessState: orgData.business_state,
+      businessCountry: orgData.business_country,
+      localizationConfig: orgData.localization_config as any,
+      
+      // Brand overrides (if brand selected)
+      brandName: brandContext?.name,
+      brandDomain: brandContext?.domain,
+      brandDescription: brandContext?.business_description,
+      brandProducts: brandContext?.products_services,
+      brandKeywords: brandContext?.keywords,
+      brandAudience: brandContext?.target_audience,
+      
+      // Signals
+      hasLlmsTxt: !!orgData.llms_txt,
+    });
     
-    // CRITICAL: Use brand-level business context when available, fall back to org-level
-    const businessDescription = brandContext?.business_description || orgData.business_description;
-    const productsServices = brandContext?.products_services || orgData.products_services;
-    const keywords = brandContext?.keywords || orgData.keywords;
-    const targetAudience = brandContext?.target_audience || orgData.target_audience;
-    
-    console.log(`Context source for ${contextName}: ${brandContext?.business_description ? 'brand-level' : 'org-level'}`);
-    console.log(`Keywords being used:`, keywords?.slice(0, 5) || 'none');
+    console.log('=== PROMPT INTELLIGENCE CONTEXT ===');
+    console.log('Business:', intelligenceContext.businessName);
+    console.log('Industry:', intelligenceContext.industry);
+    console.log('Brand Strength:', intelligenceContext.brandStrength.type);
+    console.log('Geographic Scope:', intelligenceContext.geographicScope.type);
+    console.log('Conversion Goal:', intelligenceContext.conversionGoal);
+    console.log('Inference Notes:', intelligenceContext.inferenceNotes);
+    console.log('====================================');
 
-    // Get existing prompts to avoid duplicates - filter by brand if provided
+    // Get existing prompts to avoid duplicates
     let promptsQuery = supabase
       .from('prompts')
       .select('text')
@@ -122,14 +138,12 @@ Deno.serve(async (req) => {
     }
     
     const { data: existingPrompts, error: promptsError } = await promptsQuery;
-
     if (promptsError) {
       console.error('Error fetching existing prompts:', promptsError);
     }
-
     const existingPromptTexts = existingPrompts?.map(p => p.text.toLowerCase()) || [];
 
-    // Get existing suggestions to avoid duplicates - filter by brand if provided
+    // Get existing suggestions to avoid duplicates
     let suggestionsQuery = supabase
       .from('suggested_prompts')
       .select('text')
@@ -141,11 +155,9 @@ Deno.serve(async (req) => {
     }
     
     const { data: existingSuggestions, error: suggestionsError } = await suggestionsQuery;
-
     if (suggestionsError) {
       console.error('Error fetching existing suggestions:', suggestionsError);
     }
-
     const existingSuggestionTexts = existingSuggestions?.map(s => s.text.toLowerCase()) || [];
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -153,36 +165,71 @@ Deno.serve(async (req) => {
       throw new Error('OpenAI API key not configured');
     }
 
-    // Build location context
+    // Format the intelligence context for the LLM
+    const formattedContext = formatContextForPrompt(intelligenceContext);
+    
+    // Build location-specific instructions based on geographic scope
     let locationInstructions = '';
-    let locationContext = '';
-    
-    console.log(`Localization enabled for org ${userData.org_id}: ${orgData.enable_localized_prompts}`);
-    
-    if (orgData.enable_localized_prompts && (orgData.business_city || orgData.business_state)) {
-      const locationParts = [];
-      if (orgData.business_city) locationParts.push(orgData.business_city);
-      if (orgData.business_state) locationParts.push(orgData.business_state);
-      if (orgData.business_country && orgData.business_country !== 'United States') {
-        locationParts.push(orgData.business_country);
+    if (intelligenceContext.geographicScope.type !== 'global' && orgData.enable_localized_prompts) {
+      const loc = intelligenceContext.geographicScope.primaryLocation;
+      const locationStr = [loc?.city, loc?.state].filter(Boolean).join(', ');
+      
+      let additionalLocs = '';
+      if (intelligenceContext.geographicScope.additionalLocations?.length) {
+        additionalLocs = intelligenceContext.geographicScope.additionalLocations
+          .map(l => [l.city, l.state].filter(Boolean).join(', '))
+          .join('; ');
       }
       
-      if (locationParts.length > 0) {
-        const location = locationParts.join(', ');
-        locationContext = `\n- Business Location: ${location}`;
-        locationInstructions = `
-LOCALIZATION ENABLED: This business has enabled localized prompts. Include their location (${location}) in some prompts where it makes sense. Mix localized and non-localized prompts (about 40% localized, 60% general).`;
-        
-        console.log(`Generated localized prompts for location: ${location}`);
-      }
+      locationInstructions = `
+LOCALIZATION ENABLED (${intelligenceContext.geographicScope.type} scope):
+- Primary location: ${locationStr}${additionalLocs ? `\n- Additional markets: ${additionalLocs}` : ''}
+- Include location-specific prompts for ~40% of suggestions
+- Mix "in [city]", "[city] area", "near [location]" patterns naturally`;
     } else {
       locationInstructions = `
-LOCALIZATION DISABLED: This business has DISABLED localized prompts. You MUST NOT include any location-specific terms, city names, state names, geographic references, or "near me" type queries.`;
-      
-      console.log(`Generating NON-LOCALIZED prompts for org ${userData.org_id}`);
+LOCALIZATION DISABLED: Generate only industry/category-focused prompts without geographic specificity.`;
     }
 
-    const systemPrompt = `You are an expert at generating natural search prompts that real users would type into AI assistants like ChatGPT, Claude, or Perplexity when looking for business solutions.
+    // Build the enhanced system prompt using the intelligence context
+    const systemPrompt = `You are an expert prompt strategist for AI visibility optimization. Your task is to generate high-quality search prompts that real users would type into AI assistants (ChatGPT, Claude, Perplexity) when looking for solutions.
+
+${formattedContext}
+${locationInstructions}
+
+## PROMPT GENERATION STRATEGY
+
+Based on the Prompt Intelligence Context above, generate prompts that:
+
+### 1. BUYER INTENT DISTRIBUTION
+${intelligenceContext.buyerIntentTypes.informational ? '- 30% INFORMATIONAL: "How does...", "What is the best way to...", "Guide to..."' : ''}
+${intelligenceContext.buyerIntentTypes.comparative ? '- 35% COMPARATIVE: "X vs Y", "Best alternatives to...", "Top 10...", "Compare..."' : ''}
+${intelligenceContext.buyerIntentTypes.transactional ? '- 25% TRANSACTIONAL: "Best [product] for...", "Top rated...", "Which [product] should I..."' : ''}
+- 10% DISCOVERY: Category/industry exploration queries
+
+### 2. BRAND POSITIONING STRATEGY (${intelligenceContext.brandStrength.type})
+${intelligenceContext.brandStrength.type === 'known' 
+  ? '- Include prompts where the brand would naturally be mentioned as a leader\n- Focus on differentiation and premium positioning' 
+  : intelligenceContext.brandStrength.type === 'challenger'
+    ? '- Focus on comparison queries against larger competitors\n- Include "alternatives to [competitor]" patterns\n- Emphasize unique value propositions'
+    : '- Focus on category/niche discovery queries\n- Include problem-focused prompts where brand can emerge as a solution\n- Target underserved segments'}
+
+### 3. CONVERSION GOAL ALIGNMENT (${intelligenceContext.conversionGoal})
+${intelligenceContext.conversionGoal === 'lead' ? '- Emphasize research/evaluation stage queries' : ''}
+${intelligenceContext.conversionGoal === 'trial' ? '- Include "try", "free", "test" oriented queries' : ''}
+${intelligenceContext.conversionGoal === 'purchase' ? '- Include pricing, buying, "best for" queries' : ''}
+${intelligenceContext.conversionGoal === 'demo' ? '- Focus on enterprise evaluation queries' : ''}
+${intelligenceContext.conversionGoal === 'store_visit' ? '- Include local discovery and "near me" queries' : ''}
+
+### 4. ICP TARGETING
+Target audience segments: ${intelligenceContext.idealCustomerProfile.segments.join(', ')}
+Address pain points: ${intelligenceContext.idealCustomerProfile.painPoints.join(', ')}
+
+### CRITICAL RULES
+- NEVER include the business name "${intelligenceContext.businessName}" or domain in prompts
+- Make prompts sound natural and conversational
+- Each prompt should be unique and serve a distinct search intent
+${intelligenceContext.competitors.known.length > 0 ? `- You may reference these competitors in comparison prompts: ${intelligenceContext.competitors.known.join(', ')}` : '- Focus on category-level comparisons since no specific competitors were provided'}
 
 Your task is to create realistic search queries that potential customers might use when looking for solutions in this business space. These should sound like genuine questions people ask AI assistants.
 
@@ -217,16 +264,38 @@ For each prompt, estimate the monthly search volume using this scale:
 
 Also provide a numeric estimate (your best guess of monthly searches).
 
+Generate 15 prompts with this distribution:
+- 5 informational/educational prompts
+- 5 comparative/evaluation prompts  
+- 3 transactional/solution-seeking prompts
+- 2 discovery/exploration prompts
+
 Return ONLY a JSON array with this exact format:
 [
   {
     "text": "What are the best project management tools for remote teams?",
+    "intent": "comparative",
     "source": "brand_visibility",
-    "reasoning": "Potential customers searching for PM tools would see this company in results",
+    "reasoning": "Targets remote work segment with comparative intent - high purchase potential",
     "volume_tier": "high",
     "estimated_volume": 15000
   }
-]`;
+]
+
+Categorize each prompt source as:
+- "brand_visibility" - prompts where this brand should appear
+- "competitor_analysis" - competitor comparison queries
+- "market_research" - industry/solution discovery`;
+
+    const userPrompt = `Generate 15 high-quality search prompts based on the Prompt Intelligence Context provided. 
+
+Focus on:
+1. The ${intelligenceContext.idealCustomerProfile.segments[0] || 'target'} segment
+2. Addressing: ${intelligenceContext.idealCustomerProfile.painPoints.slice(0, 3).join(', ')}
+3. The ${intelligenceContext.conversionGoal} conversion goal
+${intelligenceContext.competitors.known.length > 0 ? `4. Competitive positioning against: ${intelligenceContext.competitors.known.slice(0, 3).join(', ')}` : ''}
+
+Make each prompt sound like a real question someone would ask ChatGPT or Claude.`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -238,13 +307,10 @@ Return ONLY a JSON array with this exact format:
         model: 'gpt-4.1-2025-04-14',
         messages: [
           { role: 'system', content: systemPrompt },
-          { 
-            role: 'user', 
-            content: `Generate 15 natural, conversational search prompts for this business context. Make them sound like real questions people would ask AI assistants.`
-          }
+          { role: 'user', content: userPrompt }
         ],
-        max_tokens: 2000,
-        temperature: 0.8,
+        max_tokens: 2500,
+        temperature: 0.75,
       }),
     });
 
@@ -305,7 +371,7 @@ Return ONLY a JSON array with this exact format:
       return mapping[aiSource] || 'gap';
     };
 
-    // Insert suggestions into database with brand_id and AI-estimated search_volume
+    // Insert suggestions into database with brand_id, AI-estimated search_volume, and intelligence context
     const insertData = newSuggestions.map((suggestion: any) => ({
       org_id: userData.org_id,
       brand_id: brandId || null,
@@ -314,9 +380,18 @@ Return ONLY a JSON array with this exact format:
       search_volume: suggestion.estimated_volume || null,
       metadata: {
         reasoning: suggestion.reasoning,
+        intent: suggestion.intent || null,
         generated_for_brand: brandContext?.name || null,
         volume_tier: suggestion.volume_tier || null,
-        volume_source: 'ai_estimated'
+        volume_source: 'ai_estimated',
+        // Include intelligence context summary for traceability
+        intelligence_context: {
+          industry: intelligenceContext.industry,
+          brand_strength: intelligenceContext.brandStrength.type,
+          geographic_scope: intelligenceContext.geographicScope.type,
+          conversion_goal: intelligenceContext.conversionGoal,
+          icp_segments: intelligenceContext.idealCustomerProfile.segments.slice(0, 3),
+        }
       }
     }));
 
