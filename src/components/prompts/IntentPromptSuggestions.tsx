@@ -41,12 +41,23 @@ import { LocalGeoPromptView } from './LocalGeoPromptView';
 import { PromptVariantsExpander } from './PromptVariantsExpander';
 import { PromptConfidenceScore } from './PromptConfidenceScore';
 import { PromptFilters, defaultFilters, type PromptFiltersState } from './PromptFilters';
+import { OptimizationHint } from './OptimizationHint';
 
 // ============= TYPES =============
 const INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'] as const;
 type IntentType = typeof INTENT_TYPES[number];
 
 type FunnelStage = 'TOFU' | 'MOFU' | 'BOFU';
+
+type OptimizationType =
+  | 'not_visible'
+  | 'weak_visibility'
+  | 'competitor_dominant'
+  | 'local_gap'
+  | 'strong_visibility'
+  | 'high_intent_expand'
+  | 'monitor_only'
+  | 'insufficient_data';
 
 interface GeneratedPrompt {
   prompt: string;
@@ -58,6 +69,9 @@ interface GeneratedPrompt {
   seed_topic: string;
   confidence_score?: number;
   confidence_reasons?: string[];
+  optimization_hint?: string;
+  optimization_type?: OptimizationType;
+  is_monitored?: boolean;
 }
 
 interface PromptContext {
@@ -195,16 +209,21 @@ export function IntentPromptSuggestions({
     }
   };
 
-  // Trigger scoring for prompts
+  // Trigger scoring for prompts + guidance
   const triggerScoring = async () => {
     try {
+      // First score prompts
       await supabase.functions.invoke('score-prompt-suggestions', {
         body: { brandId },
       });
-      // Re-fetch prompts to get scores
+      // Then generate optimization guidance
+      await supabase.functions.invoke('generate-optimization-guidance', {
+        body: { brandId },
+      });
+      // Re-fetch prompts to get scores and guidance
       await generatePrompts(false);
     } catch (err) {
-      console.error('Error triggering scoring:', err);
+      console.error('Error triggering scoring/guidance:', err);
     }
   };
 
@@ -650,10 +669,20 @@ interface PromptCardProps {
   variants?: { model: 'chatgpt' | 'gemini' | 'perplexity'; variant_text: string }[];
   basePromptId?: string;
   onMonitorVariant?: (model: string, variantText: string) => void;
+  onStartMonitoring?: () => void;
 }
 
-function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept, variants, basePromptId, onMonitorVariant }: PromptCardProps) {
+function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept, variants, basePromptId, onMonitorVariant, onStartMonitoring }: PromptCardProps) {
   const Icon = intentConfig.icon;
+  
+  const handleStartMonitoring = () => {
+    if (onStartMonitoring) {
+      onStartMonitoring();
+    } else {
+      // Fallback: accept prompt to add it to monitoring
+      onAccept();
+    }
+  };
   
   return (
     <div
@@ -726,6 +755,18 @@ function PromptCard({ prompt, intentConfig, isSelected, onToggleSelect, onAccept
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          {/* Optimization Hint */}
+          {prompt.optimization_hint && prompt.optimization_type && (
+            <OptimizationHint
+              hint={prompt.optimization_hint}
+              type={prompt.optimization_type}
+              isMonitored={prompt.is_monitored}
+              onStartMonitoring={handleStartMonitoring}
+              onImproveVisibility={onAccept}
+              showCta={true}
+            />
+          )}
 
           {/* Variants Expander */}
           {variants && variants.length > 0 && basePromptId && (
