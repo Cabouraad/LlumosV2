@@ -332,3 +332,6 @@ verify_jwt = false
 
 [functions.generate-intent-prompts]
 verify_jwt = true
+
+[functions.get-funnel-prompts]
+verify_jwt = true
