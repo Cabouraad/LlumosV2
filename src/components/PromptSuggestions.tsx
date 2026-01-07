@@ -24,7 +24,10 @@ import {
   RefreshCw,
   MapPin,
   Plus,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Shield
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,12 +36,31 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useBrand } from '@/contexts/BrandContext';
 
+interface SuggestionMetadata {
+  confidence_score?: number;
+  confidence_breakdown?: {
+    user_likelihood: number;
+    business_alignment: number;
+    funnel_relevance: number;
+    commercial_intent: number;
+  };
+  funnel_stage?: string;
+  intent?: string;
+  platform_variants?: {
+    chatgpt?: string;
+    gemini?: string;
+    perplexity?: string;
+  };
+  [key: string]: any;
+}
+
 interface Suggestion {
   id: string;
   text: string;
   source: string;
   created_at: string;
   search_volume?: number | null;
+  metadata?: SuggestionMetadata;
 }
 
 // Format search volume as human-readable estimate
@@ -213,6 +235,19 @@ export function PromptSuggestions({
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [newLocation, setNewLocation] = useState({ city: "", state: "" });
+  const [showAllPrompts, setShowAllPrompts] = useState(false);
+
+  // Sort suggestions by confidence score (highest first) and separate top vs rest
+  const sortedSuggestions = [...suggestions].sort((a, b) => {
+    const scoreA = a.metadata?.confidence_score ?? 0;
+    const scoreB = b.metadata?.confidence_score ?? 0;
+    return scoreB - scoreA;
+  });
+  
+  const TOP_PROMPTS_COUNT = 12;
+  const topPrompts = sortedSuggestions.slice(0, TOP_PROMPTS_COUNT);
+  const remainingPrompts = sortedSuggestions.slice(TOP_PROMPTS_COUNT);
+  const displayedPrompts = showAllPrompts ? sortedSuggestions : topPrompts;
 
   // Count suggestions with missing search volume
   const missingVolumeCount = suggestions.filter(s => s.search_volume === null || s.search_volume === undefined).length;
@@ -690,91 +725,204 @@ export function PromptSuggestions({
 
       {suggestions.length > 0 ? (
         <div className="space-y-4">
-          {suggestions.map((suggestion) => (
-            <Card key={suggestion.id} className="shadow-soft rounded-2xl border-0 overflow-hidden">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex-1 space-y-3">
-                    {/* Source and metadata */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {getSourceIcon(suggestion.source)}
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs capitalize ${getSourceColor(suggestion.source)}`}
-                      >
-                        {getSourceDisplayName(suggestion.source)}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(suggestion.created_at).toLocaleDateString()}
-                      </span>
-                      {/* Search volume indicator - always shown */}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs flex items-center gap-1 font-medium ${getVolumeBadgeStyle(suggestion.search_volume)}`}
-                            >
-                              <TrendingUp className="h-3 w-3" />
-                              {formatSearchVolume(suggestion.search_volume)}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>
-                              {suggestion.search_volume === null || suggestion.search_volume === undefined 
-                                ? 'Search volume data is being collected'
-                                : 'Estimated monthly searches based on Google Trends data'}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
+          {/* Summary header showing confidence distribution */}
+          {sortedSuggestions.some(s => s.metadata?.confidence_score) && (
+            <div className="flex items-center gap-4 text-sm text-muted-foreground px-2">
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-success" />
+                <span>{sortedSuggestions.filter(s => (s.metadata?.confidence_score ?? 0) >= 70).length} high confidence</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-warning" />
+                <span>{sortedSuggestions.filter(s => (s.metadata?.confidence_score ?? 0) >= 40 && (s.metadata?.confidence_score ?? 0) < 70).length} moderate</span>
+              </div>
+              {!showAllPrompts && remainingPrompts.length > 0 && (
+                <span className="text-xs">
+                  Showing top {topPrompts.length} of {sortedSuggestions.length}
+                </span>
+              )}
+            </div>
+          )}
 
-                    {/* Suggestion text */}
-                    <div className="bg-card rounded-xl p-4 border shadow-soft">
-                      <p className="text-sm font-medium text-card-foreground leading-relaxed">
-                        {suggestion.text}
-                      </p>
-                    </div>
+          {displayedPrompts.map((suggestion) => {
+            const confidenceScore = suggestion.metadata?.confidence_score;
+            const hasConfidence = confidenceScore !== null && confidenceScore !== undefined;
+            
+            return (
+              <Card key={suggestion.id} className="shadow-soft rounded-2xl border-0 overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1 space-y-3">
+                      {/* Source and metadata */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {getSourceIcon(suggestion.source)}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs capitalize ${getSourceColor(suggestion.source)}`}
+                        >
+                          {getSourceDisplayName(suggestion.source)}
+                        </Badge>
+                        
+                        {/* Confidence Score Badge */}
+                        {hasConfidence && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs flex items-center gap-1 font-medium ${
+                                    confidenceScore >= 70 
+                                      ? 'bg-success/20 text-success border-success/30' 
+                                      : confidenceScore >= 40 
+                                        ? 'bg-warning/20 text-warning border-warning/30'
+                                        : 'bg-muted text-muted-foreground border-muted'
+                                  }`}
+                                >
+                                  <Shield className="h-3 w-3" />
+                                  {confidenceScore}%
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <div className="space-y-2">
+                                  <p className="font-medium">Confidence Score: {confidenceScore}/100</p>
+                                  {suggestion.metadata?.confidence_breakdown && (
+                                    <div className="text-xs space-y-1">
+                                      <div className="flex justify-between">
+                                        <span>User Likelihood:</span>
+                                        <span>{suggestion.metadata.confidence_breakdown.user_likelihood}/25</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Business Alignment:</span>
+                                        <span>{suggestion.metadata.confidence_breakdown.business_alignment}/25</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Funnel Relevance:</span>
+                                        <span>{suggestion.metadata.confidence_breakdown.funnel_relevance}/25</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span>Commercial Intent:</span>
+                                        <span>{suggestion.metadata.confidence_breakdown.commercial_intent}/25</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
 
-                    {/* Source-based insight */}
-                    <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg border">
-                      <div className="flex items-start gap-2">
-                        <Zap className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
-                        <div>
-                          <span className="font-medium text-foreground">Source:</span>
-                          <span className="ml-1">
-                            {getSourceDisplayName(suggestion.source)} analysis
-                          </span>
+                        {/* Funnel Stage Badge */}
+                        {suggestion.metadata?.funnel_stage && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs uppercase ${
+                              suggestion.metadata.funnel_stage === 'bofu' 
+                                ? 'bg-success/10 text-success border-success/20' 
+                                : suggestion.metadata.funnel_stage === 'mofu'
+                                  ? 'bg-warning/10 text-warning border-warning/20'
+                                  : 'bg-primary/10 text-primary border-primary/20'
+                            }`}
+                          >
+                            {suggestion.metadata.funnel_stage}
+                          </Badge>
+                        )}
+
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(suggestion.created_at).toLocaleDateString()}
+                        </span>
+                        
+                        {/* Search volume indicator */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs flex items-center gap-1 font-medium ${getVolumeBadgeStyle(suggestion.search_volume)}`}
+                              >
+                                <TrendingUp className="h-3 w-3" />
+                                {formatSearchVolume(suggestion.search_volume)}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                {suggestion.search_volume === null || suggestion.search_volume === undefined 
+                                  ? 'Search volume data is being collected'
+                                  : 'Estimated monthly searches based on Google Trends data'}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+
+                      {/* Suggestion text */}
+                      <div className="bg-card rounded-xl p-4 border shadow-soft">
+                        <p className="text-sm font-medium text-card-foreground leading-relaxed">
+                          {suggestion.text}
+                        </p>
+                      </div>
+
+                      {/* Source-based insight */}
+                      <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg border">
+                        <div className="flex items-start gap-2">
+                          <Zap className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium text-foreground">Source:</span>
+                            <span className="ml-1">
+                              {getSourceDisplayName(suggestion.source)} analysis
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => onAccept(suggestion.id)}
-                      className="bg-success hover:bg-success/90 text-success-foreground h-8 px-4"
-                    >
-                      <Check className="mr-1 h-3 w-3" />
-                      Accept
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onDismiss(suggestion.id)}
-                      className="text-muted-foreground hover:text-foreground hover:bg-muted h-8 px-4"
-                    >
-                      <X className="mr-1 h-3 w-3" />
-                      Dismiss
-                    </Button>
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => onAccept(suggestion.id)}
+                        className="bg-success hover:bg-success/90 text-success-foreground h-8 px-4"
+                      >
+                        <Check className="mr-1 h-3 w-3" />
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onDismiss(suggestion.id)}
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted h-8 px-4"
+                      >
+                        <X className="mr-1 h-3 w-3" />
+                        Dismiss
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
+          
+          {/* Expand/Collapse button for remaining prompts */}
+          {remainingPrompts.length > 0 && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAllPrompts(!showAllPrompts)}
+                className="gap-2"
+              >
+                {showAllPrompts ? (
+                  <>
+                    <ChevronUp className="h-4 w-4" />
+                    Show Top {TOP_PROMPTS_COUNT} Only
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4" />
+                    Show {remainingPrompts.length} More Prompts
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         /* Empty State */

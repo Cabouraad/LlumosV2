@@ -415,6 +415,42 @@ The SAME meaning, but naturally different phrasing for each AI platform's conver
 - Variants should feel natural on each platform, not forced
 - Include all 3 variants in the "platform_variants" field
 
+## CONFIDENCE SCORING (Required for each prompt)
+
+Assign a confidence_score (0-100) to each prompt based on these factors:
+
+**Scoring Criteria:**
+1. **User Likelihood (0-25 pts)**: How likely is a real user to ask this exact prompt?
+   - 20-25: Extremely common query pattern, frequently asked
+   - 15-19: Common query, realistic user scenario
+   - 10-14: Plausible but less common
+   - 0-9: Unlikely or awkward phrasing
+
+2. **Business Alignment (0-25 pts)**: How well does this align with the business offering?
+   - 20-25: Direct match to core products/services
+   - 15-19: Related to business offerings
+   - 10-14: Tangentially related
+   - 0-9: Weak connection
+
+3. **Funnel Relevance (0-25 pts)**: How appropriate is this for conversion?
+   - 20-25: Strong commercial/transactional intent (BOFU)
+   - 15-19: Active consideration (MOFU) 
+   - 10-14: Early awareness (TOFU)
+   - 0-9: Low conversion potential
+
+4. **Competitive/Commercial Intent (0-25 pts)**: Does this have business value?
+   - 20-25: High commercial intent, comparison/decision queries
+   - 15-19: Moderate commercial intent
+   - 10-14: Informational with some commercial angle
+   - 0-9: Purely informational, low business value
+
+**Score Thresholds:**
+- 85-100: Exceptional - must track
+- 70-84: High priority - strongly recommended  
+- 55-69: Good - worth considering
+- 40-54: Moderate - optional
+- Below 40: Low priority
+
 Return ONLY a JSON array:
 [
   {
@@ -425,6 +461,13 @@ Return ONLY a JSON array:
     "reasoning": "Early awareness prompt - user doesn't know if they need the solution",
     "volume_tier": "high",
     "estimated_volume": 5000,
+    "confidence_score": 72,
+    "confidence_breakdown": {
+      "user_likelihood": 20,
+      "business_alignment": 18,
+      "funnel_relevance": 12,
+      "commercial_intent": 22
+    },
     "platform_variants": {
       "chatgpt": "I keep hearing about marketing automation but honestly I have no idea what it actually does - is it something my small business needs or is it just for big companies?",
       "gemini": "What is marketing automation and what are the key indicators that a small business would benefit from implementing it?",
@@ -438,7 +481,14 @@ Return ONLY a JSON array:
     "source": "competitor_analysis",
     "reasoning": "Comparison intent from Notion user - targets teams outgrowing basic tools",
     "volume_tier": "medium",
-    "estimated_volume": 2500
+    "estimated_volume": 2500,
+    "confidence_score": 88,
+    "confidence_breakdown": {
+      "user_likelihood": 23,
+      "business_alignment": 22,
+      "funnel_relevance": 20,
+      "commercial_intent": 23
+    }
   },
   {
     "text": "Should I go with Monday.com or Asana for a remote design team of 15?",
@@ -448,6 +498,13 @@ Return ONLY a JSON array:
     "reasoning": "Decision-stage prompt - user is ready to choose between finalists",
     "volume_tier": "high",
     "estimated_volume": 4200,
+    "confidence_score": 91,
+    "confidence_breakdown": {
+      "user_likelihood": 22,
+      "business_alignment": 24,
+      "funnel_relevance": 23,
+      "commercial_intent": 22
+    },
     "platform_variants": {
       "chatgpt": "I'm stuck deciding between Monday.com and Asana for my remote design team of 15 - we need good visual project tracking but also easy collaboration. Which would you pick?",
       "gemini": "Compare Monday.com vs Asana for a 15-person remote design team. Which platform offers better visual project management and collaboration features?",
@@ -458,7 +515,8 @@ Return ONLY a JSON array:
 
 funnel_stage must be one of: tofu, mofu, bofu
 Intent must be one of: discovery, validation, comparison, recommendation, action, local_intent
-Source must be one of: brand_visibility, competitor_analysis, market_research`;
+Source must be one of: brand_visibility, competitor_analysis, market_research
+confidence_score must be 0-100 with breakdown totaling to the score`;
 
     const userPrompt = `Generate exactly 18 natural, conversational AI search prompts for this business context.
 
@@ -559,7 +617,7 @@ IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${i
       return mapping[aiSource] || 'gap';
     };
 
-    // Insert suggestions into database with brand_id, AI-estimated search_volume, funnel stage, platform variants, and intelligence context
+    // Insert suggestions into database with brand_id, AI-estimated search_volume, funnel stage, confidence score, platform variants, and intelligence context
     const insertData = newSuggestions.map((suggestion: any) => ({
       org_id: userData.org_id,
       brand_id: brandId || null,
@@ -573,6 +631,9 @@ IMPORTANT: Ensure EXACTLY 6 prompts for each funnel stage (tofu, mofu, bofu).${i
         generated_for_brand: brandContext?.name || null,
         volume_tier: suggestion.volume_tier || null,
         volume_source: 'ai_estimated',
+        // Confidence scoring
+        confidence_score: suggestion.confidence_score || null,
+        confidence_breakdown: suggestion.confidence_breakdown || null,
         // Platform-optimized variants for high-priority prompts
         platform_variants: suggestion.platform_variants || null,
         // Include intelligence context summary for traceability
