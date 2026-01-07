@@ -173,19 +173,28 @@ export function IntentPromptSuggestions({
 
       if (!userData?.org_id) return null;
 
-      const { data: suggestions } = await supabase
+      // Query matches what edge function stores: version=1, status='ready'
+      const { data: suggestions, error } = await supabase
         .from('prompt_suggestions')
-        .select('prompts_json, generation_params')
+        .select('prompts_json, generation_params, status')
         .eq('org_id', userData.org_id)
-        .eq('suggestion_type', 'core_intent')
+        .eq('version', 1)
+        .eq('status', 'ready')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        console.log('[IntentPrompts] Cache fetch error:', error.message);
+        return null;
+      }
 
       if (suggestions?.prompts_json) {
         const promptsData = suggestions.prompts_json as unknown as GeneratedPrompt[];
+        console.log('[IntentPrompts] Cache HIT:', promptsData.length, 'prompts');
         return promptsData;
       }
+      console.log('[IntentPrompts] Cache MISS - no ready prompts found');
       return null;
     } catch (err) {
       console.error('Error fetching cached prompts:', err);
@@ -195,12 +204,20 @@ export function IntentPromptSuggestions({
 
   // Generate prompts (only when explicitly called)
   const generatePrompts = useCallback(async (forceNew = false) => {
-    if (!user || isGenerating.current) return;
+    if (!user) {
+      console.log('[IntentPrompts] No user, skipping generation');
+      return;
+    }
+    if (isGenerating.current) {
+      console.log('[IntentPrompts] Already generating, skipping');
+      return;
+    }
     
     isGenerating.current = true;
     setLoading(true);
     setError(null);
     setGenerationProgress(10);
+    console.log('[IntentPrompts] Starting generation...');
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -211,17 +228,37 @@ export function IntentPromptSuggestions({
       }
 
       setGenerationProgress(20);
+      console.log('[IntentPrompts] Calling edge function...');
 
-      const response = await supabase.functions.invoke('generate-intent-prompts', {
-        body: { 
-          brandId, 
-          params: { 
-            countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent,
-            language: 'en-US' 
-          } 
-        },
-      });
+      // Set up a progress simulation while waiting for edge function
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 65) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 2000);
 
+      let response;
+      try {
+        response = await supabase.functions.invoke('generate-intent-prompts', {
+          body: { 
+            brandId, 
+            params: { 
+              countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent,
+              language: 'en-US' 
+            } 
+          },
+        });
+        clearInterval(progressInterval);
+      } catch (fetchError) {
+        clearInterval(progressInterval);
+        throw fetchError;
+      }
+        
+      console.log('[IntentPrompts] Edge function response:', response.error ? 'ERROR' : 'SUCCESS');
       setGenerationProgress(70);
 
       if (response.error) {
@@ -230,11 +267,16 @@ export function IntentPromptSuggestions({
 
       const result = response.data;
       
+      if (!result) {
+        throw new Error('No response data received');
+      }
+      
       if (!result.success && !result.partialData) {
         throw new Error(result.error || 'Generation failed');
       }
 
       const newPrompts = result.data || result.partialData || [];
+      console.log('[IntentPrompts] Received', newPrompts.length, 'prompts');
       setPrompts(newPrompts);
       setContext(result.context);
       setGenerationProgress(85);
@@ -249,7 +291,7 @@ export function IntentPromptSuggestions({
       
       setGenerationProgress(100);
     } catch (err) {
-      console.error('Error generating prompts:', err);
+      console.error('[IntentPrompts] Error generating prompts:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate prompts');
       toast.error('Failed to generate prompts');
     } finally {
@@ -339,31 +381,58 @@ export function IntentPromptSuggestions({
   useEffect(() => {
     if (!user) return;
     
-    // Prevent duplicate calls
+    // Prevent duplicate calls within same render cycle
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
     
+    console.log('[IntentPrompts] Init effect running');
+    
     const init = async () => {
+      setLoading(true);
+      setGenerationProgress(5);
+      
       // Try to fetch cached prompts first
       const cached = await fetchCachedPrompts();
       if (cached && cached.length > 0) {
+        console.log('[IntentPrompts] Using cached prompts');
         setPrompts(cached);
+        setLoading(false);
+        setGenerationProgress(0);
       } else {
         // Only generate if no cached prompts
+        console.log('[IntentPrompts] No cache, generating...');
         await generatePrompts();
       }
       fetchVariants();
     };
     
     init();
-  }, [user, fetchCachedPrompts]);
+  }, [user]); // Minimal deps - generatePrompts/fetchCachedPrompts are stable via useCallback
 
-  // Reset on brandId change
+  // Reset and regenerate on brandId change
   useEffect(() => {
-    if (brandId) {
+    // Skip on initial mount
+    if (!initialLoadDone.current) return;
+    
+    if (brandId !== undefined) {
+      console.log('[IntentPrompts] Brand changed, resetting...');
       initialLoadDone.current = false;
       setScoringTriggered(false);
       setPrompts([]);
+      setGenerationProgress(0);
+      
+      // Trigger re-init
+      const reinit = async () => {
+        setLoading(true);
+        const cached = await fetchCachedPrompts();
+        if (cached && cached.length > 0) {
+          setPrompts(cached);
+          setLoading(false);
+        } else {
+          await generatePrompts();
+        }
+      };
+      reinit();
     }
   }, [brandId]);
 
