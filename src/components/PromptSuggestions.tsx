@@ -44,6 +44,7 @@ interface SuggestionMetadata {
     funnel_relevance: number;
     commercial_intent: number;
   };
+  optimization_hint?: string;
   funnel_stage?: string;
   intent?: string;
   platform_variants?: {
@@ -861,18 +862,15 @@ export function PromptSuggestions({
                         </p>
                       </div>
 
-                      {/* Source-based insight */}
-                      <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg border">
-                        <div className="flex items-start gap-2">
-                          <Zap className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="font-medium text-foreground">Source:</span>
-                            <span className="ml-1">
-                              {getSourceDisplayName(suggestion.source)} analysis
-                            </span>
+                      {/* Optimization Hint */}
+                      {suggestion.metadata?.optimization_hint && (
+                        <div className="text-xs bg-accent/10 text-accent-foreground p-3 rounded-lg border border-accent/20">
+                          <div className="flex items-start gap-2">
+                            <Lightbulb className="h-3 w-3 text-accent mt-0.5 flex-shrink-0" />
+                            <span className="leading-relaxed">{suggestion.metadata.optimization_hint}</span>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     {/* Actions */}

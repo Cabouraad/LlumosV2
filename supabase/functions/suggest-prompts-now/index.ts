@@ -451,6 +451,42 @@ Assign a confidence_score (0-100) to each prompt based on these factors:
 - 40-54: Moderate - optional
 - Below 40: Low priority
 
+## OPTIMIZATION HINTS (Required for each prompt)
+
+For each prompt, provide a concise 1-sentence "optimization_hint" that gives actionable advice. Choose the most relevant hint based on the prompt's characteristics:
+
+**Hint Types (pick ONE per prompt):**
+
+1. **Brand Visibility Issues:**
+   - "Your brand is not mentioned consistently in AI answers to this prompt."
+   - "AI models rarely cite your brand for this query type."
+
+2. **Competitive Pressure:**
+   - "Competitors are referenced more frequently than your brand for this query."
+   - "This prompt shows competitor dominance - focus on differentiation content."
+
+3. **High-Intent Opportunities:**
+   - "This prompt is high-intent and ideal for content or citation optimization."
+   - "Decision-stage query - ensure your brand appears in comparison content."
+
+4. **Content Gap:**
+   - "Create FAQ or guide content to improve AI visibility for this topic."
+   - "Add structured data and expert content to rank for this query."
+
+5. **Local Optimization:**
+   - "Ensure your local listings and reviews are optimized for this geo-query."
+   - "Local search intent - verify your business info on directories and maps."
+
+6. **Comparison/Alternative Queries:**
+   - "Users are actively comparing options - create comparison content featuring your brand."
+   - "Target users switching from competitors with migration guides."
+
+**Rules:**
+- ALWAYS include exactly one optimization_hint per prompt
+- Keep hints under 15 words
+- Make hints actionable and specific to the prompt's intent
+- Tailor hints to the funnel stage and source type
+
 Return ONLY a JSON array:
 [
   {
@@ -468,6 +504,7 @@ Return ONLY a JSON array:
       "funnel_relevance": 12,
       "commercial_intent": 22
     },
+    "optimization_hint": "Create beginner's guide content to improve AI visibility for this awareness query.",
     "platform_variants": {
       "chatgpt": "I keep hearing about marketing automation but honestly I have no idea what it actually does - is it something my small business needs or is it just for big companies?",
       "gemini": "What is marketing automation and what are the key indicators that a small business would benefit from implementing it?",
@@ -488,7 +525,8 @@ Return ONLY a JSON array:
       "business_alignment": 22,
       "funnel_relevance": 20,
       "commercial_intent": 23
-    }
+    },
+    "optimization_hint": "Target users switching from competitors with migration guides."
   },
   {
     "text": "Should I go with Monday.com or Asana for a remote design team of 15?",
@@ -498,6 +536,7 @@ Return ONLY a JSON array:
     "reasoning": "Decision-stage prompt - user is ready to choose between finalists",
     "volume_tier": "high",
     "estimated_volume": 4200,
+    "optimization_hint": "Decision-stage query - ensure your brand appears in comparison content."
     "confidence_score": 91,
     "confidence_breakdown": {
       "user_likelihood": 22,
