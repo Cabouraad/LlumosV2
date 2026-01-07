@@ -5,13 +5,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Save, Sparkles, AlertCircle } from "lucide-react";
+import { X, Plus, Save, Sparkles, AlertCircle, MapPin, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrand } from "@/contexts/BrandContext";
 import { getBrandBusinessContext, updateBrandBusinessContext, type BrandBusinessContext } from "@/lib/brand/data";
+import { getOrganizationKeywords, updateOrganizationKeywords, type OrganizationKeywords } from "@/lib/org/data";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function KeywordManagement() {
   const [keywords, setKeywords] = useState<BrandBusinessContext>({
@@ -20,12 +23,19 @@ export function KeywordManagement() {
     target_audience: "",
     business_description: "",
   });
+  const [orgSettings, setOrgSettings] = useState<OrganizationKeywords>({
+    keywords: [],
+    business_city: "",
+    business_state: "",
+    business_country: "United States",
+    enable_localized_prompts: false,
+  });
   const [newKeyword, setNewKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
   const { toast } = useToast();
-  const { loading: authLoading, user } = useAuth();
+  const { loading: authLoading, user, orgData } = useAuth();
   const { selectedBrand, isValidated: brandValidated } = useBrand();
 
   useEffect(() => {
@@ -42,8 +52,15 @@ export function KeywordManagement() {
     
     try {
       setLoading(true);
-      const data = await getBrandBusinessContext(selectedBrand.id);
-      setKeywords(data);
+      // Load brand context and org settings in parallel
+      const [brandData, orgData] = await Promise.all([
+        getBrandBusinessContext(selectedBrand.id),
+        getOrganizationKeywords().catch(() => null)
+      ]);
+      setKeywords(brandData);
+      if (orgData) {
+        setOrgSettings(orgData);
+      }
     } catch (error) {
       console.error('Failed to load brand business context:', error);
       toast({
@@ -68,12 +85,21 @@ export function KeywordManagement() {
 
     try {
       setSaving(true);
-      await updateBrandBusinessContext(selectedBrand.id, {
-        keywords: keywords.keywords,
-        products_services: keywords.products_services,
-        target_audience: keywords.target_audience,
-        business_description: keywords.business_description,
-      });
+      // Save both brand context and org location settings
+      await Promise.all([
+        updateBrandBusinessContext(selectedBrand.id, {
+          keywords: keywords.keywords,
+          products_services: keywords.products_services,
+          target_audience: keywords.target_audience,
+          business_description: keywords.business_description,
+        }),
+        updateOrganizationKeywords({
+          business_city: orgSettings.business_city,
+          business_state: orgSettings.business_state,
+          business_country: orgSettings.business_country,
+          enable_localized_prompts: orgSettings.enable_localized_prompts,
+        })
+      ]);
       toast({
         title: "Success",
         description: `Business context updated for ${selectedBrand.name}`,
@@ -310,6 +336,80 @@ export function KeywordManagement() {
             onChange={(e) => setKeywords(prev => ({ ...prev, target_audience: e.target.value }))}
             rows={3}
           />
+        </div>
+
+        {/* Business Location Section */}
+        <div className="border-t pt-6 mt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <MapPin className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-semibold">Business Location</h3>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Add your business location to enable localized prompt generation, targeting specific cities and neighborhoods.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Enable localized AI prompts by adding your business location. This helps generate location-specific prompts like "best [service] in [city]".
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="business-city">City</Label>
+              <Input
+                id="business-city"
+                placeholder="e.g., San Francisco"
+                value={orgSettings.business_city || ""}
+                onChange={(e) => setOrgSettings(prev => ({ ...prev, business_city: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="business-state">State / Region</Label>
+              <Input
+                id="business-state"
+                placeholder="e.g., California"
+                value={orgSettings.business_state || ""}
+                onChange={(e) => setOrgSettings(prev => ({ ...prev, business_state: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="business-country">Country</Label>
+              <Input
+                id="business-country"
+                placeholder="e.g., United States"
+                value={orgSettings.business_country || "United States"}
+                onChange={(e) => setOrgSettings(prev => ({ ...prev, business_country: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {/* Localized Prompts Toggle */}
+          <div className="flex items-center justify-between mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex-1">
+              <Label htmlFor="enable-localized-prompts" className="text-sm font-medium cursor-pointer">
+                Enable Localized Prompts
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Generate location-specific prompts (e.g., "best {orgSettings.business_city || 'shops'} in {orgSettings.business_state || 'your state'}")
+              </p>
+              {!orgSettings.business_city && !orgSettings.business_state && (
+                <p className="text-xs text-warning mt-1">
+                  Add your business location above to enable this feature
+                </p>
+              )}
+            </div>
+            <Switch
+              id="enable-localized-prompts"
+              checked={orgSettings.enable_localized_prompts || false}
+              onCheckedChange={(checked) => setOrgSettings(prev => ({ ...prev, enable_localized_prompts: checked }))}
+              disabled={!orgSettings.business_city && !orgSettings.business_state}
+            />
+          </div>
         </div>
 
         <Button onClick={handleSave} disabled={saving} className="w-full">
