@@ -202,105 +202,131 @@ export function IntentPromptSuggestions({
     }
   }, [user]);
 
+  // Poll for prompt generation status
+  const pollForPrompts = useCallback(async () => {
+    if (!user) return;
+
+    const { data: userData } = await supabase
+      .from('users')
+      .select('org_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!userData?.org_id) return;
+
+    const maxAttempts = 30; // 30 attempts * 2s = 60s max
+    let attempt = 0;
+
+    const poll = async () => {
+      attempt++;
+      setGenerationProgress(Math.min(20 + attempt * 2.5, 95));
+
+      const { data: suggestion } = await supabase
+        .from('prompt_suggestions')
+        .select('status, prompts_json, error_message')
+        .eq('org_id', userData.org_id)
+        .eq('version', 1)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (suggestion?.status === 'ready' && suggestion.prompts_json) {
+        const promptsData = suggestion.prompts_json as unknown as GeneratedPrompt[];
+        setPrompts(promptsData);
+        setGenerationProgress(100);
+        setLoading(false);
+        isGenerating.current = false;
+
+        // Trigger scoring if prompts don't have scores
+        const hasScores = promptsData.some(p => typeof p.confidence_score === 'number');
+        if (!hasScores && !scoringTriggered) {
+          setScoringTriggered(true);
+          triggerScoringBackground();
+        }
+
+        setTimeout(() => setGenerationProgress(0), 500);
+        return;
+      }
+
+      if (suggestion?.status === 'error') {
+        setError(suggestion.error_message || 'Generation failed');
+        setLoading(false);
+        isGenerating.current = false;
+        setGenerationProgress(0);
+        return;
+      }
+
+      if (attempt >= maxAttempts) {
+        setError('Generation timed out. Please try again.');
+        setLoading(false);
+        isGenerating.current = false;
+        setGenerationProgress(0);
+        return;
+      }
+
+      // Continue polling
+      setTimeout(poll, 2000);
+    };
+
+    poll();
+  }, [user, scoringTriggered]);
+
   // Generate prompts (only when explicitly called)
   const generatePrompts = useCallback(async (forceNew = false) => {
-    if (!user) {
-      console.log('[IntentPrompts] No user, skipping generation');
-      return;
-    }
-    if (isGenerating.current) {
-      console.log('[IntentPrompts] Already generating, skipping');
-      return;
-    }
-    
+    if (!user) return;
+    if (isGenerating.current) return;
+
     isGenerating.current = true;
     setLoading(true);
     setError(null);
     setGenerationProgress(10);
-    console.log('[IntentPrompts] Starting generation...');
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      
-      if (!token) {
-        throw new Error('No authentication token');
-      }
-
-      setGenerationProgress(20);
-      console.log('[IntentPrompts] Calling edge function...');
-
-      // Set up a progress simulation while waiting for edge function
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => {
-          if (prev >= 65) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 5;
-        });
-      }, 2000);
-
-      let response;
-      try {
-        response = await supabase.functions.invoke('generate-intent-prompts', {
-          body: { 
-            brandId, 
-            params: { 
-              countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent,
-              language: 'en-US' 
-            } 
+      const response = await supabase.functions.invoke('generate-intent-prompts', {
+        body: {
+          brandId,
+          params: {
+            countPerIntent: forceNew ? countPerIntent + 3 : countPerIntent,
+            language: 'en-US',
           },
-        });
-        clearInterval(progressInterval);
-      } catch (fetchError) {
-        clearInterval(progressInterval);
-        throw fetchError;
-      }
-        
-      console.log('[IntentPrompts] Edge function response:', response.error ? 'ERROR' : 'SUCCESS');
-      setGenerationProgress(70);
+        },
+      });
 
       if (response.error) {
-        throw new Error(response.error.message || 'Failed to generate prompts');
+        throw new Error(response.error.message || 'Failed to start generation');
       }
 
       const result = response.data;
-      
-      if (!result) {
-        throw new Error('No response data received');
-      }
-      
-      if (!result.success && !result.partialData) {
-        throw new Error(result.error || 'Generation failed');
+
+      // If cached result returned immediately
+      if (result?.cached && result?.data) {
+        setPrompts(result.data);
+        setContext(result.context);
+        setGenerationProgress(100);
+        setLoading(false);
+        isGenerating.current = false;
+        setTimeout(() => setGenerationProgress(0), 500);
+        return;
       }
 
-      const newPrompts = result.data || result.partialData || [];
-      console.log('[IntentPrompts] Received', newPrompts.length, 'prompts');
-      setPrompts(newPrompts);
-      setContext(result.context);
-      setGenerationProgress(85);
-      
-      // Trigger scoring if prompts don't have scores (only once)
-      const hasScores = newPrompts.some((p: GeneratedPrompt) => typeof p.confidence_score === 'number');
-      if (!hasScores && !scoringTriggered) {
-        setScoringTriggered(true);
-        // Score in background, don't wait or refetch
-        triggerScoringBackground();
+      // Generation queued in background - start polling
+      if (result?.queued || result?.status === 'building') {
+        setGenerationProgress(20);
+        pollForPrompts();
+        return;
       }
-      
-      setGenerationProgress(100);
+
+      // Unexpected response
+      throw new Error('Unexpected response from server');
     } catch (err) {
-      console.error('[IntentPrompts] Error generating prompts:', err);
+      console.error('[IntentPrompts] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate prompts');
       toast.error('Failed to generate prompts');
-    } finally {
       setLoading(false);
       isGenerating.current = false;
-      // Reset progress after a delay
-      setTimeout(() => setGenerationProgress(0), 500);
+      setGenerationProgress(0);
     }
-  }, [user, brandId, countPerIntent, scoringTriggered]);
+  }, [user, brandId, countPerIntent, pollForPrompts]);
 
   // Trigger scoring in background (no refetch to avoid loop)
   const triggerScoringBackground = async () => {
@@ -533,6 +559,33 @@ export function IntentPromptSuggestions({
             <Button onClick={() => generatePrompts()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Try Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state - no prompts yet, show generate button
+  if (!loading && prompts.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Intent-Driven Prompts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12">
+            <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+            <h3 className="text-lg font-medium mb-2">No prompts generated yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Generate AI-native prompts tailored to your business context, organized by intent type and funnel stage.
+            </p>
+            <Button onClick={() => generatePrompts()} size="lg">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate Prompts
             </Button>
           </div>
         </CardContent>
