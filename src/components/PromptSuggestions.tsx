@@ -21,8 +21,12 @@ import {
   Brain,
   Search,
   Database,
-  RefreshCw
+  RefreshCw,
+  MapPin,
+  Plus,
+  Trash2
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { getOrganizationKeywords, updateOrganizationKeywords, type OrganizationKeywords } from '@/lib/org/data';
 import { useToast } from '@/hooks/use-toast';
@@ -203,10 +207,12 @@ export function PromptSuggestions({
     business_state: "",
     business_country: "United States",
     enable_localized_prompts: false,
+    localization_config: { additional_locations: [] },
   });
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [newLocation, setNewLocation] = useState({ city: "", state: "" });
 
   // Count suggestions with missing search volume
   const missingVolumeCount = suggestions.filter(s => s.search_volume === null || s.search_volume === undefined).length;
@@ -306,6 +312,103 @@ export function PromptSuggestions({
       setSettingsSaving(false);
     }
   };
+
+  const handleAddLocation = async () => {
+    if (!newLocation.city.trim() || !newLocation.state.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both city and state",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSettingsSaving(true);
+      const currentLocations = orgSettings.localization_config?.additional_locations || [];
+      
+      // Check for duplicates
+      const isDuplicate = currentLocations.some(
+        loc => loc.city.toLowerCase() === newLocation.city.toLowerCase() && 
+               loc.state.toLowerCase() === newLocation.state.toLowerCase()
+      );
+
+      if (isDuplicate) {
+        toast({
+          title: "Location Exists",
+          description: "This location has already been added",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const updatedLocations = [
+        ...currentLocations,
+        { city: newLocation.city.trim(), state: newLocation.state.trim(), country: orgSettings.business_country || "United States" }
+      ];
+
+      const updatedSettings = {
+        ...orgSettings,
+        localization_config: {
+          ...orgSettings.localization_config,
+          additional_locations: updatedLocations
+        }
+      };
+
+      await updateOrganizationKeywords(updatedSettings);
+      setOrgSettings(updatedSettings);
+      setNewLocation({ city: "", state: "" });
+      
+      toast({
+        title: "Location Added",
+        description: `${newLocation.city}, ${newLocation.state} added to target locations`,
+      });
+    } catch (error) {
+      console.error('Failed to add location:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add location",
+        variant: "destructive",
+      });
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleRemoveLocation = async (index: number) => {
+    try {
+      setSettingsSaving(true);
+      const currentLocations = orgSettings.localization_config?.additional_locations || [];
+      const removedLocation = currentLocations[index];
+      const updatedLocations = currentLocations.filter((_, i) => i !== index);
+
+      const updatedSettings = {
+        ...orgSettings,
+        localization_config: {
+          ...orgSettings.localization_config,
+          additional_locations: updatedLocations
+        }
+      };
+
+      await updateOrganizationKeywords(updatedSettings);
+      setOrgSettings(updatedSettings);
+      
+      toast({
+        title: "Location Removed",
+        description: `${removedLocation.city}, ${removedLocation.state} removed from target locations`,
+      });
+    } catch (error) {
+      console.error('Failed to remove location:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove location",
+        variant: "destructive",
+      });
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   const getSourceIcon = (source: string) => {
     // Handle enhanced-ai prefixed sources
     const category = source.startsWith('enhanced-ai-') ? source.substring(12) : source;
@@ -417,7 +520,7 @@ export function PromptSuggestions({
             Configure how prompts are created for your business
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
             <div className="space-y-1">
               <Label htmlFor="enable-localized-prompts" className="text-sm font-medium">
@@ -439,6 +542,76 @@ export function PromptSuggestions({
               disabled={settingsSaving || (!orgSettings.business_city && !orgSettings.business_state)}
             />
           </div>
+
+          {/* Multi-location targeting - shown when localization is enabled */}
+          {orgSettings.enable_localized_prompts && (
+            <div className="space-y-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                <Label className="text-sm font-medium">Target Locations</Label>
+                <Badge variant="outline" className="text-xs">
+                  {1 + (orgSettings.localization_config?.additional_locations?.length || 0)} locations
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Add multiple locations to generate prompts for each area. Prompts will be created for all target locations.
+              </p>
+
+              {/* Primary location */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/30">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {orgSettings.business_city}, {orgSettings.business_state}
+                  </span>
+                  <Badge variant="secondary" className="text-xs ml-auto">Primary</Badge>
+                </div>
+
+                {/* Additional locations */}
+                {orgSettings.localization_config?.additional_locations?.map((location, index) => (
+                  <div key={index} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      {location.city}, {location.state}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveLocation(index)}
+                      disabled={settingsSaving}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new location */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="City (e.g., Boston)"
+                  value={newLocation.city}
+                  onChange={(e) => setNewLocation(prev => ({ ...prev, city: e.target.value }))}
+                  className="flex-1"
+                />
+                <Input
+                  placeholder="State (e.g., Massachusetts)"
+                  value={newLocation.state}
+                  onChange={(e) => setNewLocation(prev => ({ ...prev, state: e.target.value }))}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleAddLocation}
+                  disabled={settingsSaving || !newLocation.city.trim() || !newLocation.state.trim()}
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
