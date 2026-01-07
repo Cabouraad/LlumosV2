@@ -1938,6 +1938,8 @@ export type Database = {
           org_id: string
           prompt_hash: string
           prompts_json: Json
+          scored_at: string | null
+          scoring_version: number
           status: string
           suggestion_type: string
           updated_at: string
@@ -1954,6 +1956,8 @@ export type Database = {
           org_id: string
           prompt_hash: string
           prompts_json?: Json
+          scored_at?: string | null
+          scoring_version?: number
           status?: string
           suggestion_type?: string
           updated_at?: string
@@ -1970,6 +1974,8 @@ export type Database = {
           org_id?: string
           prompt_hash?: string
           prompts_json?: Json
+          scored_at?: string | null
+          scoring_version?: number
           status?: string
           suggestion_type?: string
           updated_at?: string
