@@ -171,9 +171,21 @@ Deno.serve(async (req) => {
     
     // Build location-specific instructions based on geographic scope
     let locationInstructions = '';
-    if (intelligenceContext.geographicScope.type !== 'global' && orgData.enable_localized_prompts) {
+    const hasLocalPresence = intelligenceContext.geographicScope.type !== 'global' && orgData.enable_localized_prompts;
+    
+    // Determine if local intent is meaningful for this business type
+    const localRelevantIndustries = ['restaurant', 'retail', 'healthcare', 'legal', 'real estate', 'home services', 
+      'automotive', 'fitness', 'salon', 'spa', 'dental', 'medical', 'plumbing', 'hvac', 'roofing', 'landscaping',
+      'cleaning', 'moving', 'storage', 'pet services', 'childcare', 'education', 'financial services'];
+    const industryLower = intelligenceContext.industry.toLowerCase();
+    const isLocalRelevant = localRelevantIndustries.some(i => industryLower.includes(i)) || 
+                            intelligenceContext.geographicScope.type === 'local';
+    
+    if (hasLocalPresence && isLocalRelevant) {
       const loc = intelligenceContext.geographicScope.primaryLocation;
-      const locationStr = [loc?.city, loc?.state].filter(Boolean).join(', ');
+      const city = loc?.city || '';
+      const state = loc?.state || '';
+      const locationStr = [city, state].filter(Boolean).join(', ');
       
       let additionalLocs = '';
       if (intelligenceContext.geographicScope.additionalLocations?.length) {
@@ -183,13 +195,50 @@ Deno.serve(async (req) => {
       }
       
       locationInstructions = `
-LOCALIZATION ENABLED (${intelligenceContext.geographicScope.type} scope):
-- Primary location: ${locationStr}${additionalLocs ? `\n- Additional markets: ${additionalLocs}` : ''}
-- Include location-specific prompts for ~40% of suggestions
-- Mix "in [city]", "[city] area", "near [location]" patterns naturally`;
+## GEO-MODIFIED PROMPTS (Local Business)
+
+Local presence detected: ${locationStr}${additionalLocs ? ` | Additional: ${additionalLocs}` : ''}
+Geographic scope: ${intelligenceContext.geographicScope.type}
+
+Generate 3-4 geo-modified prompts (NOT more). Only include local prompts because this business serves a local/regional market.
+
+**Natural geo-modified patterns to use:**
+- "Best [service] in ${city}" → "who's the best ${intelligenceContext.industry.toLowerCase()} in ${city}?"
+- "Top rated in [city]" → "looking for a highly rated ${intelligenceContext.industry.toLowerCase()} in ${city} - any recommendations?"
+- "[Service] near me" → "I need a ${intelligenceContext.industry.toLowerCase()} near me that's actually good"
+- "Which [type] in [city]" → "which ${intelligenceContext.industry.toLowerCase()} should I choose in ${city}?"
+- "[City] [service] recommendations" → "can anyone recommend a good ${intelligenceContext.industry.toLowerCase()} in the ${city} area?"
+
+**Geo-modified prompt examples (conversational, NOT keyword-stuffed):**
+- ❌ BAD: "best dentist Austin TX top rated affordable 2024"
+- ✅ GOOD: "I just moved to Austin and need a dentist who's good with anxious patients - any recs?"
+
+- ❌ BAD: "top rated plumber near me emergency services"  
+- ✅ GOOD: "my water heater just died - who's a reliable plumber in the ${city} area that won't rip me off?"
+
+- ❌ BAD: "best restaurant ${city} fine dining romantic"
+- ✅ GOOD: "planning a special anniversary dinner in ${city} - where should we go that's actually worth it?"
+
+**Distribution:**
+- 1 TOFU local prompt (awareness: "what should I know about [service] in [city]")
+- 1-2 MOFU local prompts (consideration: "best [service] in [city]", "top rated [service] near me")
+- 1 BOFU local prompt (decision: "which [service] should I choose in [city]")`;
+    } else if (hasLocalPresence && !isLocalRelevant) {
+      // Business has location but local intent isn't primary (e.g., SaaS with an office)
+      locationInstructions = `
+## LOCATION CONTEXT (Limited Local Relevance)
+
+Business location: ${[intelligenceContext.geographicScope.primaryLocation?.city, intelligenceContext.geographicScope.primaryLocation?.state].filter(Boolean).join(', ')}
+
+This appears to be a ${intelligenceContext.industry} business where local intent is NOT primary.
+Generate at most 1 location-specific prompt, only if it makes sense (e.g., "in-person demo in [city]").
+Focus primarily on industry/category prompts without geographic modifiers.`;
     } else {
       locationInstructions = `
-LOCALIZATION DISABLED: Generate only industry/category-focused prompts without geographic specificity.`;
+## NO LOCAL PROMPTS
+
+Localization is disabled or not applicable. Generate only industry/category-focused prompts without geographic specificity.
+Do NOT include "near me", city names, or location modifiers.`;
     }
 
     // Build the enhanced system prompt using AI-native intent categories and funnel stages
