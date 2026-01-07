@@ -2,6 +2,7 @@
  * Intent-Driven Prompt Suggestions Component
  * 
  * Displays prompts grouped by intent taxonomy with funnel stage indicators.
+ * Includes toggle between "By Intent" and "By Funnel" views.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from 'sonner';
 import { 
   Sparkles, 
@@ -27,8 +29,11 @@ import {
   Loader2,
   Info,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  LayoutGrid,
+  Layers
 } from 'lucide-react';
+import { FunnelPromptView } from './FunnelPromptView';
 
 // ============= TYPES =============
 const INTENT_TYPES = ['discovery', 'validation', 'comparison', 'recommendation', 'action', 'local_intent'] as const;
@@ -120,6 +125,7 @@ export function IntentPromptSuggestions({
   const [selectedPrompts, setSelectedPrompts] = useState<Set<string>>(new Set());
   const [countPerIntent, setCountPerIntent] = useState(5);
   const [showContext, setShowContext] = useState(false);
+  const [viewMode, setViewMode] = useState<'intent' | 'funnel'>('intent');
 
   // Generate prompts
   const generatePrompts = async (forceNew = false) => {
@@ -266,36 +272,64 @@ export function IntentPromptSuggestions({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             Intent-Driven Prompts
           </CardTitle>
-          <div className="flex items-center gap-2">
-            {selectedPrompts.size > 0 && (
+          
+          <div className="flex items-center gap-3">
+            {/* View Toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={viewMode} 
+              onValueChange={(v) => v && setViewMode(v as 'intent' | 'funnel')}
+              className="bg-muted rounded-md p-0.5"
+            >
+              <ToggleGroupItem 
+                value="intent" 
+                aria-label="View by Intent"
+                className="text-xs px-2.5 py-1 h-7 data-[state=on]:bg-background"
+              >
+                <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+                By Intent
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="funnel" 
+                aria-label="View by Funnel"
+                className="text-xs px-2.5 py-1 h-7 data-[state=on]:bg-background"
+              >
+                <Layers className="h-3.5 w-3.5 mr-1" />
+                By Funnel
+              </ToggleGroupItem>
+            </ToggleGroup>
+
+            {viewMode === 'intent' && selectedPrompts.size > 0 && (
               <Button size="sm" onClick={acceptSelected}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add {selectedPrompts.size} Selected
               </Button>
             )}
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => generatePrompts(true)}
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-1" />
-              )}
-              Generate More
-            </Button>
+            {viewMode === 'intent' && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => generatePrompts(true)}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Generate More
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Context Accordion */}
-        {context && (
+        {/* Context Accordion - only show in intent view */}
+        {viewMode === 'intent' && context && (
           <div className="mt-4">
             <Button
               variant="ghost"
@@ -323,68 +357,78 @@ export function IntentPromptSuggestions({
       </CardHeader>
 
       <CardContent>
-        <Tabs value={selectedIntent} onValueChange={(v) => setSelectedIntent(v as IntentType)}>
-          <TabsList className="w-full flex-wrap h-auto gap-1 mb-4">
+        {/* Funnel View */}
+        {viewMode === 'funnel' ? (
+          <FunnelPromptView 
+            brandId={brandId} 
+            onAcceptPrompt={onAcceptPrompt}
+            onAcceptMultiple={onAcceptMultiple}
+          />
+        ) : (
+          /* Intent View */
+          <Tabs value={selectedIntent} onValueChange={(v) => setSelectedIntent(v as IntentType)}>
+            <TabsList className="w-full flex-wrap h-auto gap-1 mb-4">
+              {INTENT_TYPES.map(intent => {
+                const config = INTENT_CONFIG[intent];
+                const count = promptsByIntent[intent]?.length || 0;
+                const Icon = config.icon;
+                
+                return (
+                  <TabsTrigger 
+                    key={intent} 
+                    value={intent}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {config.label}
+                    {count > 0 && (
+                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                        {count}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+
             {INTENT_TYPES.map(intent => {
+              const intentPrompts = promptsByIntent[intent] || [];
               const config = INTENT_CONFIG[intent];
-              const count = promptsByIntent[intent]?.length || 0;
-              const Icon = config.icon;
               
               return (
-                <TabsTrigger 
-                  key={intent} 
-                  value={intent}
-                  className="flex items-center gap-1.5 text-xs"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {config.label}
-                  {count > 0 && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                      {count}
-                    </Badge>
+                <TabsContent key={intent} value={intent} className="mt-0">
+                  <div className="text-sm text-muted-foreground mb-3">
+                    {config.description}
+                  </div>
+
+                  {intentPrompts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No prompts generated for this intent type
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {intentPrompts.map((p, idx) => (
+                        <PromptCard
+                          key={`${intent}-${idx}`}
+                          prompt={p}
+                          intentConfig={config}
+                          isSelected={selectedPrompts.has(p.prompt)}
+                          onToggleSelect={() => togglePromptSelection(p.prompt)}
+                          onAccept={() => {
+                            if (onAcceptPrompt) {
+                              onAcceptPrompt(p.prompt);
+                              toast.success('Prompt added');
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
                   )}
-                </TabsTrigger>
+                </TabsContent>
               );
             })}
-          </TabsList>
-
-          {INTENT_TYPES.map(intent => {
-            const intentPrompts = promptsByIntent[intent] || [];
-            const config = INTENT_CONFIG[intent];
-            
-            return (
-              <TabsContent key={intent} value={intent} className="mt-0">
-                <div className="text-sm text-muted-foreground mb-3">
-                  {config.description}
-                </div>
-
-                {intentPrompts.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No prompts generated for this intent type
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {intentPrompts.map((p, idx) => (
-                      <PromptCard
-                        key={`${intent}-${idx}`}
-                        prompt={p}
-                        intentConfig={config}
-                        isSelected={selectedPrompts.has(p.prompt)}
-                        onToggleSelect={() => togglePromptSelection(p.prompt)}
-                        onAccept={() => {
-                          if (onAcceptPrompt) {
-                            onAcceptPrompt(p.prompt);
-                            toast.success('Prompt added');
-                          }
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   );
