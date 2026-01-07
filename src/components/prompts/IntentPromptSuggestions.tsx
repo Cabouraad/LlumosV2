@@ -377,64 +377,53 @@ export function IntentPromptSuggestions({
     }
   };
 
-  // Load on mount - only once per brandId
+  // Load cached prompts on mount (no auto-generation)
   useEffect(() => {
     if (!user) return;
-    
-    // Prevent duplicate calls within same render cycle
+
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    
-    console.log('[IntentPrompts] Init effect running');
-    
+
     const init = async () => {
       setLoading(true);
       setGenerationProgress(5);
-      
-      // Try to fetch cached prompts first
+
       const cached = await fetchCachedPrompts();
       if (cached && cached.length > 0) {
-        console.log('[IntentPrompts] Using cached prompts');
         setPrompts(cached);
-        setLoading(false);
-        setGenerationProgress(0);
-      } else {
-        // Only generate if no cached prompts
-        console.log('[IntentPrompts] No cache, generating...');
-        await generatePrompts();
       }
+
+      setLoading(false);
+      setGenerationProgress(0);
       fetchVariants();
     };
-    
-    init();
-  }, [user]); // Minimal deps - generatePrompts/fetchCachedPrompts are stable via useCallback
 
-  // Reset and regenerate on brandId change
+    init();
+  }, [user, fetchCachedPrompts]);
+
+  // Reset on brandId change (no auto-generation)
   useEffect(() => {
-    // Skip on initial mount
-    if (!initialLoadDone.current) return;
-    
-    if (brandId !== undefined) {
-      console.log('[IntentPrompts] Brand changed, resetting...');
-      initialLoadDone.current = false;
-      setScoringTriggered(false);
-      setPrompts([]);
-      setGenerationProgress(0);
-      
-      // Trigger re-init
-      const reinit = async () => {
-        setLoading(true);
-        const cached = await fetchCachedPrompts();
-        if (cached && cached.length > 0) {
-          setPrompts(cached);
-          setLoading(false);
-        } else {
-          await generatePrompts();
-        }
-      };
-      reinit();
-    }
-  }, [brandId]);
+    if (!user) return;
+
+    initialLoadDone.current = false;
+    setScoringTriggered(false);
+    setPrompts([]);
+    setContext(null);
+    setError(null);
+    setGenerationProgress(0);
+
+    // Re-fetch cache for the new brand
+    const reinit = async () => {
+      setLoading(true);
+      const cached = await fetchCachedPrompts();
+      if (cached && cached.length > 0) {
+        setPrompts(cached);
+      }
+      setLoading(false);
+    };
+
+    reinit();
+  }, [brandId, user, fetchCachedPrompts]);
 
   // Filter and sort prompts
   const filteredPrompts = useMemo(() => {

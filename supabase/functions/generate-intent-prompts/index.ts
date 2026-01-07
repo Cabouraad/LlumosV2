@@ -581,6 +581,8 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
+    let recordId = buildingRecord?.id ?? null;
+
     if (insertError) {
       console.log('Insert conflict, checking for existing:', insertError.message);
       const { data: existingResult } = await supabase
@@ -589,56 +591,87 @@ Deno.serve(async (req) => {
         .eq('org_id', orgId)
         .eq('version', 1)
         .eq('prompt_hash', promptHash)
-        .single();
-      
+        .maybeSingle();
+
       if (existingResult?.status === 'ready') {
         return new Response(JSON.stringify({ success: true, cached: true, data: existingResult.prompts_json, context: intelligenceContext }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      recordId = existingResult?.id ?? null;
     }
 
-    const countPerIntent = params.countPerIntent || 5;
-    const expectedCount = countPerIntent * 6;
-    const offerings = [...intelligenceContext.primaryProducts, ...intelligenceContext.serviceCategories];
-
-    let result = await generateWithLLM(intelligenceContext, params);
-    let validation = validateAllPrompts(result.prompts, expectedCount, offerings);
-
-    if (!validation.valid) {
-      console.log('Validation failed, attempting repair:', validation.errors.slice(0, 5));
+    // Run generation in the background to avoid request timeouts.
+    const runJob = async () => {
       try {
-        result = await repairPrompts(intelligenceContext, params, validation.validated, validation.errors);
-        validation = validateAllPrompts(result.prompts, expectedCount, offerings);
+        const countPerIntent = params.countPerIntent || 5;
+        const expectedCount = countPerIntent * 6;
+        const offerings = [...intelligenceContext.primaryProducts, ...intelligenceContext.serviceCategories];
+
+        let result = await generateWithLLM(intelligenceContext, params);
+        let validation = validateAllPrompts(result.prompts, expectedCount, offerings);
+
+        if (!validation.valid) {
+          console.log('Validation failed, attempting repair:', validation.errors.slice(0, 5));
+          try {
+            result = await repairPrompts(intelligenceContext, params, validation.validated, validation.errors);
+            validation = validateAllPrompts(result.prompts, expectedCount, offerings);
+          } catch (e) {
+            console.error('Repair pass failed:', e);
+          }
+        }
+
+        if (!validation.valid) {
+          console.error('Validation still failed after repair:', validation.errors);
+          if (recordId) {
+            await supabase
+              .from('prompt_suggestions')
+              .update({ status: 'error', error_message: validation.errors.slice(0, 5).join('; ') })
+              .eq('id', recordId);
+          }
+          return;
+        }
+
+        const processedPrompts = postProcessPrompts(validation.validated, intelligenceContext);
+        console.log(`Generated ${processedPrompts.length} valid prompts`);
+
+        if (recordId) {
+          await supabase
+            .from('prompt_suggestions')
+            .update({ status: 'ready', prompts_json: processedPrompts, llm_model: result.model })
+            .eq('id', recordId);
+        } else {
+          await supabase
+            .from('prompt_suggestions')
+            .upsert({ org_id: orgId, brand_id: brandId, version: 1, status: 'ready', prompt_hash: promptHash, generation_params: params, prompts_json: processedPrompts, llm_model: result.model });
+        }
       } catch (e) {
-        console.error('Repair pass failed:', e);
+        console.error('Background generation job failed:', e);
+        if (recordId) {
+          await supabase
+            .from('prompt_suggestions')
+            .update({ status: 'error', error_message: e instanceof Error ? e.message : 'Unknown error' })
+            .eq('id', recordId);
+        }
       }
-    }
+    };
 
-    if (!validation.valid) {
-      console.error('Validation still failed after repair:', validation.errors);
-      if (buildingRecord?.id) {
-        await supabase.from('prompt_suggestions').update({ status: 'error', error_message: validation.errors.slice(0, 5).join('; ') }).eq('id', buildingRecord.id);
-      }
-      return new Response(JSON.stringify({ success: false, error: 'Validation failed', partialData: validation.validated, validationErrors: validation.errors, context: intelligenceContext }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const processedPrompts = postProcessPrompts(validation.validated, intelligenceContext);
-    console.log(`Generated ${processedPrompts.length} valid prompts`);
-
-    const recordId = buildingRecord?.id;
-    if (recordId) {
-      await supabase.from('prompt_suggestions').update({ status: 'ready', prompts_json: processedPrompts, llm_model: result.model }).eq('id', recordId);
+    const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
+    if (typeof waitUntil === 'function') {
+      waitUntil(runJob());
     } else {
-      await supabase.from('prompt_suggestions').upsert({ org_id: orgId, brand_id: brandId, version: 1, status: 'ready', prompt_hash: promptHash, generation_params: params, prompts_json: processedPrompts, llm_model: result.model });
+      // Fallback (should be rare) - still don't block the response.
+      runJob();
     }
 
-    return new Response(JSON.stringify({ success: true, cached: false, data: processedPrompts, context: intelligenceContext }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: true, queued: true, status: 'building', record_id: recordId, context: intelligenceContext }),
+      {
+        status: 202,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
     console.error('Error in generate-intent-prompts:', error);
