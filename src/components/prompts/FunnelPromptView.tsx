@@ -106,12 +106,14 @@ interface FunnelPromptViewProps {
   brandId?: string | null;
   onAcceptPrompt?: (prompt: string) => void;
   onAcceptMultiple?: (prompts: string[]) => void;
+  includeCompetitive?: boolean;
 }
 
 export function FunnelPromptView({ 
   brandId, 
   onAcceptPrompt,
-  onAcceptMultiple 
+  onAcceptMultiple,
+  includeCompetitive = false
 }: FunnelPromptViewProps) {
   const { user } = useAuth();
   const [funnelView, setFunnelView] = useState<FunnelView | null>(null);
@@ -130,7 +132,7 @@ export function FunnelPromptView({
       const response = await supabase.functions.invoke('get-funnel-prompts', {
         body: { 
           brandId, 
-          params: { minPerBucket: 5, totalDefault: 15 } 
+          params: { minPerBucket: 5, totalDefault: 15, includeCompetitive } 
         },
       });
 

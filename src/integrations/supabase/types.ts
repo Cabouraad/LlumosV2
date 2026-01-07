@@ -1939,6 +1939,7 @@ export type Database = {
           prompt_hash: string
           prompts_json: Json
           status: string
+          suggestion_type: string
           updated_at: string
           version: number
         }
@@ -1954,6 +1955,7 @@ export type Database = {
           prompt_hash: string
           prompts_json?: Json
           status?: string
+          suggestion_type?: string
           updated_at?: string
           version?: number
         }
@@ -1969,6 +1971,7 @@ export type Database = {
           prompt_hash?: string
           prompts_json?: Json
           status?: string
+          suggestion_type?: string
           updated_at?: string
           version?: number
         }
