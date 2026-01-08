@@ -432,16 +432,16 @@ Deno.serve(async (req) => {
     if (orgData.business_city) cities.push(orgData.business_city);
     if (orgData.business_state) states.push(orgData.business_state);
     
-    for (const loc of additionalLocations.slice(0, 2)) {
+    for (const loc of additionalLocations.slice(0, 5)) {
       if (loc.city && !cities.includes(loc.city)) cities.push(loc.city);
       if (loc.state && !states.includes(loc.state)) states.push(loc.state);
     }
     
     // Prioritize cities, then states, then "near me"
     if (cities.length > 0) {
-      geoTargets.push(...cities.slice(0, 2));
+      geoTargets.push(...cities.slice(0, 5));
     } else if (states.length > 0) {
-      geoTargets.push(...states.slice(0, 1));
+      geoTargets.push(...states.slice(0, 3));
     }
     
     if (geoTargets.length === 0) {
