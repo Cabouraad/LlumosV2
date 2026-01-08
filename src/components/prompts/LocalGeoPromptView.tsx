@@ -152,7 +152,7 @@ export function LocalGeoPromptView({
       const response = await supabase.functions.invoke('generate-local-geo-prompts', {
         body: { 
           brandId, 
-          params: { perCity: 3 } 
+          params: { perCity: 8 } 
         },
       });
 

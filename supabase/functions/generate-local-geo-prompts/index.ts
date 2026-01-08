@@ -26,7 +26,7 @@ interface GeoParams {
 }
 
 // Hard cap on total local prompts
-const MAX_LOCAL_PROMPTS = 12;
+const MAX_LOCAL_PROMPTS = 30;
 
 // Prohibited words
 const PROHIBITED_WORDS = ['scam', 'fraud', 'illegal', 'ripoff', 'fake', 'con'];
@@ -355,7 +355,7 @@ Deno.serve(async (req) => {
 
     // Parse request
     let brandId: string | null = null;
-    let params: GeoParams = { perCity: 3 };
+    let params: GeoParams = { perCity: 8 };
     
     try {
       const body = await req.json();
