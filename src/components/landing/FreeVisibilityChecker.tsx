@@ -47,34 +47,44 @@ export function FreeVisibilityChecker() {
     setShowHubSpotModal(false);
     setIsLoading(true);
     
-    // Trigger the visibility report generation in the background
-    try {
-      const email = formData?.email || '';
-      const firstName = formData?.firstName || '';
-      
-      if (email && cleanedDomain) {
-        console.log('[FreeVisibilityChecker] Triggering report generation for:', cleanedDomain);
+    const email = formData?.email || '';
+    const firstName = formData?.firstName || '';
+    
+    // Log the exact data being submitted for debugging
+    console.log('[FreeVisibilityChecker] Form submission:', { 
+      email, 
+      firstName, 
+      domain: cleanedDomain,
+      hasEmail: !!email,
+      hasDomain: !!cleanedDomain 
+    });
+    
+    // Trigger the visibility report using the reliable request-visibility-report endpoint
+    // This stores in database first, then triggers background report generation
+    if (email && cleanedDomain) {
+      try {
+        console.log('[FreeVisibilityChecker] Calling request-visibility-report for:', cleanedDomain);
         
-        // Fire and forget - don't wait for the response
-        supabase.functions.invoke('generate-auto-visibility-report', {
+        const { data, error } = await supabase.functions.invoke('request-visibility-report', {
           body: {
-            firstName,
+            firstName: firstName || 'Visitor',
             email,
             domain: cleanedDomain,
-            score: 0, // Will be calculated by the function
+            score: 0,
           }
-        }).then(({ error }) => {
-          if (error) {
-            console.error('[FreeVisibilityChecker] Report generation error:', error);
-          } else {
-            console.log('[FreeVisibilityChecker] Report generation triggered successfully');
-          }
-        }).catch((err) => {
-          console.error('[FreeVisibilityChecker] Failed to trigger report:', err);
         });
+        
+        if (error) {
+          console.error('[FreeVisibilityChecker] Report request error:', error);
+          toast.error('Report request failed, but you can still view results');
+        } else {
+          console.log('[FreeVisibilityChecker] Report request successful:', data);
+        }
+      } catch (err) {
+        console.error('[FreeVisibilityChecker] Failed to request report:', err);
       }
-    } catch (err) {
-      console.error('[FreeVisibilityChecker] Error triggering report:', err);
+    } else {
+      console.warn('[FreeVisibilityChecker] Missing email or domain:', { email, cleanedDomain });
     }
     
     setTimeout(() => {

@@ -437,13 +437,127 @@ function blurText(text: string): string {
 }
 
 /**
- * Generate PDF report with blurred competitor sections
+ * Industry benchmark data (average scores by industry category)
+ */
+const INDUSTRY_BENCHMARKS: Record<string, number> = {
+  'technology': 45,
+  'software': 42,
+  'saas': 40,
+  'ecommerce': 35,
+  'retail': 32,
+  'finance': 48,
+  'healthcare': 38,
+  'education': 36,
+  'manufacturing': 28,
+  'automotive': 34,
+  '3d printing': 30,
+  'consumer electronics': 38,
+  'default': 35
+};
+
+/**
+ * Get industry benchmark score based on business context
+ */
+function getIndustryBenchmark(businessContext: string): { industry: string; benchmark: number } {
+  const contextLower = businessContext.toLowerCase();
+  
+  for (const [industry, benchmark] of Object.entries(INDUSTRY_BENCHMARKS)) {
+    if (contextLower.includes(industry)) {
+      return { industry, benchmark };
+    }
+  }
+  
+  return { industry: 'all industries', benchmark: INDUSTRY_BENCHMARKS.default };
+}
+
+/**
+ * Analyze content gaps from the results
+ */
+function analyzeContentGaps(results: ProviderResult[], brandName: string): string[] {
+  const gaps: string[] = [];
+  
+  // Find prompts where brand wasn't mentioned
+  const missedPrompts = results.filter(r => !r.brandMentioned && !r.response.startsWith('Error'));
+  
+  // Extract topics from missed prompts
+  const topicKeywords = ['best', 'top', 'recommend', 'features', 'compare', 'how to', 'what is'];
+  
+  for (const missed of missedPrompts.slice(0, 3)) {
+    const prompt = missed.prompt.toLowerCase();
+    for (const keyword of topicKeywords) {
+      if (prompt.includes(keyword)) {
+        // Extract the topic area
+        const topic = prompt.replace(/\?/g, '').trim();
+        if (topic.length > 10 && topic.length < 100) {
+          gaps.push(topic);
+          break;
+        }
+      }
+    }
+  }
+  
+  // Add generic gaps if we don't have enough
+  if (gaps.length === 0) {
+    gaps.push('Product comparison content', 'Industry expertise articles', 'Customer success stories');
+  }
+  
+  return gaps.slice(0, 3);
+}
+
+/**
+ * Generate executive summary based on results
+ */
+function generateExecutiveSummary(
+  domain: string,
+  overallScore: number,
+  results: ProviderResult[],
+  industryBenchmark: { industry: string; benchmark: number }
+): string[] {
+  const summary: string[] = [];
+  
+  // Score interpretation
+  if (overallScore >= 70) {
+    summary.push(`${domain} has strong AI visibility with a score of ${overallScore}/100.`);
+  } else if (overallScore >= 40) {
+    summary.push(`${domain} has moderate AI visibility (${overallScore}/100) with room for improvement.`);
+  } else {
+    summary.push(`${domain} has low AI visibility (${overallScore}/100) and is missing significant opportunities.`);
+  }
+  
+  // Benchmark comparison
+  const diff = overallScore - industryBenchmark.benchmark;
+  if (diff >= 10) {
+    summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
+  } else if (diff <= -10) {
+    summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+  } else {
+    summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+  }
+  
+  // Provider insights
+  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+  const mentionRate = validResults.filter(r => r.brandMentioned).length / validResults.length;
+  
+  if (mentionRate >= 0.7) {
+    summary.push(`AI models mention your brand in ${Math.round(mentionRate * 100)}% of relevant queries.`);
+  } else if (mentionRate >= 0.4) {
+    summary.push(`Your brand appears in ${Math.round(mentionRate * 100)}% of queries - competitors may be capturing the rest.`);
+  } else {
+    summary.push(`Critical: Only ${Math.round(mentionRate * 100)}% of AI queries mention your brand.`);
+  }
+  
+  return summary;
+}
+
+/**
+ * Generate PDF report with executive summary, charts, content gaps, and benchmarks
  */
 async function generatePDF(
   firstName: string,
   domain: string,
   overallScore: number,
-  results: ProviderResult[]
+  results: ProviderResult[],
+  businessContext: string = ''
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -453,13 +567,18 @@ async function generatePDF(
   const pageHeight = 792;
   const margin = 50;
   
-  // Page 1: Cover
+  // Get benchmark and analysis data
+  const industryBenchmark = getIndustryBenchmark(businessContext);
+  const contentGaps = analyzeContentGaps(results, domain);
+  const executiveSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
+  
+  // Page 1: Cover with Executive Summary
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
   
   // Header
   page.drawText('AI VISIBILITY REPORT', {
     x: margin,
-    y: pageHeight - 80,
+    y: pageHeight - 60,
     size: 28,
     font: helveticaBold,
     color: rgb(0.16, 0.19, 0.26)
@@ -467,54 +586,95 @@ async function generatePDF(
   
   page.drawText(`Prepared for ${firstName}`, {
     x: margin,
-    y: pageHeight - 115,
+    y: pageHeight - 90,
     size: 14,
     font: helvetica,
     color: rgb(0.4, 0.4, 0.4)
   });
   
-  page.drawText(`Domain: ${domain}`, {
+  page.drawText(`Domain: ${domain}  |  Generated: ${new Date().toLocaleDateString()}`, {
     x: margin,
-    y: pageHeight - 135,
-    size: 12,
+    y: pageHeight - 108,
+    size: 11,
     font: helvetica,
-    color: rgb(0.4, 0.4, 0.4)
+    color: rgb(0.5, 0.5, 0.5)
   });
   
-  page.drawText(`Generated: ${new Date().toLocaleDateString()}`, {
-    x: margin,
-    y: pageHeight - 155,
-    size: 12,
-    font: helvetica,
-    color: rgb(0.4, 0.4, 0.4)
+  // Divider line
+  page.drawLine({
+    start: { x: margin, y: pageHeight - 125 },
+    end: { x: pageWidth - margin, y: pageHeight - 125 },
+    thickness: 1,
+    color: rgb(0.9, 0.9, 0.9)
   });
   
-  // Overall Score Section
-  page.drawText('OVERALL VISIBILITY SCORE', {
-    x: margin,
-    y: pageHeight - 220,
-    size: 16,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  // Score circle representation
+  // Overall Score Section with visual bar
   const scoreColor = overallScore >= 70 ? rgb(0.2, 0.7, 0.3) : 
                      overallScore >= 40 ? rgb(0.9, 0.6, 0.1) : 
                      rgb(0.8, 0.2, 0.2);
   
+  page.drawText('OVERALL VISIBILITY SCORE', {
+    x: margin,
+    y: pageHeight - 160,
+    size: 14,
+    font: helveticaBold,
+    color: rgb(0.16, 0.19, 0.26)
+  });
+  
+  // Large score display
   page.drawText(`${overallScore}`, {
-    x: margin + 20,
-    y: pageHeight - 280,
-    size: 48,
+    x: margin,
+    y: pageHeight - 210,
+    size: 56,
     font: helveticaBold,
     color: scoreColor
   });
   
   page.drawText('/ 100', {
-    x: margin + 90,
-    y: pageHeight - 280,
-    size: 18,
+    x: margin + 80,
+    y: pageHeight - 210,
+    size: 20,
+    font: helvetica,
+    color: rgb(0.5, 0.5, 0.5)
+  });
+  
+  // Score bar visualization
+  const barWidth = 200;
+  const barHeight = 12;
+  const barX = margin + 160;
+  const barY = pageHeight - 200;
+  
+  // Background bar
+  page.drawRectangle({
+    x: barX,
+    y: barY,
+    width: barWidth,
+    height: barHeight,
+    color: rgb(0.9, 0.9, 0.9)
+  });
+  
+  // Score fill bar
+  page.drawRectangle({
+    x: barX,
+    y: barY,
+    width: (overallScore / 100) * barWidth,
+    height: barHeight,
+    color: scoreColor
+  });
+  
+  // Industry benchmark marker on bar
+  const benchmarkX = barX + (industryBenchmark.benchmark / 100) * barWidth;
+  page.drawLine({
+    start: { x: benchmarkX, y: barY - 3 },
+    end: { x: benchmarkX, y: barY + barHeight + 3 },
+    thickness: 2,
+    color: rgb(0.3, 0.3, 0.3)
+  });
+  
+  page.drawText(`Industry avg: ${industryBenchmark.benchmark}`, {
+    x: barX,
+    y: barY - 15,
+    size: 9,
     font: helvetica,
     color: rgb(0.5, 0.5, 0.5)
   });
@@ -522,28 +682,55 @@ async function generatePDF(
   // Score interpretation
   const scoreLabel = overallScore >= 70 ? 'Strong AI Visibility' :
                      overallScore >= 40 ? 'Moderate AI Visibility' :
-                     'Low AI Visibility';
+                     'Low AI Visibility - Immediate Action Needed';
   
   page.drawText(scoreLabel, {
     x: margin,
-    y: pageHeight - 310,
-    size: 14,
+    y: pageHeight - 240,
+    size: 12,
     font: helveticaBold,
     color: scoreColor
   });
   
-  // Provider Summary
-  let yPos = pageHeight - 370;
+  // Executive Summary Section
+  let yPos = pageHeight - 280;
   
-  page.drawText('VISIBILITY BY PLATFORM', {
+  page.drawText('EXECUTIVE SUMMARY', {
     x: margin,
     y: yPos,
-    size: 16,
+    size: 14,
     font: helveticaBold,
     color: rgb(0.16, 0.19, 0.26)
   });
   
-  yPos -= 30;
+  yPos -= 22;
+  
+  for (const point of executiveSummary) {
+    const lines = wrapText(point, 85);
+    for (const line of lines) {
+      page.drawText(`• ${line}`, {
+        x: margin,
+        y: yPos,
+        size: 11,
+        font: helvetica,
+        color: rgb(0.25, 0.25, 0.25)
+      });
+      yPos -= 16;
+    }
+  }
+  
+  yPos -= 15;
+  
+  // Provider Performance Chart Section
+  page.drawText('VISIBILITY BY AI PLATFORM', {
+    x: margin,
+    y: yPos,
+    size: 14,
+    font: helveticaBold,
+    color: rgb(0.16, 0.19, 0.26)
+  });
+  
+  yPos -= 25;
   
   // Group results by provider
   const providerScores: Record<string, { total: number; count: number; mentioned: number }> = {};
@@ -559,35 +746,135 @@ async function generatePDF(
     }
   }
   
+  // Draw horizontal bar chart for each provider
+  const chartBarWidth = 250;
   for (const [provider, data] of Object.entries(providerScores)) {
     const avgScore = Math.round(data.total / data.count);
-    const mentionRate = `${data.mentioned}/${data.count} prompts`;
+    const mentionRate = `${data.mentioned}/${data.count}`;
+    const providerColor = avgScore >= 50 ? rgb(0.2, 0.7, 0.3) : 
+                          avgScore >= 25 ? rgb(0.9, 0.6, 0.1) : 
+                          rgb(0.8, 0.2, 0.2);
     
-    page.drawText(`${provider}:`, {
+    // Provider label
+    page.drawText(`${provider}`, {
       x: margin,
       y: yPos,
-      size: 12,
+      size: 11,
       font: helveticaBold,
       color: rgb(0.2, 0.2, 0.2)
     });
     
-    page.drawText(`Score: ${avgScore}/100`, {
-      x: margin + 100,
+    // Score bar background
+    page.drawRectangle({
+      x: margin + 80,
+      y: yPos - 2,
+      width: chartBarWidth,
+      height: 14,
+      color: rgb(0.92, 0.92, 0.92)
+    });
+    
+    // Score bar fill
+    page.drawRectangle({
+      x: margin + 80,
+      y: yPos - 2,
+      width: (avgScore / 100) * chartBarWidth,
+      height: 14,
+      color: providerColor
+    });
+    
+    // Score value
+    page.drawText(`${avgScore}/100`, {
+      x: margin + 90 + chartBarWidth,
       y: yPos,
-      size: 12,
-      font: helvetica,
+      size: 10,
+      font: helveticaBold,
       color: rgb(0.3, 0.3, 0.3)
     });
     
-    page.drawText(`Brand mentioned: ${mentionRate}`, {
-      x: margin + 220,
+    // Mention rate
+    page.drawText(`Mentioned: ${mentionRate}`, {
+      x: margin + 155 + chartBarWidth,
       y: yPos,
-      size: 12,
+      size: 10,
       font: helvetica,
-      color: rgb(0.3, 0.3, 0.3)
+      color: rgb(0.5, 0.5, 0.5)
     });
     
-    yPos -= 25;
+    yPos -= 28;
+  }
+  
+  yPos -= 15;
+  
+  // Industry Benchmark Comparison
+  page.drawText('INDUSTRY BENCHMARK', {
+    x: margin,
+    y: yPos,
+    size: 14,
+    font: helveticaBold,
+    color: rgb(0.16, 0.19, 0.26)
+  });
+  
+  yPos -= 20;
+  
+  const benchmarkDiff = overallScore - industryBenchmark.benchmark;
+  const benchmarkText = benchmarkDiff >= 0 
+    ? `+${benchmarkDiff} points above ${industryBenchmark.industry} average`
+    : `${benchmarkDiff} points below ${industryBenchmark.industry} average`;
+  const benchmarkColor = benchmarkDiff >= 0 ? rgb(0.2, 0.7, 0.3) : rgb(0.8, 0.2, 0.2);
+  
+  page.drawText(`Your score: ${overallScore}  |  ${industryBenchmark.industry} average: ${industryBenchmark.benchmark}`, {
+    x: margin,
+    y: yPos,
+    size: 11,
+    font: helvetica,
+    color: rgb(0.3, 0.3, 0.3)
+  });
+  
+  yPos -= 18;
+  
+  page.drawText(benchmarkText, {
+    x: margin,
+    y: yPos,
+    size: 12,
+    font: helveticaBold,
+    color: benchmarkColor
+  });
+  
+  yPos -= 30;
+  
+  // Content Gap Analysis
+  page.drawText('CONTENT GAP OPPORTUNITIES', {
+    x: margin,
+    y: yPos,
+    size: 14,
+    font: helveticaBold,
+    color: rgb(0.16, 0.19, 0.26)
+  });
+  
+  yPos -= 20;
+  
+  page.drawText('Topics where your brand is missing from AI responses:', {
+    x: margin,
+    y: yPos,
+    size: 10,
+    font: helvetica,
+    color: rgb(0.5, 0.5, 0.5)
+  });
+  
+  yPos -= 18;
+  
+  for (const gap of contentGaps) {
+    const lines = wrapText(`• ${gap}`, 80);
+    for (const line of lines) {
+      page.drawText(line, {
+        x: margin + 10,
+        y: yPos,
+        size: 10,
+        font: helvetica,
+        color: rgb(0.3, 0.3, 0.3)
+      });
+      yPos -= 14;
+    }
   }
   
   // Page 2+: Detailed Results
@@ -923,9 +1210,9 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Overall score: ${overallScore} from ${validResults.length} valid results`);
 
-    // Step 4: Generate PDF
-    console.log('[AutoReport] Generating PDF...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults);
+    // Step 4: Generate PDF with enhanced content
+    console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 

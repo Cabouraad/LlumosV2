@@ -51,34 +51,41 @@ export function ConversionHeroSection() {
     setShowHubSpotModal(false);
     setIsLoading(true);
     
-    // Trigger the visibility report generation in the background
-    try {
-      const email = formData?.email || '';
-      const firstName = formData?.firstName || '';
-      
-      if (email && cleanedDomain) {
-        console.log('[ConversionHeroSection] Triggering report generation for:', cleanedDomain);
+    const email = formData?.email || '';
+    const firstName = formData?.firstName || '';
+    
+    console.log('[ConversionHeroSection] Form submission:', { 
+      email, 
+      firstName, 
+      domain: cleanedDomain,
+      hasEmail: !!email,
+      hasDomain: !!cleanedDomain 
+    });
+    
+    // Trigger the visibility report using the reliable request-visibility-report endpoint
+    if (email && cleanedDomain) {
+      try {
+        console.log('[ConversionHeroSection] Calling request-visibility-report for:', cleanedDomain);
         
-        // Fire and forget - don't wait for the response
-        supabase.functions.invoke('generate-auto-visibility-report', {
+        const { data, error } = await supabase.functions.invoke('request-visibility-report', {
           body: {
-            firstName,
+            firstName: firstName || 'Visitor',
             email,
             domain: cleanedDomain,
-            score: 0, // Will be calculated by the function
+            score: 0,
           }
-        }).then(({ error }) => {
-          if (error) {
-            console.error('[ConversionHeroSection] Report generation error:', error);
-          } else {
-            console.log('[ConversionHeroSection] Report generation triggered successfully');
-          }
-        }).catch((err) => {
-          console.error('[ConversionHeroSection] Failed to trigger report:', err);
         });
+        
+        if (error) {
+          console.error('[ConversionHeroSection] Report request error:', error);
+        } else {
+          console.log('[ConversionHeroSection] Report request successful:', data);
+        }
+      } catch (err) {
+        console.error('[ConversionHeroSection] Failed to request report:', err);
       }
-    } catch (err) {
-      console.error('[ConversionHeroSection] Error triggering report:', err);
+    } else {
+      console.warn('[ConversionHeroSection] Missing email or domain:', { email, cleanedDomain });
     }
     
     setTimeout(() => {
