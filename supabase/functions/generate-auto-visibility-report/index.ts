@@ -735,7 +735,7 @@ async function sendReportEmail(
     // Convert PDF to base64
     const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
     
-    await resend.emails.send({
+    const { data, error: emailError } = await resend.emails.send({
       from: "Llumos Reports <reports@llumos.app>",
       to: [email],
       subject: `Your AI Visibility Report for ${domain}`,
@@ -784,7 +784,12 @@ async function sendReportEmail(
       ]
     });
 
-    console.log(`[AutoReport] Email sent successfully to ${email}`);
+    if (emailError) {
+      console.error('[AutoReport] Resend API error:', JSON.stringify(emailError));
+      return false;
+    }
+
+    console.log(`[AutoReport] Email sent successfully to ${email}, ID: ${data?.id}`);
     return true;
   } catch (error) {
     console.error('[AutoReport] Error sending email:', error);
