@@ -6,7 +6,8 @@ import { ArrowRight, Loader2, Zap, Shield, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { HubSpotForm, HUBSPOT_CONFIG } from '@/components/hubspot/HubSpotForm';
+import { HubSpotForm, HUBSPOT_CONFIG, HubSpotFormData } from '@/components/hubspot/HubSpotForm';
+import { supabase } from '@/integrations/supabase/client';
 
 export function FreeVisibilityChecker() {
   const [url, setUrl] = useState('');
@@ -42,9 +43,39 @@ export function FreeVisibilityChecker() {
     setShowHubSpotModal(true);
   };
 
-  const handleHubSpotSubmit = () => {
+  const handleHubSpotSubmit = async (formData?: HubSpotFormData) => {
     setShowHubSpotModal(false);
     setIsLoading(true);
+    
+    // Trigger the visibility report generation in the background
+    try {
+      const email = formData?.email || '';
+      const firstName = formData?.firstName || '';
+      
+      if (email && cleanedDomain) {
+        console.log('[FreeVisibilityChecker] Triggering report generation for:', cleanedDomain);
+        
+        // Fire and forget - don't wait for the response
+        supabase.functions.invoke('generate-auto-visibility-report', {
+          body: {
+            firstName,
+            email,
+            domain: cleanedDomain,
+            score: 0, // Will be calculated by the function
+          }
+        }).then(({ error }) => {
+          if (error) {
+            console.error('[FreeVisibilityChecker] Report generation error:', error);
+          } else {
+            console.log('[FreeVisibilityChecker] Report generation triggered successfully');
+          }
+        }).catch((err) => {
+          console.error('[FreeVisibilityChecker] Failed to trigger report:', err);
+        });
+      }
+    } catch (err) {
+      console.error('[FreeVisibilityChecker] Error triggering report:', err);
+    }
     
     setTimeout(() => {
       navigate(`/score-results?domain=${encodeURIComponent(cleanedDomain)}&brand=${encodeURIComponent(brandName)}`);
