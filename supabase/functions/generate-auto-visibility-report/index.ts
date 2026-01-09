@@ -836,10 +836,14 @@ async function sendReportEmail(
           </p>
           
           <div style="text-align: center; margin: 32px 0;">
-            <a href="https://llumos.app/demo" style="background: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-              Request a Demo
+            <a href="https://calendly.com/llumos-info/llumos-demo" style="background: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
+              Schedule a Demo Call
             </a>
           </div>
+          
+          <p style="font-size: 14px; color: #6b7280; text-align: center;">
+            Or <a href="https://llumos.app/demo" style="color: #4f46e5; text-decoration: underline;">watch our recorded demo</a> to see Llumos in action.
+          </p>
           
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
           
