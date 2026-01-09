@@ -32,6 +32,53 @@ interface ProviderResult {
 }
 
 /**
+ * Research the business to understand their industry and offerings
+ */
+async function researchBusiness(domain: string): Promise<string> {
+  if (!PERPLEXITY_API_KEY) {
+    console.log('[AutoReport] No Perplexity key, skipping business research');
+    return '';
+  }
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          {
+            role: 'user',
+            content: `What does the company at ${domain} do? Provide a brief summary of:
+1. Their industry/category
+2. Their main products or services
+3. Their target audience
+4. Their key competitors
+
+Keep the response concise (under 200 words).`
+          }
+        ]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Perplexity research error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const businessContext = data.choices[0]?.message?.content || '';
+    console.log('[AutoReport] Business research:', businessContext.substring(0, 200) + '...');
+    return businessContext;
+  } catch (error) {
+    console.error('[AutoReport] Error researching business:', error);
+    return '';
+  }
+}
+
+/**
  * Generate 5 industry-relevant prompts based on domain analysis
  */
 async function generateIndustryPrompts(domain: string, businessContext: string): Promise<string[]> {
@@ -52,24 +99,26 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts. Generate exactly 5 UNBRANDED prompts that a potential customer might ask an AI assistant when looking for products/services in this industry. 
+            content: `You are an expert at generating AI search prompts. Generate exactly 5 UNBRANDED prompts that a potential customer might ask an AI assistant when looking for products/services in this specific industry. 
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
-- Prompts should be generic industry/category searches
+- Prompts should be generic industry/category searches that are HIGHLY SPECIFIC to what this business offers
 - Focus on what problems customers want to solve or what they're looking for
-- Think about how someone would search BEFORE they know about this brand`
+- Think about how someone would search BEFORE they know about this brand
+- Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
           },
           {
             role: 'user',
-            content: `Based on the domain "${domain}", identify the industry/category and generate 5 unbranded AI search prompts.
+            content: `Generate 5 unbranded AI search prompts for a business with domain "${domain}".
 
-Business context: ${businessContext || 'General business'}
+${businessContext ? `BUSINESS RESEARCH (use this to make prompts highly relevant):
+${businessContext}` : 'Industry: General business'}
 
-Examples of good unbranded prompts:
-- "What are the best project management tools for remote teams?"
-- "How do I choose a CRM for my small business?"
-- "Best running shoes for marathon training"
+Generate prompts that potential customers of THIS SPECIFIC business would search for. Examples:
+- For a running shoe company: "What are the best running shoes for marathon training?"
+- For a CRM software: "How do I choose a CRM for my small business?"
+- For a pizza restaurant: "Best pizza places near me with outdoor seating"
 
 Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
 ["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
@@ -837,9 +886,13 @@ serve(async (req) => {
     // Extract brand name from domain
     const brandName = domain.replace(/\.(com|io|net|org|co|app)$/i, '').replace(/[.-]/g, ' ');
 
-    // Step 1: Generate industry-relevant prompts
+    // Step 1: Research the business to understand their industry
+    console.log('[AutoReport] Researching business...');
+    const businessContext = await researchBusiness(domain);
+
+    // Step 2: Generate industry-relevant prompts based on research
     console.log('[AutoReport] Generating prompts...');
-    const prompts = await generateIndustryPrompts(domain, '');
+    const prompts = await generateIndustryPrompts(domain, businessContext);
 
     console.log('[AutoReport] Generated prompts:', prompts);
 
