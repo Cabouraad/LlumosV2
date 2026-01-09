@@ -52,15 +52,26 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts. Generate exactly 5 prompts that a potential customer might ask an AI assistant when looking for products/services in this industry. The prompts should be natural, conversational, and representative of real search queries.`
+            content: `You are an expert at generating AI search prompts. Generate exactly 5 UNBRANDED prompts that a potential customer might ask an AI assistant when looking for products/services in this industry. 
+
+CRITICAL RULES:
+- Do NOT include the brand name, company name, or domain in any prompt
+- Prompts should be generic industry/category searches
+- Focus on what problems customers want to solve or what they're looking for
+- Think about how someone would search BEFORE they know about this brand`
           },
           {
             role: 'user',
-            content: `Generate 5 AI search prompts for a business with domain "${domain}". 
-            
+            content: `Based on the domain "${domain}", identify the industry/category and generate 5 unbranded AI search prompts.
+
 Business context: ${businessContext || 'General business'}
 
-Return ONLY a JSON array of 5 prompt strings, no other text:
+Examples of good unbranded prompts:
+- "What are the best project management tools for remote teams?"
+- "How do I choose a CRM for my small business?"
+- "Best running shoes for marathon training"
+
+Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
 ["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
           }
         ],
@@ -93,13 +104,16 @@ Return ONLY a JSON array of 5 prompt strings, no other text:
 }
 
 function getDefaultPrompts(domain: string): string[] {
-  const brandName = domain.replace(/\.(com|io|net|org|co)$/i, '').replace(/[.-]/g, ' ');
+  // Infer industry from domain for generic prompts
+  const domainPart = domain.replace(/\.(com|io|net|org|co|app)$/i, '').toLowerCase();
+  
+  // Generic industry prompts that don't mention the brand
   return [
-    `What is ${brandName} and what do they offer?`,
-    `Best alternatives to ${brandName}`,
-    `${brandName} reviews and reputation`,
-    `Is ${brandName} worth it for small businesses?`,
-    `Compare ${brandName} to competitors`
+    `What are the best tools for ${domainPart.includes('crm') ? 'customer relationship management' : 'business productivity'}?`,
+    `How do I choose the right software for my business needs?`,
+    `What should I look for when evaluating SaaS solutions?`,
+    `Best practices for improving business efficiency with technology`,
+    `Top recommendations for enterprise software in 2024`
   ];
 }
 
@@ -759,13 +773,22 @@ async function sendReportEmail(
             We've attached a detailed PDF report showing how your brand appears across ChatGPT, Perplexity, and Google AI Overviews.
           </p>
           
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 4px;">
+            <p style="margin: 0; font-size: 15px; color: #92400e;">
+              <strong>🔓 Unlock More Insights</strong>
+            </p>
+            <p style="margin: 8px 0 0 0; font-size: 14px; color: #78350f;">
+              Request a demo to access competitor analysis, optimization recommendations, source citations, and historical tracking data.
+            </p>
+          </div>
+          
           <p style="font-size: 16px; color: #374151;">
-            <strong>Want to improve your AI visibility?</strong> Book a demo to see how Llumos can help you track, monitor, and optimize your brand's presence in AI search results.
+            <strong>Ready to dominate AI search results?</strong> Schedule a call with our team to see how Llumos can help you track, monitor, and optimize your brand's visibility across all major AI platforms.
           </p>
           
           <div style="text-align: center; margin: 32px 0;">
             <a href="https://llumos.app/demo" style="background: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-              Book a Demo
+              Request a Demo
             </a>
           </div>
           
