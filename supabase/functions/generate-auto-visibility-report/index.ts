@@ -576,8 +576,8 @@ async function generatePDF(
     
     yPos -= 5;
     
-    // Brand mentioned status
-    const mentionStatus = result.brandMentioned ? '✓ Brand Mentioned' : '✗ Brand Not Mentioned';
+    // Brand mentioned status (using ASCII-safe characters for PDF compatibility)
+    const mentionStatus = result.brandMentioned ? '[YES] Brand Mentioned' : '[NO] Brand Not Mentioned';
     const mentionColor = result.brandMentioned ? rgb(0.2, 0.7, 0.3) : rgb(0.8, 0.2, 0.2);
     
     page.drawText(mentionStatus, {
