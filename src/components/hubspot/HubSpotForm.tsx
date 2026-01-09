@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
+export interface HubSpotFormData {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  [key: string]: string | undefined;
+}
+
 interface HubSpotFormProps {
   portalId: string;
   formId: string;
   region?: string;
-  onFormSubmit?: () => void;
+  onFormSubmit?: (formData?: HubSpotFormData) => void;
   className?: string;
 }
 
@@ -20,11 +27,14 @@ declare global {
           target: string;
           css?: string;
           cssClass?: string;
-          onFormSubmit?: () => void;
+          onFormSubmit?: ($form: JQuery) => void;
           onFormReady?: () => void;
         }) => void;
       };
     };
+  }
+  interface JQuery {
+    serializeArray(): Array<{ name: string; value: string }>;
   }
 }
 
@@ -167,7 +177,18 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
               markLoaded();
             }
             if (data.eventName === 'onFormSubmit') {
-              onFormSubmit?.();
+              // Try to extract form data from the message
+              const formData: HubSpotFormData = {};
+              if (data.data) {
+                // HubSpot sends form values in data array
+                (data.data as Array<{ name: string; value: string }>)?.forEach((field) => {
+                  if (field.name === 'email') formData.email = field.value;
+                  else if (field.name === 'firstname') formData.firstName = field.value;
+                  else if (field.name === 'lastname') formData.lastName = field.value;
+                  else formData[field.name] = field.value;
+                });
+              }
+              onFormSubmit?.(formData);
             }
           }
         };
@@ -212,8 +233,21 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
           onFormReady: () => {
             markLoaded();
           },
-          onFormSubmit: () => {
-            onFormSubmit?.();
+          onFormSubmit: ($form) => {
+            // Extract form data from HubSpot's jQuery form object
+            const formData: HubSpotFormData = {};
+            try {
+              const fields = $form?.serializeArray?.() || [];
+              fields.forEach((field) => {
+                if (field.name === 'email') formData.email = field.value;
+                else if (field.name === 'firstname') formData.firstName = field.value;
+                else if (field.name === 'lastname') formData.lastName = field.value;
+                else formData[field.name] = field.value;
+              });
+            } catch (e) {
+              console.warn('[HubSpotForm] Could not extract form data:', e);
+            }
+            onFormSubmit?.(formData);
           },
         });
 

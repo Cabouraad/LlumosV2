@@ -7,7 +7,8 @@ import { MockChatInterface } from './MockChatInterface';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { HubSpotForm, HUBSPOT_CONFIG, preloadHubSpotForms } from '@/components/hubspot/HubSpotForm';
+import { HubSpotForm, HUBSPOT_CONFIG, preloadHubSpotForms, HubSpotFormData } from '@/components/hubspot/HubSpotForm';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ConversionHeroSection() {
   const [url, setUrl] = useState('');
@@ -46,9 +47,39 @@ export function ConversionHeroSection() {
     setShowHubSpotModal(true);
   };
 
-  const handleHubSpotSubmit = () => {
+  const handleHubSpotSubmit = async (formData?: HubSpotFormData) => {
     setShowHubSpotModal(false);
     setIsLoading(true);
+    
+    // Trigger the visibility report generation in the background
+    try {
+      const email = formData?.email || '';
+      const firstName = formData?.firstName || '';
+      
+      if (email && cleanedDomain) {
+        console.log('[ConversionHeroSection] Triggering report generation for:', cleanedDomain);
+        
+        // Fire and forget - don't wait for the response
+        supabase.functions.invoke('generate-auto-visibility-report', {
+          body: {
+            firstName,
+            email,
+            domain: cleanedDomain,
+            score: 0, // Will be calculated by the function
+          }
+        }).then(({ error }) => {
+          if (error) {
+            console.error('[ConversionHeroSection] Report generation error:', error);
+          } else {
+            console.log('[ConversionHeroSection] Report generation triggered successfully');
+          }
+        }).catch((err) => {
+          console.error('[ConversionHeroSection] Failed to trigger report:', err);
+        });
+      }
+    } catch (err) {
+      console.error('[ConversionHeroSection] Error triggering report:', err);
+    }
     
     setTimeout(() => {
       navigate(`/score-results?domain=${encodeURIComponent(cleanedDomain)}`);
