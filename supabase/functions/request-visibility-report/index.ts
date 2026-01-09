@@ -4,6 +4,7 @@ import { Resend } from "npm:resend@2.0.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const HUBSPOT_PORTAL_ID = Deno.env.get("HUBSPOT_PORTAL_ID");
 const HUBSPOT_FORM_GUID = Deno.env.get("HUBSPOT_FORM_GUID");
@@ -136,10 +137,53 @@ serve(async (req) => {
 
     console.log(`Visibility report requested for ${domain} by ${firstName} (${email}) - Score: ${score}`);
 
+    // Trigger automatic report generation as a background task
+    // This runs after we've sent the response to the user
+    const generateReportInBackground = async () => {
+      try {
+        console.log(`[Background] Starting auto report generation for ${domain}`);
+        
+        const reportResponse = await fetch(
+          `${SUPABASE_URL}/functions/v1/generate-auto-visibility-report`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              firstName: firstName.trim(),
+              email: email.trim(),
+              domain: domain.trim(),
+              score
+            }),
+          }
+        );
+
+        if (reportResponse.ok) {
+          const result = await reportResponse.json();
+          console.log(`[Background] Auto report completed for ${domain}:`, result);
+        } else {
+          const errorText = await reportResponse.text();
+          console.error(`[Background] Auto report failed for ${domain}:`, errorText);
+        }
+      } catch (bgError) {
+        console.error(`[Background] Error generating auto report for ${domain}:`, bgError);
+      }
+    };
+
+    // Use EdgeRuntime.waitUntil if available, otherwise fire-and-forget
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(generateReportInBackground());
+    } else {
+      // Fire and forget - don't await
+      generateReportInBackground();
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: "Report request received successfully" 
+        message: "Report request received successfully. You'll receive your AI Visibility Report via email shortly!" 
       }),
       {
         status: 200,
