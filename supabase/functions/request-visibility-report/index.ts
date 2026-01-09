@@ -5,6 +5,8 @@ import { Resend } from "npm:resend@2.0.0";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const HUBSPOT_PORTAL_ID = Deno.env.get("HUBSPOT_PORTAL_ID");
+const HUBSPOT_FORM_GUID = Deno.env.get("HUBSPOT_FORM_GUID");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,6 +95,42 @@ serve(async (req) => {
       } catch (emailError) {
         console.error("Error sending notification email:", emailError);
         // Don't fail the request if email fails
+      }
+    }
+
+    // Submit to HubSpot Forms API
+    if (HUBSPOT_PORTAL_ID && HUBSPOT_FORM_GUID) {
+      try {
+        const hubspotResponse = await fetch(
+          `https://api.hsforms.com/submissions/v3/integration/submit/${HUBSPOT_PORTAL_ID}/${HUBSPOT_FORM_GUID}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fields: [
+                { name: "firstname", value: firstName.trim() },
+                { name: "email", value: email.trim() },
+                { name: "website", value: domain.trim() },
+              ],
+              context: {
+                pageUri: "https://llumos.app/brands",
+                pageName: "Brand Visibility Report Request",
+              },
+            }),
+          }
+        );
+
+        if (hubspotResponse.ok) {
+          console.log(`Lead submitted to HubSpot for ${email}`);
+        } else {
+          const errorText = await hubspotResponse.text();
+          console.error("HubSpot submission failed:", errorText);
+        }
+      } catch (hubspotError) {
+        console.error("Error submitting to HubSpot:", hubspotError);
+        // Don't fail the request if HubSpot fails
       }
     }
 
