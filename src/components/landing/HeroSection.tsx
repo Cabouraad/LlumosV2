@@ -56,37 +56,43 @@ export function HeroSection() {
     setShowHubSpotModal(false);
     setIsLoading(true);
     
-    // Trigger the visibility report generation in the background
-    try {
-      const email = formData?.email || '';
-      const firstName = formData?.firstName || '';
-      
-      if (email && cleanedDomain) {
-        console.log('[HeroSection] Triggering report generation for:', cleanedDomain);
+    const email = formData?.email || '';
+    const firstName = formData?.firstName || '';
+    
+    console.log('[HeroSection] Form submission:', { 
+      email, 
+      firstName, 
+      domain: cleanedDomain,
+      hasEmail: !!email,
+      hasDomain: !!cleanedDomain 
+    });
+    
+    // Trigger the visibility report using the reliable request-visibility-report endpoint
+    if (email && cleanedDomain) {
+      try {
+        console.log('[HeroSection] Calling request-visibility-report for:', cleanedDomain);
         
-        // Fire and forget - don't wait for the response
-        supabase.functions.invoke('generate-auto-visibility-report', {
+        const { data, error } = await supabase.functions.invoke('request-visibility-report', {
           body: {
-            firstName,
+            firstName: firstName || 'Visitor',
             email,
             domain: cleanedDomain,
-            score: 0, // Will be calculated by the function
+            score: 0,
           }
-        }).then(({ error }) => {
-          if (error) {
-            console.error('[HeroSection] Report generation error:', error);
-          } else {
-            console.log('[HeroSection] Report generation triggered successfully');
-          }
-        }).catch((err) => {
-          console.error('[HeroSection] Failed to trigger report:', err);
         });
+        
+        if (error) {
+          console.error('[HeroSection] Report request error:', error);
+        } else {
+          console.log('[HeroSection] Report request successful:', data);
+        }
+      } catch (err) {
+        console.error('[HeroSection] Failed to request report:', err);
       }
-    } catch (err) {
-      console.error('[HeroSection] Error triggering report:', err);
+    } else {
+      console.warn('[HeroSection] Missing email or domain:', { email, cleanedDomain });
     }
     
-    // Navigate to score results page with the domain
     setTimeout(() => {
       navigate(`/score-results?domain=${encodeURIComponent(cleanedDomain)}`);
     }, 300);
