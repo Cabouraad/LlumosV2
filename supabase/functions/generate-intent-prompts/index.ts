@@ -401,18 +401,53 @@ async function repairPrompts(context: PromptIntelligenceContext, params: Generat
   
   const countPerIntent = params.countPerIntent || 5;
   const totalCount = countPerIntent * 6;
+  const offerings = [...context.primaryProducts, ...context.serviceCategories, 'general'];
   
-  const repairPrompt = `The previous generation had validation errors. Fix them:
+  // Build a more comprehensive repair prompt with full schema
+  const repairPrompt = `The previous prompt generation had validation errors. You need to generate new, valid prompts.
 
-ERRORS:
-${errors.slice(0, 10).map(e => `- ${e}`).join('\n')}
+BUSINESS CONTEXT:
+- Business: ${context.businessName}
+- Industry: ${context.industry}
+- Products/Services: ${offerings.slice(0, 8).join(', ')}
+${context.competitors.known.length > 0 ? `- Competitors: ${context.competitors.known.join(', ')}` : ''}
 
-Generate ${totalCount} VALID prompts. Ensure:
-1. Exactly ${countPerIntent} prompts per intent type
-2. All prompts unique
-3. All fields present and valid
+PREVIOUS ERRORS (avoid these):
+${errors.slice(0, 5).map(e => `- ${e}`).join('\n')}
 
-Return ONLY valid JSON: { "prompts": [...] }`;
+REQUIREMENTS:
+- Generate exactly ${totalCount} prompts (${countPerIntent} per intent type)
+- Intent types: discovery, validation, comparison, recommendation, action, local_intent
+- Each prompt MUST have ALL these fields:
+  * prompt: string (6-140 chars)
+  * intent_type: "discovery"|"validation"|"comparison"|"recommendation"|"action"|"local_intent"
+  * why_relevant: string (max 140 chars)
+  * target_offering: one of [${offerings.slice(0, 8).join(', ')}, general]
+  * funnel_stage: "TOFU"|"MOFU"|"BOFU"
+  * needs_geo_variant: boolean (true or false)
+  * seed_topic: string (e.g., "pricing", "reviews", "comparisons")
+
+FUNNEL MAPPING:
+- discovery → TOFU
+- validation, comparison, recommendation → MOFU
+- action, local_intent → BOFU
+
+OUTPUT FORMAT - Return ONLY this JSON:
+{
+  "prompts": [
+    {
+      "prompt": "What are the best tools for...",
+      "intent_type": "discovery",
+      "why_relevant": "User exploring options...",
+      "target_offering": "general",
+      "funnel_stage": "TOFU",
+      "needs_geo_variant": false,
+      "seed_topic": "best tools"
+    }
+  ]
+}
+
+Generate exactly ${totalCount} VALID prompts now.`;
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -420,7 +455,7 @@ Return ONLY valid JSON: { "prompts": [...] }`;
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You are a JSON-only response generator. Output ONLY valid JSON.' },
+        { role: 'system', content: 'You are a JSON-only response generator. Output ONLY valid JSON with no explanations or markdown. Every prompt object MUST have all required fields.' },
         { role: 'user', content: repairPrompt }
       ],
       temperature: 0.5,
@@ -611,6 +646,9 @@ Deno.serve(async (req) => {
 
         let result = await generateWithLLM(intelligenceContext, params);
         let validation = validateAllPrompts(result.prompts, expectedCount, offerings);
+        
+        // Keep track of valid prompts from first pass
+        let firstPassValidPrompts = [...validation.validated];
 
         if (!validation.valid) {
           console.log('Validation failed, attempting repair:', validation.errors.slice(0, 5));
@@ -622,18 +660,38 @@ Deno.serve(async (req) => {
           }
         }
 
+        // If still not valid but we have some valid prompts, use them anyway
+        let finalPrompts: GeneratedPrompt[] = validation.validated;
+        
         if (!validation.valid) {
-          console.error('Validation still failed after repair:', validation.errors);
+          console.warn('Validation still failed after repair, using partial results:', validation.errors.length, 'errors');
+          // Combine valid prompts from both passes, dedupe
+          const allValid = [...firstPassValidPrompts, ...validation.validated];
+          const seen = new Set<string>();
+          finalPrompts = [];
+          for (const p of allValid) {
+            const key = p.prompt.toLowerCase().trim();
+            if (!seen.has(key)) {
+              seen.add(key);
+              finalPrompts.push(p);
+            }
+          }
+          console.log(`Using ${finalPrompts.length} valid prompts from partial results`);
+        }
+        
+        // Only error if we have zero valid prompts
+        if (finalPrompts.length === 0) {
+          console.error('No valid prompts generated');
           if (recordId) {
             await supabase
               .from('prompt_suggestions')
-              .update({ status: 'error', error_message: validation.errors.slice(0, 5).join('; ') })
+              .update({ status: 'error', error_message: 'No valid prompts could be generated' })
               .eq('id', recordId);
           }
           return;
         }
 
-        const processedPrompts = postProcessPrompts(validation.validated, intelligenceContext);
+        const processedPrompts = postProcessPrompts(finalPrompts, intelligenceContext);
         console.log(`Generated ${processedPrompts.length} valid prompts`);
 
         if (recordId) {
