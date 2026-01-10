@@ -510,8 +510,46 @@ export function IntentPromptSuggestions({
     toast.success(`Added ${selectedPrompts.size} prompts`);
   };
 
-  // Loading state with progress bar
-  if (loading && prompts.length === 0) {
+  // Loading/generating state with animated progress - show as overlay or full screen
+  const GeneratingOverlay = () => (
+    <Card className="shadow-soft rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-primary/5 to-accent/5">
+      <CardContent className="p-6">
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                <Sparkles className="h-7 w-7 text-primary animate-bounce" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center">
+                <Loader2 className="h-3 w-3 text-accent-foreground animate-spin" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground mb-1">
+                Generating Intent-Driven Prompts
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {generationProgress < 30 && "Analyzing your business context..."}
+                {generationProgress >= 30 && generationProgress < 70 && "Generating prompts for all intent types..."}
+                {generationProgress >= 70 && generationProgress < 90 && "Validating and organizing prompts..."}
+                {generationProgress >= 90 && "Almost done!"}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Progress value={generationProgress} className="h-2" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Processing...</span>
+              <span>{Math.round(generationProgress)}%</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Initial loading state (no prompts yet)
+  if (loading && prompts.length === 0 && generationProgress === 0) {
     return (
       <div className="space-y-6">
         <Card className="shadow-soft rounded-2xl border-0">
@@ -531,44 +569,11 @@ export function IntentPromptSuggestions({
     );
   }
 
-  // Loading/generating state with animated progress
-  if (loading && generationProgress > 0) {
+  // Full screen generating state (no prompts yet)
+  if (loading && prompts.length === 0 && generationProgress > 0) {
     return (
       <div className="space-y-6">
-        <Card className="shadow-soft rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-primary/5 to-accent/5">
-          <CardContent className="p-6">
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
-                    <Sparkles className="h-7 w-7 text-primary animate-bounce" />
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                    <Loader2 className="h-3 w-3 text-accent-foreground animate-spin" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-1">
-                    Generating Intent-Driven Prompts
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {generationProgress < 30 && "Analyzing your business context..."}
-                    {generationProgress >= 30 && generationProgress < 70 && "Generating prompts for all intent types..."}
-                    {generationProgress >= 70 && generationProgress < 90 && "Validating and organizing prompts..."}
-                    {generationProgress >= 90 && "Almost done!"}
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Progress value={generationProgress} className="h-2" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Processing...</span>
-                  <span>{Math.round(generationProgress)}%</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <GeneratingOverlay />
       </div>
     );
   }
@@ -637,6 +642,9 @@ export function IntentPromptSuggestions({
 
   return (
     <div className="space-y-6">
+      {/* Show generating overlay when regenerating with existing prompts */}
+      {loading && generationProgress > 0 && <GeneratingOverlay />}
+      
       {/* Header Card */}
       <Card className="shadow-soft rounded-2xl border-0">
         <CardHeader>
@@ -662,8 +670,17 @@ export function IntentPromptSuggestions({
                 disabled={loading}
                 className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-soft"
               >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {prompts.length > 0 ? 'Generate More' : 'Generate Prompts'}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {prompts.length > 0 ? 'Generate More' : 'Generate Prompts'}
+                  </>
+                )}
               </Button>
             </div>
           </div>
