@@ -17,8 +17,7 @@ import { getUnifiedPromptData, invalidateCache } from '@/lib/data/unified-fetche
 import { getSuggestedPrompts, acceptSuggestion, dismissSuggestion, generateSuggestionsNow } from '@/lib/suggestions/data';
 import { PromptList } from '@/components/PromptList';
 import { KeywordManagement } from '@/components/KeywordManagement';
-import { PromptSuggestions } from '@/components/PromptSuggestions';
-import { IntentPromptSuggestions } from '@/components/prompts/IntentPromptSuggestions';
+import { UnifiedPromptSuggestions } from '@/components/prompts/UnifiedPromptSuggestions';
 import { BatchPromptRunner } from '@/components/BatchPromptRunner';
 import { ProviderDebugPanel } from '@/components/ProviderDebugPanel';
 import { DateRangePicker } from '@/components/DateRangePicker';
@@ -26,7 +25,7 @@ import { getPromptCategory } from '@/lib/prompt-utils';
 import { useAdminAccess } from '@/hooks/useAdminAccess';
 import { useClusterPrompts } from '@/hooks/useClusterPrompts';
 import { usePromptsOnboardingTour } from '@/hooks/usePromptsOnboardingTour';
-import { AlertCircle, Sparkles, Zap, MapPin } from 'lucide-react';
+import { AlertCircle, Sparkles, MapPin } from 'lucide-react';
 import { LocalGeoPromptView } from '@/components/prompts/LocalGeoPromptView';
 import { FreeTierUpgradeModal } from '@/components/FreeTierUpgradeModal';
 
@@ -715,17 +714,16 @@ export default function Prompts() {
             </div>
 
             <Tabs defaultValue="prompts" className="w-full">
-              <TabsList className={`grid w-full ${isTestUser ? 'grid-cols-6' : 'grid-cols-5'} rounded-2xl bg-card/80 backdrop-blur-sm shadow-soft p-1 border border-border/50`}>
+              <TabsList className={`grid w-full ${isTestUser ? 'grid-cols-5' : 'grid-cols-4'} rounded-2xl bg-card/80 backdrop-blur-sm shadow-soft p-1 border border-border/50`}>
                 <TabsTrigger value="prompts" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">My Prompts</TabsTrigger>
-                <TabsTrigger value="intent-suggestions" data-tour="intent-prompts" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-1">
-                  <Zap className="h-3.5 w-3.5" />
-                  <span>Intent Prompts</span>
+                <TabsTrigger value="suggestions" data-tour="prompt-suggestions" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Prompt Suggestions</span>
                 </TabsTrigger>
                 <TabsTrigger value="localized" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" />
                   <span>Localized</span>
                 </TabsTrigger>
-                <TabsTrigger value="suggestions" data-tour="prompt-suggestions" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Classic Suggestions</TabsTrigger>
                 <TabsTrigger value="keywords" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Business Context</TabsTrigger>
                 {isTestUser && (
                   <TabsTrigger value="debug" className="rounded-xl transition-smooth hover-glow data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Debug Tools</TabsTrigger>
@@ -746,11 +744,10 @@ export default function Prompts() {
                 />
               </TabsContent>
 
-              <TabsContent value="intent-suggestions" className="mt-6">
-                <IntentPromptSuggestions
+              <TabsContent value="suggestions" className="mt-6">
+                <UnifiedPromptSuggestions
                   brandId={selectedBrand?.id}
-                  onAcceptPrompt={async (promptText) => {
-                    // Check billing limits before adding prompt
+                  onAcceptIntentPrompt={async (promptText) => {
                     const activePromptsCount = rawPrompts.filter(p => p.active).length;
                     const canCreate = canCreatePrompts(activePromptsCount);
                     if (!canCreate.hasAccess) {
@@ -765,8 +762,6 @@ export default function Prompts() {
                       }
                       return;
                     }
-
-                    // Create prompt directly
                     const insertData: any = {
                       org_id: orgData?.organizations?.id,
                       text: promptText.trim(),
@@ -775,7 +770,6 @@ export default function Prompts() {
                     if (selectedBrand) {
                       insertData.brand_id = selectedBrand.id;
                     }
-                    
                     const { error } = await supabase.from('prompts').insert(insertData);
                     if (error) {
                       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -784,8 +778,7 @@ export default function Prompts() {
                       loadPromptsData();
                     }
                   }}
-                  onAcceptMultiple={async (promptTexts) => {
-                    // Check billing limits
+                  onAcceptMultipleIntentPrompts={async (promptTexts) => {
                     const activePromptsCount = rawPrompts.filter(p => p.active).length;
                     const canCreate = canCreatePrompts(activePromptsCount + promptTexts.length - 1);
                     if (!canCreate.hasAccess) {
@@ -800,15 +793,12 @@ export default function Prompts() {
                       }
                       return;
                     }
-
-                    // Create prompts in bulk
                     const insertData = promptTexts.map(text => ({
                       org_id: orgData?.organizations?.id,
                       text: text.trim(),
                       active: true,
                       ...(selectedBrand ? { brand_id: selectedBrand.id } : {})
                     }));
-                    
                     const { error } = await supabase.from('prompts').insert(insertData);
                     if (error) {
                       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -818,77 +808,13 @@ export default function Prompts() {
                       loadPromptsData();
                     }
                   }}
-                />
-              </TabsContent>
-
-              <TabsContent value="localized" className="mt-6">
-                <LocalGeoPromptView
-                  brandId={selectedBrand?.id}
-                  onAcceptPrompt={async (promptText) => {
-                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
-                    const canCreate = canCreatePrompts(activePromptsCount);
-                    if (!canCreate.hasAccess) {
-                      if (limits.isFreeTier) {
-                        setShowUpgradeModal(true);
-                      } else {
-                        toast({ title: 'Subscription Limit Reached', description: canCreate.reason, variant: 'destructive' });
-                      }
-                      return;
-                    }
-                    const insertData: any = {
-                      org_id: orgData?.organizations?.id,
-                      text: promptText.trim(),
-                      active: true
-                    };
-                    if (selectedBrand) {
-                      insertData.brand_id = selectedBrand.id;
-                    }
-                    const { error } = await supabase.from('prompts').insert(insertData);
-                    if (error) {
-                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                    } else {
-                      invalidateCache(['dashboard-data', 'prompt-data']);
-                      loadPromptsData();
-                    }
-                  }}
-                  onAcceptMultiple={async (promptTexts) => {
-                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
-                    const canCreate = canCreatePrompts(activePromptsCount + promptTexts.length - 1);
-                    if (!canCreate.hasAccess) {
-                      if (limits.isFreeTier) {
-                        setShowUpgradeModal(true);
-                      } else {
-                        toast({ title: 'Subscription Limit Reached', description: canCreate.reason, variant: 'destructive' });
-                      }
-                      return;
-                    }
-                    const insertData = promptTexts.map(text => ({
-                      org_id: orgData?.organizations?.id,
-                      text: text.trim(),
-                      active: true,
-                      ...(selectedBrand ? { brand_id: selectedBrand.id } : {})
-                    }));
-                    const { error } = await supabase.from('prompts').insert(insertData);
-                    if (error) {
-                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                    } else {
-                      toast({ title: 'Success', description: `Added ${promptTexts.length} localized prompts` });
-                      invalidateCache(['dashboard-data', 'prompt-data']);
-                      loadPromptsData();
-                    }
-                  }}
-                />
-              </TabsContent>
-
-              <TabsContent value="suggestions" className="mt-6">
-                <PromptSuggestions
-                  suggestions={suggestedPrompts}
-                  loading={suggestionsLoading}
-                  generating={generatingSuggestions}
-                  onAccept={handleAcceptSuggestion}
-                  onDismiss={handleDismissSuggestion}
-                  onGenerate={handleGenerateMoreSuggestions}
-                  onSettingsUpdated={loadSuggestedPrompts}
+                  classicSuggestions={suggestedPrompts}
+                  classicLoading={suggestionsLoading}
+                  classicGenerating={generatingSuggestions}
+                  onAcceptClassic={handleAcceptSuggestion}
+                  onDismissClassic={handleDismissSuggestion}
+                  onGenerateClassic={handleGenerateMoreSuggestions}
+                  onClassicSettingsUpdated={loadSuggestedPrompts}
                 />
               </TabsContent>
 
