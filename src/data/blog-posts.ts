@@ -107,7 +107,7 @@ Understanding your AI search performance shouldn't require manual testing of doz
 
 Our platform monitors your competitors too, so you can see who's winning in AI search for your target topics and why. Instead of guessing what's working, you get clear data on your AI visibility trends and actionable insights to improve your performance across all 4 major platforms: ChatGPT, Gemini, Perplexity, and Google AI Overviews.
 
-Ready to see where your brand stands in AI search? [Start your free trial](/auth) and get your first AI visibility report in minutes.
+Ready to see where your brand stands in AI search? [Start your free trial](/signup) and get your first AI visibility report in minutes.
 
 ## The Bottom Line: It's About Being Genuinely Helpful
 
@@ -255,7 +255,7 @@ Instead of manually testing queries across multiple platforms or wrestling with 
 
 Our platform automatically tracks your brand mentions across ChatGPT, Gemini, Perplexity, and Google AI Overviews, with clear reporting on when you appear, how you're positioned, and how you compare to competitors. You get actionable insights without the complexity of enterprise tools or the limitations of basic monitoring services.
 
-Ready to stop guessing about your AI search performance? [Start your free trial](/auth) and see your first AI visibility report today.
+Ready to stop guessing about your AI search performance? [Start your free trial](/signup) and see your first AI visibility report today.
 
 ## The Bottom Line
 
@@ -422,7 +422,7 @@ Implementing these strategies without measuring results is like driving with you
 
 Our platform helps you identify which topics generate the most mentions, how your positioning compares to competitors, and where you have the biggest opportunities to improve. Instead of guessing whether your content strategy is working, you get clear data on your AI visibility trends.
 
-Ready to see which of these strategies will work best for your brand? [Start your free trial](/auth) and get your first competitive AI search analysis today.
+Ready to see which of these strategies will work best for your brand? [Start your free trial](/signup) and get your first competitive AI search analysis today.
 
 ## The Long Game: Building Sustainable AI Visibility
 
@@ -590,7 +590,7 @@ Manual testing and tracking works, but it's time-consuming and easy to forget. L
 
 Our platform monitors your brand mentions across ChatGPT, Claude, and Perplexity, tracks your competitors automatically, and sends you alerts when your visibility changes. You get professional-level AI search intelligence without enterprise complexity or pricing.
 
-Instead of spending hours manually testing queries, you can focus on creating great content while Llumos tracks whether it's improving your AI search performance. [Start your free trial](/auth) and see where your business stands in AI search today.
+Instead of spending hours manually testing queries, you can focus on creating great content while Llumos tracks whether it's improving your AI search performance. [Start your free trial](/signup) and see where your business stands in AI search today.
 
 ## Getting Started This Week
 
@@ -805,7 +805,7 @@ Building comprehensive AI search measurement from scratch is time-intensive and 
 
 Our platform monitors your Share of Voice, coverage rates, and positioning quality across ChatGPT, Claude, and Perplexity. You get weekly reports showing exactly how you compare to competitors, which queries are driving the most visibility, and where you have the biggest opportunities to improve.
 
-Instead of spending hours manually testing queries and building spreadsheets, you get professional-grade AI search analytics that map directly to these proven metrics. [Start your free trial](/auth) and see your complete AI search performance dashboard in minutes.
+Instead of spending hours manually testing queries and building spreadsheets, you get professional-grade AI search analytics that map directly to these proven metrics. [Start your free trial](/signup) and see your complete AI search performance dashboard in minutes.
 
 ## Setting Up Your Measurement System This Month
 
@@ -1104,7 +1104,7 @@ Conducting a comprehensive AI brand audit manually is thorough but time-intensiv
 
 Our platform automatically tracks your brand mentions across ChatGPT, Claude, and Perplexity, analyzes competitor performance, and identifies content gaps and opportunities. You get the strategic insights of a comprehensive audit updated weekly, not just once per quarter.
 
-Instead of spending a month gathering data manually, you can focus on strategic analysis and content creation while Llumos handles the monitoring and measurement. [Start your free trial](/auth) and get your complete AI brand audit report instantly.
+Instead of spending a month gathering data manually, you can focus on strategic analysis and content creation while Llumos handles the monitoring and measurement. [Start your free trial](/signup) and get your complete AI brand audit report instantly.
 
 ## Getting Started: Your First Audit This Month
 
@@ -1377,7 +1377,7 @@ Instead of manually testing queries across devices and locations to see if you a
 
 Our platform tracks when you appear in AI-generated results, analyzes how you're positioned compared to competitors, and identifies optimization opportunities. You get clear visibility into your AI search performance without the manual testing hassle.
 
-Ready to see where you rank in AI search? [Start your free trial](/auth) and get your comprehensive AI visibility report.
+Ready to see where you rank in AI search? [Start your free trial](/signup) and get your comprehensive AI visibility report.
 
 ## Implementation Roadmap
 
@@ -1689,7 +1689,7 @@ Manually testing queries across ChatGPT, Perplexity, Claude, and Google AI Overv
 
 Our platform provides unified visibility tracking with platform-specific insights, so you can see both your overall AI search performance and platform-specific opportunities. Instead of running manual tests, get automated monitoring and actionable insights.
 
-Ready to see your complete AI visibility picture? [Start your free trial](/auth) and get your multi-platform visibility report.
+Ready to see your complete AI visibility picture? [Start your free trial](/signup) and get your multi-platform visibility report.
 
 ## Implementation Checklist
 
@@ -2003,7 +2003,7 @@ Instead of manually testing queries across platforms to track competitors, Llumo
 
 Our platform shows you exactly where competitors appear, how often they're mentioned, and how their visibility compares to yours. You get automated competitive intelligence that would otherwise require hours of manual testing every week.
 
-Ready to see where your competitors dominate AI search? [Start your free trial](/auth) and get your competitive intelligence report instantly.
+Ready to see where your competitors dominate AI search? [Start your free trial](/signup) and get your competitive intelligence report instantly.
 
 ## Action Plan: Your First Competitive Analysis
 
@@ -2354,7 +2354,7 @@ Instead of guessing which content performs well in AI search, Llumos shows you e
 
 Our platform reveals which content types generate the most AI visibility, which topics you should prioritize, and where content gaps exist that you can fill. You get data-driven insights to guide your content strategy rather than relying on assumptions.
 
-Ready to build a data-driven AI content strategy? [Start your free trial](/auth) and see what content is actually driving AI visibility.
+Ready to build a data-driven AI content strategy? [Start your free trial](/signup) and see what content is actually driving AI visibility.
 
 ## Implementation Checklist
 
@@ -2677,7 +2677,7 @@ Llumos tracks your local AI visibility across ChatGPT, Google AI Overviews, and 
 
 Our platform monitors location-specific queries relevant to your business, tracks competitive local visibility, and identifies opportunities to improve your local AI search performance.
 
-Ready to dominate local AI search in your market? [Start your free trial](/auth) and get your local visibility report.
+Ready to dominate local AI search in your market? [Start your free trial](/signup) and get your local visibility report.
 
 ## Implementation Timeline for Local Businesses
 

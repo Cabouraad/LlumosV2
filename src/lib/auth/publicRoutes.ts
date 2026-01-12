@@ -10,9 +10,24 @@ export const PUBLIC_ROUTES = [
   '/features',
   '/resources',
   '/privacy',
-  '/terms'
+  '/terms',
+  '/demo',
+  '/data-deletion'
 ];
 
 export function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/auth/');
+  // Check exact matches
+  if (PUBLIC_ROUTES.includes(pathname)) return true;
+  
+  // Check prefix matches for dynamic routes
+  if (pathname.startsWith('/auth/')) return true;
+  if (pathname.startsWith('/resources/')) return true;
+  if (pathname.startsWith('/blog/')) return true;
+  if (pathname.startsWith('/features/')) return true;
+  if (pathname.startsWith('/tools/')) return true;
+  if (pathname.startsWith('/plans/')) return true;
+  if (pathname.startsWith('/solutions/')) return true;
+  if (pathname.startsWith('/compare/')) return true;
+  
+  return false;
 }
