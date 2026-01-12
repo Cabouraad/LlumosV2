@@ -15,7 +15,19 @@ import { TrialBanner } from "@/components/TrialBanner";
 export default function OptimizationsV2() {
   const { canAccessRecommendations } = useSubscriptionGate();
   const optimizationsAccess = canAccessRecommendations();
-  const { data: optimizations, isLoading } = useOptimizations({ status: 'open', limit: 50 });
+
+  // Fetch each status separately so tabs reflect real status transitions.
+  // This avoids limiting the whole dashboard to just "open" items.
+  const openQuery = useOptimizations({ status: 'open', limit: 50 });
+  const inProgressQuery = useOptimizations({ status: 'in_progress', limit: 50 });
+  const completedQuery = useOptimizations({ status: 'completed', limit: 50 });
+
+  const openOptimizations = openQuery.data ?? [];
+  const inProgressOptimizations = inProgressQuery.data ?? [];
+  const completedOptimizations = completedQuery.data ?? [];
+  const totalGenerated =
+    openOptimizations.length + inProgressOptimizations.length + completedOptimizations.length;
+
   const generateMutation = useGenerateOptimizations();
 
   const handleGenerate = async () => {
@@ -54,11 +66,6 @@ export default function OptimizationsV2() {
       </Layout>
     );
   }
-
-  // Group optimizations by status
-  const openOptimizations = optimizations?.filter(o => o.status === 'open') || [];
-  const inProgressOptimizations = optimizations?.filter(o => o.status === 'in_progress') || [];
-  const completedOptimizations = optimizations?.filter(o => o.status === 'completed') || [];
 
   return (
     <Layout>
@@ -128,7 +135,7 @@ export default function OptimizationsV2() {
               <CardDescription>Total Generated</CardDescription>
               <CardTitle className="text-3xl flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
-                {optimizations?.length || 0}
+                {totalGenerated}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -156,7 +163,7 @@ export default function OptimizationsV2() {
           </TabsList>
 
           <TabsContent value="open" className="space-y-4">
-            {isLoading ? (
+            {openQuery.isLoading ? (
               Array.from({ length: 3 }).map((_, idx) => (
                 <Skeleton key={idx} className="h-64 w-full" />
               ))
