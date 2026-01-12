@@ -95,7 +95,7 @@ export function FreeVisibilityChecker() {
   return (
     <>
       <section className="py-16 px-4 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-violet-950/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-950/20 to-transparent pointer-events-none" />
         
         <div className="container max-w-4xl mx-auto relative z-10">
           <motion.div
