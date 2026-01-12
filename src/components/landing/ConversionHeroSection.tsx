@@ -21,8 +21,12 @@ export function ConversionHeroSection() {
     preloadHubSpotForms();
   }, []);
 
-  const handleAnalyze = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAnalyze = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    
+    console.log('[ConversionHeroSection] handleAnalyze called, url:', url);
     
     if (!url.trim()) {
       toast.error('Please enter a website URL');
@@ -37,12 +41,15 @@ export function ConversionHeroSection() {
     }
     cleanUrl = cleanUrl.replace(/\/.*$/, '');
 
+    console.log('[ConversionHeroSection] Cleaned URL:', cleanUrl);
+
     const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
     if (!domainRegex.test(cleanUrl)) {
       toast.error('Please enter a valid domain (e.g., example.com)');
       return;
     }
 
+    console.log('[ConversionHeroSection] Opening HubSpot modal for:', cleanUrl);
     setCleanedDomain(cleanUrl);
     setShowHubSpotModal(true);
   };
@@ -96,11 +103,11 @@ export function ConversionHeroSection() {
   return (
     <>
       <section className="relative min-h-[80vh] flex flex-col pt-24 pb-12 px-4 overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/30 via-background to-blue-950/20" />
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[100px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+        {/* Background effects - pointer-events-none to not block clicks */}
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/30 via-background to-blue-950/20 pointer-events-none" />
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px] pointer-events-none" />
 
         <div className="container max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
@@ -150,6 +157,10 @@ export function ConversionHeroSection() {
                     type="submit"
                     disabled={isLoading}
                     size="lg"
+                    onClick={(e) => {
+                      console.log('[ConversionHeroSection] Button clicked');
+                      // Form submit should handle this, but onClick as backup
+                    }}
                     className="h-14 px-8 text-base bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 border-0 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all duration-300 group whitespace-nowrap"
                   >
                     {isLoading ? (
