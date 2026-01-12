@@ -818,6 +818,74 @@ export default function Prompts() {
                 />
               </TabsContent>
 
+              <TabsContent value="localized" className="mt-6">
+                <LocalGeoPromptView
+                  brandId={selectedBrand?.id}
+                  onAcceptPrompt={async (promptText) => {
+                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
+                    const canCreate = canCreatePrompts(activePromptsCount);
+                    if (!canCreate.hasAccess) {
+                      if (limits.isFreeTier) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        toast({ 
+                          title: 'Subscription Limit Reached', 
+                          description: canCreate.reason, 
+                          variant: 'destructive' 
+                        });
+                      }
+                      return;
+                    }
+                    const insertData: any = {
+                      org_id: orgData?.organizations?.id,
+                      text: promptText.trim(),
+                      active: true
+                    };
+                    if (selectedBrand) {
+                      insertData.brand_id = selectedBrand.id;
+                    }
+                    const { error } = await supabase.from('prompts').insert(insertData);
+                    if (error) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: 'Success', description: 'Prompt added successfully' });
+                      invalidateCache(['dashboard-data', 'prompt-data']);
+                      loadPromptsData();
+                    }
+                  }}
+                  onAcceptMultiple={async (promptTexts) => {
+                    const activePromptsCount = rawPrompts.filter(p => p.active).length;
+                    const canCreate = canCreatePrompts(activePromptsCount + promptTexts.length - 1);
+                    if (!canCreate.hasAccess) {
+                      if (limits.isFreeTier) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        toast({ 
+                          title: 'Subscription Limit Reached', 
+                          description: canCreate.reason, 
+                          variant: 'destructive' 
+                        });
+                      }
+                      return;
+                    }
+                    const insertData = promptTexts.map(text => ({
+                      org_id: orgData?.organizations?.id,
+                      text: text.trim(),
+                      active: true,
+                      ...(selectedBrand ? { brand_id: selectedBrand.id } : {})
+                    }));
+                    const { error } = await supabase.from('prompts').insert(insertData);
+                    if (error) {
+                      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: 'Success', description: `Added ${promptTexts.length} local prompts` });
+                      invalidateCache(['dashboard-data', 'prompt-data']);
+                      loadPromptsData();
+                    }
+                  }}
+                />
+              </TabsContent>
+
               <TabsContent value="keywords" className="mt-6">
                 <KeywordManagement />
               </TabsContent>
