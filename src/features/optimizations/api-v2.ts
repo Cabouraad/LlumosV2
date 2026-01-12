@@ -148,7 +148,10 @@ export async function updateOptimizationStatus(
   id: string,
   status: 'open' | 'in_progress' | 'completed' | 'dismissed'
 ) {
-  const updates: any = { status };
+  const updates: any = { 
+    status,
+    updated_at: new Date().toISOString()
+  };
   
   if (status === 'completed') {
     updates.completed_at = new Date().toISOString();
@@ -156,14 +159,26 @@ export async function updateOptimizationStatus(
     updates.dismissed_at = new Date().toISOString();
   }
 
+  console.log('[updateOptimizationStatus] Updating:', { id, status, updates });
+
   const { data, error } = await supabase
     .from('optimizations_v2')
     .update(updates)
     .eq('id', id)
     .select()
-    .single();
+    .maybeSingle();
 
-  if (error) throw error;
+  console.log('[updateOptimizationStatus] Result:', { data, error });
+
+  if (error) {
+    console.error('[updateOptimizationStatus] Error:', error);
+    throw error;
+  }
+  
+  if (!data) {
+    throw new Error('Optimization not found or you do not have permission to update it');
+  }
+  
   return data as OptimizationV2;
 }
 
