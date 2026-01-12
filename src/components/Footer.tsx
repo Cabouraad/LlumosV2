@@ -65,8 +65,8 @@ export function Footer() {
               <Link to="/resources/introducing-llumos-free-tier" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Free Tier Announcement
               </Link>
-              <Link to="/user-guide" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
-                User Guide
+              <Link to="/resources/understanding-ai-search-optimization" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
+                AI Search Guide
               </Link>
               <Link to="/tools/ai-competitor-finder" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">
                 AI Competitor Finder
