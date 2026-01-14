@@ -3,22 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Free AI Visibility Score | Llumos</title>
-  <meta name="description" content="Get your free AI visibility score. See how visible your brand is across ChatGPT, Gemini, Perplexity, and other AI search engines. Instant analysis.">
-  <meta name="keywords" content="AI visibility score, brand visibility checker, ChatGPT visibility, AI search ranking, free SEO tool">
+  <title>Free AI Visibility Score Checker | Llumos</title>
+  <meta name="description" content="Get your free AI visibility score. See how visible your brand is across ChatGPT, Gemini, Perplexity, and other AI search engines. Instant analysis with actionable recommendations.">
+  <meta name="keywords" content="AI visibility score, brand visibility checker, ChatGPT visibility, AI search ranking, free SEO tool, GEO checker, AI brand monitoring">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <link rel="canonical" href="https://llumos.app/score-results">
   
   <!-- Open Graph -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Free AI Visibility Score | Llumos">
+  <meta property="og:title" content="Free AI Visibility Score Checker | Llumos">
   <meta property="og:description" content="Get your free AI visibility score. See how visible your brand is across ChatGPT, Gemini, Perplexity, and other AI search engines.">
   <meta property="og:url" content="https://llumos.app/score-results">
   <meta property="og:site_name" content="Llumos">
   <meta property="og:image" content="https://llumos.app/og-home.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Free AI Visibility Score | Llumos">
+  <meta name="twitter:site" content="@llumos_ai">
+  <meta name="twitter:title" content="Free AI Visibility Score Checker | Llumos">
   <meta name="twitter:description" content="Get your free AI visibility score across ChatGPT, Gemini, and Perplexity.">
   <meta name="twitter:image" content="https://llumos.app/og-home.png">
   
@@ -46,7 +51,8 @@
       "@type": "BreadcrumbList",
       "itemListElement": [
         {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://llumos.app"},
-        {"@type": "ListItem", "position": 2, "name": "AI Visibility Score", "item": "https://llumos.app/score-results"}
+        {"@type": "ListItem", "position": 2, "name": "Free Checker", "item": "https://llumos.app/free-checker"},
+        {"@type": "ListItem", "position": 3, "name": "AI Visibility Score", "item": "https://llumos.app/score-results"}
       ]
     }
   }
@@ -55,13 +61,17 @@
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; margin: 0; padding: 0; background: #0a0a0a; color: #fafafa; }
     .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
-    header { border-bottom: 1px solid #27272a; padding: 1rem 2rem; }
+    header { border-bottom: 1px solid #27272a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
     header a { color: #fafafa; text-decoration: none; font-weight: bold; font-size: 1.5rem; }
+    nav a { color: #a1a1aa; text-decoration: none; margin-left: 1.5rem; font-size: 0.95rem; }
+    nav a:hover { color: #fafafa; }
     h1 { font-size: 2.5rem; text-align: center; margin-bottom: 1rem; }
     .subtitle { text-align: center; color: #a1a1aa; font-size: 1.25rem; max-width: 600px; margin: 0 auto 3rem; }
     .tool-description { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; }
     .tool-description h2 { margin-top: 0; font-size: 1.5rem; }
     .tool-description p { color: #a1a1aa; margin-bottom: 1rem; }
+    .tool-description a { color: #3b82f6; text-decoration: none; }
+    .tool-description a:hover { text-decoration: underline; }
     .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; margin: 2rem 0; }
     .feature { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 1.25rem; }
     .feature h3 { font-size: 1rem; margin: 0 0 0.5rem; color: #3b82f6; }
@@ -71,6 +81,7 @@
     .cta p { color: #a1a1aa; margin-bottom: 1.5rem; }
     .btn { display: inline-block; background: #3b82f6; color: white; padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
     .btn:hover { background: #2563eb; }
+    .btn-secondary { background: transparent; border: 1px solid #3b82f6; color: #3b82f6; margin-left: 1rem; }
     .how-it-works { margin: 3rem 0; }
     .how-it-works h2 { text-align: center; margin-bottom: 2rem; }
     .steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 2rem; }
@@ -78,11 +89,21 @@
     .step-number { width: 40px; height: 40px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-weight: bold; }
     .step h3 { font-size: 1rem; margin: 0 0 0.5rem; }
     .step p { color: #a1a1aa; font-size: 0.85rem; margin: 0; }
+    footer { border-top: 1px solid #27272a; margin-top: 4rem; padding: 2rem; text-align: center; }
+    footer a { color: #a1a1aa; text-decoration: none; margin: 0 1rem; font-size: 0.9rem; }
+    footer a:hover { color: #fafafa; }
+    .footer-links { margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <header>
     <a href="/">Llumos</a>
+    <nav>
+      <a href="/features">Features</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/resources">Resources</a>
+      <a href="/signin">Login</a>
+    </nav>
   </header>
   
   <main class="container">
@@ -92,7 +113,7 @@
     <section class="tool-description">
       <h2>What is an AI Visibility Score?</h2>
       <p>Your AI Visibility Score measures how likely AI search engines are to recommend your brand when users ask relevant questions. As more people use ChatGPT, Gemini, and Perplexity instead of traditional search, this score becomes critical for brand discovery.</p>
-      <p>Our free tool analyzes your website content, structure, and AI-readability to give you an instant score from 0-100, along with actionable insights to improve.</p>
+      <p>Our free tool analyzes your website content, structure, and AI-readability to give you an instant score from 0-100, along with actionable insights to improve. Learn more about <a href="/features/brand-visibility">brand visibility tracking</a>.</p>
     </section>
     
     <section class="how-it-works">
@@ -101,7 +122,7 @@
         <div class="step">
           <div class="step-number">1</div>
           <h3>Enter Your URL</h3>
-          <p>Type your website address in the analyzer tool on our homepage.</p>
+          <p>Type your website address in the <a href="/free-checker" style="color:#3b82f6">analyzer tool</a>.</p>
         </div>
         <div class="step">
           <div class="step-number">2</div>
@@ -111,7 +132,7 @@
         <div class="step">
           <div class="step-number">3</div>
           <h3>Get Your Score</h3>
-          <p>Receive your visibility score with detailed improvement recommendations.</p>
+          <p>Receive your visibility score with detailed <a href="/features/actionable-recommendations" style="color:#3b82f6">improvement recommendations</a>.</p>
         </div>
       </div>
     </section>
@@ -127,20 +148,38 @@
       </div>
       <div class="feature">
         <h3>Technical SEO Review</h3>
-        <p>Check if your site structure supports AI crawlers and content extraction.</p>
+        <p>Check if your site structure supports AI crawlers. Consider adding an <a href="/features/llms-txt" style="color:#3b82f6">llms.txt file</a>.</p>
       </div>
       <div class="feature">
         <h3>Competitive Context</h3>
-        <p>Understand where you stand compared to industry benchmarks for AI visibility.</p>
+        <p>Understand where you stand using our <a href="/features/competitive-analysis" style="color:#3b82f6">competitor analysis</a> benchmarks.</p>
       </div>
     </section>
     
     <section class="cta">
       <h2>Ready to Check Your AI Visibility?</h2>
-      <p>Enter your website URL on our homepage to get your free instant score.</p>
-      <a href="/" class="btn">Analyze My Website</a>
+      <p>Enter your website URL to get your free instant score.</p>
+      <a href="/free-checker" class="btn">Analyze My Website</a>
+      <a href="/signup" class="btn btn-secondary">Start Free Trial</a>
     </section>
   </main>
+  
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/features">Features</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/demo">Demo</a>
+      <a href="/resources">Resources</a>
+      <a href="/contact-sales">Contact Sales</a>
+    </div>
+    <div class="footer-links">
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="/security">Security</a>
+    </div>
+    <p style="color:#71717a;font-size:0.85rem;margin-top:1rem;">© 2026 Llumos. All rights reserved.</p>
+  </footer>
   
 </body>
 </html>
