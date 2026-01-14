@@ -4,10 +4,13 @@ import { SEOHelmet } from '@/components/SEOHelmet';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 
 import { ConversionHeroSection } from '@/components/landing/ConversionHeroSection';
+import { ClientLogoCarousel } from '@/components/landing/ClientLogoCarousel';
 import { FreeVisibilityChecker } from '@/components/landing/FreeVisibilityChecker';
+import { BeforeAfterSection } from '@/components/landing/BeforeAfterSection';
 import { ProblemSection } from '@/components/landing/ProblemSection';
 import { SolutionSection } from '@/components/landing/SolutionSection';
 import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
+import { AIModelsGrid } from '@/components/landing/AIModelsGrid';
 import { TrustSection } from '@/components/landing/TrustSection';
 import { ConversionFAQSection } from '@/components/landing/ConversionFAQSection';
 import { ConversionFinalCTA } from '@/components/landing/ConversionFinalCTA';
@@ -98,9 +101,12 @@ const Index = () => {
         <LandingNavbar />
         <main>
           <ConversionHeroSection />
+          <ClientLogoCarousel />
+          <BeforeAfterSection />
           <FreeVisibilityChecker />
           <ProblemSection />
           <HowItWorksSection />
+          <AIModelsGrid />
           <SolutionSection />
           <TrustSection />
           <ConversionFAQSection />
