@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2, Search, Eye, FileText, Users } from 'lucide-react';
+import { ArrowRight, Loader2, Eye, FileText, Users } from 'lucide-react';
 import { MockChatInterface } from './MockChatInterface';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { HubSpotForm, HUBSPOT_CONFIG, preloadHubSpotForms, HubSpotFormData } from '@/components/hubspot/HubSpotForm';
 import { supabase } from '@/integrations/supabase/client';
+import { RotatingAIBrands } from './RotatingAIBrands';
 
 export function ConversionHeroSection() {
   const [url, setUrl] = useState('');
@@ -131,14 +132,13 @@ export function ConversionHeroSection() {
               </motion.div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-                Turn AI Search Mentions Into{' '}
-                <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
-                  Revenue
-                </span>
+                Get Recommended by{' '}
+                <br className="hidden sm:block" />
+                <RotatingAIBrands />
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground mb-8 leading-relaxed">
-                See how your brand appears in ChatGPT, Gemini, and Perplexity — and get clear actions to improve visibility and win more demand from AI-powered search.
+                Reach customers using AI to find solutions. We track your visibility, show you where competitors appear, and help you become the top recommendation.
               </p>
 
               {/* URL Input Form */}
