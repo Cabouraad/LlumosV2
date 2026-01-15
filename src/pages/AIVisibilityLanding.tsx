@@ -128,42 +128,31 @@ export default function AIVisibilityLanding() {
                   portalId="244723281"
                   formId="a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d"
                   region="na2"
-                  onFormSubmit={async () => {
-                    // Extract form data from HubSpot form
-                    const formContainer = document.querySelector('.hubspot-embedded-form');
-                    const domainInput = formContainer?.querySelector('input[name="website"], input[name="domain"], input[type="url"]') as HTMLInputElement;
-                    const emailInput = formContainer?.querySelector('input[name="email"], input[type="email"]') as HTMLInputElement;
-                    const firstNameInput = formContainer?.querySelector('input[name="firstname"]') as HTMLInputElement;
+                  onFormSubmit={async (formData) => {
+                    // Use formData from HubSpot callback, fallback to DOM extraction
+                    let emailVal = formData?.email || '';
+                    let firstName = formData?.firstName || '';
+                    let domain = formData?.website || formData?.domain || '';
                     
-                    const domain = domainInput?.value || '';
-                    const emailVal = emailInput?.value || '';
-                    const firstName = firstNameInput?.value || '';
-                    
-                    if (!domain || !emailVal) {
-                      // Fallback: show local snapshot
-                      let cleanDomain = domain.trim().toLowerCase() || 'yourcompany.com';
-                      if (cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')) {
-                        cleanDomain = cleanDomain.replace(/^https?:\/\/(www\.)?/, '');
-                      } else {
-                        cleanDomain = cleanDomain.replace(/^(www\.)?/, '');
+                    // Fallback: try to extract from DOM if not in formData
+                    if (!emailVal || !domain) {
+                      const formContainer = document.querySelector('.hubspot-embedded-form');
+                      if (!emailVal) {
+                        const emailInput = formContainer?.querySelector('input[name="email"], input[type="email"]') as HTMLInputElement;
+                        emailVal = emailInput?.value || '';
                       }
-                      cleanDomain = cleanDomain.replace(/\/.*$/, '');
-                      
-                      setSubmittedData({
-                        domain: cleanDomain,
-                        email: emailVal,
-                        competitors: []
-                      });
-                      setShowSnapshot(true);
-                      
-                      setTimeout(() => {
-                        snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }, 300);
-                      return;
+                      if (!domain) {
+                        const domainInput = formContainer?.querySelector('input[name="website"], input[name="domain"], input[type="url"]') as HTMLInputElement;
+                        domain = domainInput?.value || '';
+                      }
+                      if (!firstName) {
+                        const firstNameInput = formContainer?.querySelector('input[name="firstname"]') as HTMLInputElement;
+                        firstName = firstNameInput?.value || '';
+                      }
                     }
                     
                     // Clean the domain
-                    let cleanDomain = domain.trim().toLowerCase();
+                    let cleanDomain = (domain || '').trim().toLowerCase();
                     if (cleanDomain.startsWith('http://') || cleanDomain.startsWith('https://')) {
                       cleanDomain = cleanDomain.replace(/^https?:\/\/(www\.)?/, '');
                     } else {
@@ -174,32 +163,26 @@ export default function AIVisibilityLanding() {
                     setIsSubmitting(true);
                     
                     try {
-                      // Call edge function to create snapshot and send email
-                      const { data, error } = await supabase.functions.invoke('ai-visibility-submit', {
-                        body: {
-                          email: emailVal.trim(),
-                          domain: cleanDomain,
-                          firstName: firstName.trim() || undefined,
-                          utmSource: new URLSearchParams(window.location.search).get('utm_source') || undefined,
-                          utmMedium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
-                          utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
-                          referrer: document.referrer || undefined,
-                        }
-                      });
-                      
-                      if (error) {
-                        console.error('Edge function error:', error);
+                      // Call edge function to create snapshot and send email (fire and forget)
+                      if (emailVal && cleanDomain) {
+                        supabase.functions.invoke('ai-visibility-submit', {
+                          body: {
+                            email: emailVal.trim(),
+                            domain: cleanDomain,
+                            firstName: firstName.trim() || undefined,
+                            utmSource: new URLSearchParams(window.location.search).get('utm_source') || undefined,
+                            utmMedium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
+                            utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
+                            referrer: document.referrer || undefined,
+                          }
+                        }).catch(err => console.error('Edge function error:', err));
                       }
-                      
-                      // Always redirect to thank you page after form submission
-                      navigate('/lp/ai-visibility/thank-you');
                     } catch (err) {
                       console.error('Failed to submit:', err);
-                      // Still redirect to thank you page even on error
-                      navigate('/lp/ai-visibility/thank-you');
-                    } finally {
-                      setIsSubmitting(false);
                     }
+                    
+                    // Always redirect to thank you page after form submission
+                    navigate('/lp/ai-visibility/thank-you');
                   }}
                 />
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
