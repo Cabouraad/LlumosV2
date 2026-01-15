@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
@@ -22,7 +23,21 @@ const previewCards = [
   { icon: Lightbulb, title: "Actionable Recommendations" },
 ];
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
 export default function AIVisibilityThankYou() {
+  // Fire Google Ads conversion event on page load
+  useEffect(() => {
+    if (window.gtag) {
+      window.gtag('event', 'conversion', {
+        'send_to': 'AW-17742756847/iS39CL2dluYbEO_3s4xC'
+      });
+    }
+  }, []);
   return (
     <>
       <GoogleAdsTracking />
