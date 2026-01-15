@@ -101,6 +101,8 @@ export function BrandSwitcher({ brands, collapsed = false }: BrandSwitcherProps)
             alt={`${brand.name} logo`}
             className={`${imgSizeClasses} object-contain`}
             onError={() => handleLogoError(brand.id, brand.domain, brand.name)}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <Building2 className={`${iconSize} text-muted-foreground`} />

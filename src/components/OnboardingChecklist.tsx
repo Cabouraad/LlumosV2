@@ -35,43 +35,37 @@ export function OnboardingChecklist() {
     if (!orgData?.id) return;
 
     try {
-      // Check domain verification
+      // Check domain verification (already in orgData, no query needed)
       const domainVerified = !!orgData.verified_at;
-
-      // Check if competitors added
-      const { data: competitors } = await supabase
-        .from('organizations')
-        .select('competitors')
-        .eq('id', orgData.id)
-        .single();
-      const hasCompetitors = competitors?.competitors && competitors.competitors.length > 0;
-
-      // Check if any prompts exist
-      const { data: prompts } = await supabase
-        .from('prompts')
-        .select('id')
-        .eq('org_id', orgData.id)
-        .limit(1);
-      const hasPrompts = prompts && prompts.length > 0;
-
-      // Check if any scan has been run
-      const { data: responses } = await supabase
-        .from('prompt_provider_responses')
-        .select('id')
-        .eq('org_id', orgData.id)
-        .limit(1);
-      const hasScan = responses && responses.length > 0;
-
-      // Check if score exists
-      const { data: scores } = await supabase
-        .from('llumos_scores')
-        .select('id')
-        .eq('org_id', orgData.id)
-        .limit(1);
-      const hasScore = scores && scores.length > 0;
-
-      // Check if report downloaded (we'll track this in localStorage for now)
+      
+      // Check report downloaded from localStorage (no query needed)
       const reportDownloaded = localStorage.getItem(`report_downloaded_${orgData.id}`) === 'true';
+      
+      // Competitors already in orgData
+      const hasCompetitors = orgData.competitors && orgData.competitors.length > 0;
+
+      // Batch all remaining queries in parallel
+      const [promptsResult, responsesResult, scoresResult] = await Promise.all([
+        supabase
+          .from('prompts')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgData.id)
+          .limit(1),
+        supabase
+          .from('prompt_provider_responses')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgData.id)
+          .limit(1),
+        supabase
+          .from('llumos_scores')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgData.id)
+          .limit(1),
+      ]);
+
+      const hasPrompts = (promptsResult.count ?? 0) > 0;
+      const hasScan = (responsesResult.count ?? 0) > 0;
+      const hasScore = (scoresResult.count ?? 0) > 0;
 
       setItems([
         { id: 'domain', label: 'Verify your domain', link: '/settings', completed: domainVerified },

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useBrandVisibilityScores } from '@/hooks/useBrandVisibilityScores';
 import { useBrandLlumosScores } from '@/hooks/useBrandLlumosScores';
 import { signOutWithCleanup } from '@/lib/auth-cleanup';
-import { SupportDialog } from '@/components/SupportDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBrandsTour } from '@/hooks/useBrandsTour';
 import { getScoreColor } from '@/hooks/useLlumosScore';
+
+// Lazy load SupportDialog - only loaded when user clicks Help
+const SupportDialog = lazy(() => import('@/components/SupportDialog').then(m => ({ default: m.SupportDialog })));
 
 
 export default function Brands() {
@@ -277,10 +279,15 @@ export default function Brands() {
         )}
       </div>
 
-        <SupportDialog 
-          open={isSupportDialogOpen} 
-          onOpenChange={setIsSupportDialogOpen} 
-        />
+        {/* Lazy load SupportDialog only when opened */}
+        {isSupportDialogOpen && (
+          <Suspense fallback={null}>
+            <SupportDialog 
+              open={isSupportDialogOpen} 
+              onOpenChange={setIsSupportDialogOpen} 
+            />
+          </Suspense>
+        )}
         <TourComponent />
       </div>
     </TooltipProvider>

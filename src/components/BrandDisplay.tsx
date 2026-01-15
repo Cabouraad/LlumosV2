@@ -73,6 +73,8 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
               alt={`${brandName} logo`}
               className="w-6 h-6 rounded object-contain"
               onError={handleLogoError}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <Building2 className="w-4 h-4 text-muted-foreground" />
@@ -94,6 +96,8 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
               alt={`${brandName} logo`}
               className="w-12 h-12 object-contain"
               onError={handleLogoError}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <Building2 className="w-8 h-8 text-muted-foreground" />
@@ -120,6 +124,8 @@ export function BrandDisplay({ brandName, brandDomain, collapsed = false, size =
               alt={`${brandName} logo`}
               className="w-8 h-8 object-contain"
               onError={handleLogoError}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <Building2 className="w-5 h-5 text-muted-foreground" />
