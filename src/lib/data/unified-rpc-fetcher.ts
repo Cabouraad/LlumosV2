@@ -40,71 +40,90 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promi
       metadata: { brandId }
     });
     
-    // Get current user's org_id using maybeSingle to avoid errors
-    const { data: { user } } = await supabase.auth.getUser();
+    // Try to get org_id from localStorage cache first to avoid auth call
+    const cachedOrgId = localStorage.getItem('sb_last_org_id');
+    const cacheTimestamp = localStorage.getItem('sb_org_cache_timestamp');
+    const isValidCache = cachedOrgId && 
+      cachedOrgId !== 'undefined' && 
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cachedOrgId) &&
+      cacheTimestamp &&
+      (Date.now() - parseInt(cacheTimestamp)) < 30 * 60 * 1000; // 30 min cache
     
-    if (!user) {
-      logger.warn('No authenticated user found', { component: 'unified-rpc-fetcher' });
-      return {
-        success: false,
-        error: 'Not authenticated',
-        prompts: [],
-        responses: [],
-        chartData: [],
-        metrics: {
-          avgScore: 0,
-          overallScore: 0,
-          trend: 0,
-          promptCount: 0,
-          activePrompts: 0,
-          inactivePrompts: 0,
-          totalRuns: 0,
-          recentRunsCount: 0
-        },
-        timestamp: new Date().toISOString()
-      };
-    }
+    let orgId: string | null = isValidCache ? cachedOrgId : null;
     
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('org_id')
-      .eq('id', user.id)
-      .maybeSingle();
-    
-    // If no user record or no org_id, return structured "no org" response
-    if (userError || !userData || !userData.org_id) {
-      logger.info('User has no organization - needs onboarding', { 
-        component: 'unified-rpc-fetcher',
-        metadata: { 
-          hasUserRecord: !!userData,
-          hasOrgId: !!userData?.org_id,
-          userError: userError?.message 
-        }
-      });
+    // Only fetch from DB if cache miss
+    if (!orgId) {
+      const { data: { user } } = await supabase.auth.getUser();
       
-      return {
-        success: false,
-        noOrg: true,
-        error: 'No organization found',
-        prompts: [],
-        responses: [],
-        chartData: [],
-        metrics: {
-          avgScore: 0,
-          overallScore: 0,
-          trend: 0,
-          promptCount: 0,
-          activePrompts: 0,
-          inactivePrompts: 0,
-          totalRuns: 0,
-          recentRunsCount: 0
-        },
-        timestamp: new Date().toISOString()
-      };
+      if (!user) {
+        logger.warn('No authenticated user found', { component: 'unified-rpc-fetcher' });
+        return {
+          success: false,
+          error: 'Not authenticated',
+          prompts: [],
+          responses: [],
+          chartData: [],
+          metrics: {
+            avgScore: 0,
+            overallScore: 0,
+            trend: 0,
+            promptCount: 0,
+            activePrompts: 0,
+            inactivePrompts: 0,
+            totalRuns: 0,
+            recentRunsCount: 0
+          },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('org_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      // If no user record or no org_id, return structured "no org" response
+      if (userError || !userData || !userData.org_id) {
+        logger.info('User has no organization - needs onboarding', { 
+          component: 'unified-rpc-fetcher',
+          metadata: { 
+            hasUserRecord: !!userData,
+            hasOrgId: !!userData?.org_id,
+            userError: userError?.message 
+          }
+        });
+        
+        return {
+          success: false,
+          noOrg: true,
+          error: 'No organization found',
+          prompts: [],
+          responses: [],
+          chartData: [],
+          metrics: {
+            avgScore: 0,
+            overallScore: 0,
+            trend: 0,
+            promptCount: 0,
+            activePrompts: 0,
+            inactivePrompts: 0,
+            totalRuns: 0,
+            recentRunsCount: 0
+          },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      orgId = userData.org_id;
+      
+      // Update cache for future calls
+      localStorage.setItem('sb_last_org_id', orgId);
+      localStorage.setItem('sb_org_cache_timestamp', Date.now().toString());
     }
     
     const { data, error } = await supabase.rpc('get_unified_dashboard_data', {
-      p_org_id: userData.org_id,
+      p_org_id: orgId,
       p_brand_id: brandId || null
     });
     
@@ -252,7 +271,7 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promi
 export class RealTimeDashboardFetcher {
   private cache: UnifiedDashboardResponse | null = null;
   private lastFetch: number = 0;
-  private readonly CACHE_DURATION = 15000; // 15 seconds (reduced for better responsiveness)
+  private readonly CACHE_DURATION = 120000; // 2 minutes - increased to reduce API calls
   private refreshCallbacks: ((data: UnifiedDashboardResponse) => void)[] = [];
   private currentBrandId: string | null = null;
 

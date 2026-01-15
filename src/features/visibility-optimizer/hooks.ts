@@ -27,8 +27,10 @@ export function usePromptVisibilityAnalysis() {
     queryKey: ['prompt-visibility-analysis', orgId, brandId],
     queryFn: () => analyzePromptVisibility(orgId!, brandId),
     enabled: !!orgId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchOnWindowFocus: false
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
   });
 }
 
@@ -57,7 +59,10 @@ export function useContentOptimizations() {
     queryKey: ['content-optimizations', orgId, brandId],
     queryFn: () => getOptimizationsForOrg(orgId!, brandId),
     enabled: !!orgId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
   });
 }
 
@@ -66,7 +71,10 @@ export function usePromptOptimizations(promptId: string) {
     queryKey: ['prompt-optimizations', promptId],
     queryFn: () => getOptimizationsForPrompt(promptId),
     enabled: !!promptId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
   });
 }
 

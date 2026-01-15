@@ -26,13 +26,8 @@ export type CompetitorFilters = {
  */
 export async function fetchCompetitorsV2(filters: CompetitorFilters = {}): Promise<CompetitorSummaryRow[]> {
   const sb = getSupabaseBrowserClient();
-  const { data: session } = await sb.auth.getSession();
   
-  if (!session?.session?.access_token) {
-    throw new Error('Unauthenticated');
-  }
-
-  // Resolve org_id reliably
+  // Use cached org ID - avoids redundant auth.getSession call
   const orgId = await getOrgIdSafe();
 
   // Always default to 30 days for rolling history
