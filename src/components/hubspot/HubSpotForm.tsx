@@ -12,6 +12,11 @@ interface HubSpotFormProps {
   portalId: string;
   formId: string;
   region?: string;
+  /**
+   * If provided, HubSpot will redirect to this URL after a successful submission.
+   * This is the most reliable way to do post-submit redirects.
+   */
+  redirectUrl?: string;
   onFormSubmit?: (formData?: HubSpotFormData) => void;
   className?: string;
 }
@@ -27,6 +32,7 @@ declare global {
           target: string;
           css?: string;
           cssClass?: string;
+          redirectUrl?: string;
           onFormSubmit?: ($form: JQuery) => void;
           onFormReady?: () => void;
         }) => void;
@@ -68,7 +74,7 @@ function ensureHubSpotScript(): Promise<void> {
   });
 }
 
-export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, className = '' }: HubSpotFormProps) {
+export function HubSpotForm({ portalId, formId, region = 'na2', redirectUrl, onFormSubmit, className = '' }: HubSpotFormProps) {
   const targetId = useMemo(
     () => `hubspot-form-${portalId}-${formId}-${Math.random().toString(36).slice(2)}`,
     [portalId, formId]
@@ -230,6 +236,7 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
           target: `#${targetId}`,
           css: hsCss,
           cssClass: 'hubspot-embedded-form',
+          redirectUrl,
           onFormReady: () => {
             markLoaded();
           },
@@ -282,7 +289,7 @@ export function HubSpotForm({ portalId, formId, region = 'na2', onFormSubmit, cl
       if (container) container.innerHTML = '';
       void cleanupPromise;
     };
-  }, [portalId, formId, region, onFormSubmit, targetId]);
+  }, [portalId, formId, region, redirectUrl, onFormSubmit, targetId]);
 
   return (
     <div className={className}>

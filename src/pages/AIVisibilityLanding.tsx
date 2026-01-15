@@ -128,11 +128,18 @@ export default function AIVisibilityLanding() {
                   portalId="244723281"
                   formId="a5f00a96-4eba-44ef-a4a9-83ceb5d45d1d"
                   region="na2"
+                  redirectUrl={
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}/lp/ai-visibility/thank-you`
+                      : '/lp/ai-visibility/thank-you'
+                  }
                   onFormSubmit={async (formData) => {
+                    console.log('[AIVisibilityLanding] HubSpot submitted', formData);
+
                     // Use formData from HubSpot callback, fallback to DOM extraction
                     let emailVal = formData?.email || '';
                     let firstName = formData?.firstName || '';
-                    let domain = formData?.website || formData?.domain || '';
+                    let domain = (formData as any)?.website || (formData as any)?.domain || '';
                     
                     // Fallback: try to extract from DOM if not in formData
                     if (!emailVal || !domain) {
@@ -159,30 +166,28 @@ export default function AIVisibilityLanding() {
                       cleanDomain = cleanDomain.replace(/^(www\.)?/, '');
                     }
                     cleanDomain = cleanDomain.replace(/\/.*$/, '');
-                    
-                    setIsSubmitting(true);
-                    
-                    try {
-                      // Call edge function to create snapshot and send email (fire and forget)
-                      if (emailVal && cleanDomain) {
-                        supabase.functions.invoke('ai-visibility-submit', {
-                          body: {
-                            email: emailVal.trim(),
-                            domain: cleanDomain,
-                            firstName: firstName.trim() || undefined,
-                            utmSource: new URLSearchParams(window.location.search).get('utm_source') || undefined,
-                            utmMedium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
-                            utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
-                            referrer: document.referrer || undefined,
-                          }
-                        }).catch(err => console.error('Edge function error:', err));
-                      }
-                    } catch (err) {
-                      console.error('Failed to submit:', err);
+
+                    // Fire and forget lead capture; redirect is handled by HubSpot redirectUrl.
+                    if (emailVal && cleanDomain) {
+                      supabase.functions.invoke('ai-visibility-submit', {
+                        body: {
+                          email: emailVal.trim(),
+                          domain: cleanDomain,
+                          firstName: firstName.trim() || undefined,
+                          utmSource: new URLSearchParams(window.location.search).get('utm_source') || undefined,
+                          utmMedium: new URLSearchParams(window.location.search).get('utm_medium') || undefined,
+                          utmCampaign: new URLSearchParams(window.location.search).get('utm_campaign') || undefined,
+                          referrer: document.referrer || undefined,
+                        }
+                      }).catch(err => console.error('Edge function error:', err));
                     }
-                    
-                    // Always redirect to thank you page after form submission
-                    navigate('/lp/ai-visibility/thank-you');
+
+                    // Extra safety: if HubSpot doesn't redirect for any reason, force it.
+                    window.setTimeout(() => {
+                      if (window.location.pathname !== '/lp/ai-visibility/thank-you') {
+                        window.location.assign('/lp/ai-visibility/thank-you');
+                      }
+                    }, 300);
                   }}
                 />
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border/50">
