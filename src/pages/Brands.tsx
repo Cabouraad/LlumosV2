@@ -9,28 +9,13 @@ import { useBrand } from '@/contexts/BrandContext';
 import { BrandDisplay } from '@/components/BrandDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBrandVisibilityScores } from '@/hooks/useBrandVisibilityScores';
+import { useBrandLlumosScores } from '@/hooks/useBrandLlumosScores';
 import { signOutWithCleanup } from '@/lib/auth-cleanup';
 import { SupportDialog } from '@/components/SupportDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBrandsTour } from '@/hooks/useBrandsTour';
-import { useLlumosScore, getScoreColor } from '@/hooks/useLlumosScore';
+import { getScoreColor } from '@/hooks/useLlumosScore';
 
-// Component to display Llumos Score for a specific brand
-function BrandLlumosScore({ brandId }: { brandId: string }) {
-  const { data: scoreData, isLoading } = useLlumosScore(undefined, brandId);
-  
-  if (isLoading) {
-    return <Skeleton className="h-8 w-10 mx-auto" />;
-  }
-  
-  const score = scoreData?.score || 0;
-  const composite = scoreData?.composite || 0;
-  const colorClass = getScoreColor(score);
-  
-  return (
-    <span className={colorClass}>{score}</span>
-  );
-}
 
 export default function Brands() {
   const navigate = useNavigate();
@@ -43,6 +28,7 @@ export default function Brands() {
   // Get all brand IDs to fetch visibility scores
   const brandIds = useMemo(() => brands.map(b => b.id), [brands]);
   const { data: visibilityScores = [], isLoading: scoresLoading } = useBrandVisibilityScores(brandIds);
+  const { data: llumosScores = {}, isLoading: llumosLoading } = useBrandLlumosScores(brandIds);
 
   // Create a map of brand ID to all metrics
   const scoreMap = useMemo(() => {
@@ -200,7 +186,13 @@ export default function Brands() {
                       <TooltipTrigger asChild>
                         <div className="text-center">
                           <div className="text-2xl font-bold">
-                            <BrandLlumosScore brandId={brand.id} />
+                            {llumosLoading ? (
+                              <Skeleton className="h-8 w-10 mx-auto" />
+                            ) : (
+                              <span className={getScoreColor(llumosScores[brand.id]?.score ?? 0)}>
+                                {llumosScores[brand.id]?.score ?? 0}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">Llumos Score</div>
                         </div>

@@ -184,14 +184,24 @@ export function UnifiedAuthProvider({ children }: UnifiedAuthProviderProps) {
 
     try {
       console.log('[UnifiedAuthProvider] Fetching all user data in single batch for:', user.email);
-      
+
+      // Avoid calling ensure-user-record on every navigation/refresh; it only needs to run occasionally.
+      const ensureCacheKey = `sb_ensure_user_record:${user.id}`;
+      const lastEnsuredRaw = localStorage.getItem(ensureCacheKey);
+      const lastEnsuredAt = lastEnsuredRaw ? parseInt(lastEnsuredRaw) : null;
+      const shouldEnsure = !lastEnsuredAt || Number.isNaN(lastEnsuredAt) || (Date.now() - lastEnsuredAt) > (24 * 60 * 60 * 1000);
+
+      const ensurePromise = shouldEnsure
+        ? supabase.functions.invoke('ensure-user-record')
+        : Promise.resolve({ error: null } as { error: any });
+
       // OPTIMIZATION: Make ONE batched API call instead of three sequential calls
       const [
         { error: ensureError },
         { data: userDataResult, error: userDataError },
         { data: subscriptionResult, error: subscriptionRpcError }
       ] = await Promise.all([
-        supabase.functions.invoke('ensure-user-record'),
+        ensurePromise,
         supabase
           .from('users')
           .select(`
@@ -212,6 +222,11 @@ export function UnifiedAuthProvider({ children }: UnifiedAuthProviderProps) {
           .single(),
         supabase.rpc('get_user_subscription_status')
       ]);
+
+      if (!ensureError && shouldEnsure) {
+        localStorage.setItem(ensureCacheKey, Date.now().toString());
+      }
+
 
       // Handle ensure-user-record errors (non-critical)
       if (ensureError) {

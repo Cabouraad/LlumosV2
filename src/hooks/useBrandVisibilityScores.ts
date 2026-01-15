@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { getOrgIdSafe } from '@/lib/org-id';
 
 interface BrandVisibilityScore {
   brandId: string;
@@ -29,26 +30,14 @@ export function useBrandVisibilityScores(brandIds: string[]) {
         return [];
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('org_id')
-        .eq('id', user.id)
-        .single();
-
-      if (userError || !userData?.org_id) {
-        throw new Error('No organization found');
-      }
+      const orgId = await getOrgIdSafe();
 
       // Use the lightweight batched function instead of calling heavy RPC per brand
       const { data, error } = await supabase.rpc('get_brand_card_stats', {
-        p_org_id: userData.org_id,
+        p_org_id: orgId,
         p_brand_ids: brandIds
       });
+
 
       if (error) {
         console.error('Error fetching brand card stats:', error);
