@@ -11,7 +11,7 @@ const isValidUUID = (id: string | null | undefined) => !!id && /^[0-9a-f]{8}-[0-
 // Cache for org ID to reduce RPC calls
 let cachedOrgId: string | null = null;
 let cacheTimestamp: number | null = null;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes - org rarely changes during session
 
 /**
  * Get organization ID with resilient fallback strategy:
@@ -26,20 +26,14 @@ export async function getOrgIdSafe(): Promise<string> {
     return cachedOrgId;
   }
 
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error('No authenticated user');
-  }
-
-// Try localStorage cache for authenticated users
+  // Try localStorage cache FIRST before any network call
   const localCached = localStorage.getItem('sb_last_org_id');
   const localTimestamp = localStorage.getItem('sb_org_cache_timestamp');
   
   if (localCached && localCached !== 'undefined' && isValidUUID(localCached) && localTimestamp) {
     const age = Date.now() - parseInt(localTimestamp);
-    // Use local cache if less than 1 hour old and we have network issues
-    if (age < 60 * 60 * 1000) {
+    // Use local cache if less than 30 minutes old - avoids auth.getUser call
+    if (age < 30 * 60 * 1000) {
       cachedOrgId = localCached;
       cacheTimestamp = Date.now();
       return localCached;
@@ -48,6 +42,12 @@ export async function getOrgIdSafe(): Promise<string> {
     // Clean up bad cache values like literal 'undefined'
     localStorage.removeItem('sb_last_org_id');
     localStorage.removeItem('sb_org_cache_timestamp');
+  }
+
+  // Only now check auth if we don't have cached data
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('No authenticated user');
   }
 
   // Make RPC call with timeout and retry logic

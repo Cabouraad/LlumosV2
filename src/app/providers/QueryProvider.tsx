@@ -11,7 +11,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false, // stop focus refresh
             refetchOnReconnect: false,
             retry: 1,
-            staleTime: 60_000, // cache for 1m to avoid flicker
+            staleTime: 5 * 60_000, // cache for 5m to reduce API calls
+            gcTime: 30 * 60_000, // keep in cache for 30m
             placeholderData: keepPreviousData,
           },
           mutations: { retry: 0 },

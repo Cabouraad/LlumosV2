@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrgIdSafe } from '@/lib/org-id';
-import { useEffect } from 'react';
 
 export interface LlumosSubmetrics {
   pr: number; // Presence Rate
@@ -53,41 +52,9 @@ export function useLlumosScore(promptId?: string, brandId?: string | null) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Subscribe to realtime updates for llumos_scores
-  useEffect(() => {
-    if (!orgId) return;
-
-    const channel = supabase
-      .channel('llumos-score-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'llumos_scores',
-          filter: `org_id=eq.${orgId}`,
-        },
-        (payload) => {
-          console.log('[Llumos Score] Realtime update received:', payload);
-          
-          // Check if this update matches our current query
-          const newData = payload.new as any;
-          if (newData && 
-              newData.scope === scope && 
-              (promptId ? newData.prompt_id === promptId : !newData.prompt_id)) {
-            // Invalidate the specific query to trigger a refetch
-            queryClient.invalidateQueries({ 
-              queryKey: ['llumos-score', orgId, scope, promptId ?? null] 
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [orgId, scope, promptId, queryClient]);
+  // NOTE: Realtime subscription removed - it caused performance issues with 
+  // unnecessary WebSocket connections. Scores are cached server-side for 24h 
+  // and updated via manual refresh or on page navigation.
   
   return useQuery({
     queryKey: ['llumos-score', orgId ?? 'unknown-org', scope, promptId ?? null, brandId ?? null],
@@ -109,11 +76,12 @@ export function useLlumosScore(promptId?: string, brandId?: string | null) {
 
       return data as LlumosScoreResponse;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes (reduced from 5)
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchOnMount: true, // Changed from 'always' to true
-    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes - edge function already caches server-side
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchOnWindowFocus: false, // Disable - causes unnecessary API calls
+    refetchOnReconnect: false,
+    refetchOnMount: false, // Use cached data if available
+    refetchInterval: false, // Disable auto-refresh - use manual refresh only
   });
 }
 

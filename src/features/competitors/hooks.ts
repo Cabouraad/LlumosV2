@@ -19,8 +19,10 @@ export function useCompetitors(filters: CompetitorFilters = {}) {
   return useQuery<CompetitorSummaryRow[]>({
     queryKey: ['competitors_v2', filtersWithDefaults],
     queryFn: () => fetchCompetitorsV2(filtersWithDefaults),
-    staleTime: 60_000, // 1 minute cache
+    staleTime: 5 * 60_000, // 5 minute cache - competitor data doesn't change frequently
+    gcTime: 30 * 60_000, // Keep in cache for 30 minutes
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // Use cached data if available
     retry: 1
   });
 }
