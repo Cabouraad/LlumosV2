@@ -189,38 +189,14 @@ export default function AIVisibilityLanding() {
                       
                       if (error) {
                         console.error('Edge function error:', error);
-                        throw error;
                       }
                       
-                      if (data?.snapshotToken) {
-                        // Redirect to results page
-                        navigate(`/lp/ai-visibility/results/${data.snapshotToken}`);
-                      } else {
-                        // Fallback: show local snapshot
-                        setSubmittedData({
-                          domain: cleanDomain,
-                          email: emailVal,
-                          competitors: []
-                        });
-                        setShowSnapshot(true);
-                        
-                        setTimeout(() => {
-                          snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 300);
-                      }
+                      // Always redirect to thank you page after form submission
+                      navigate('/lp/ai-visibility/thank-you');
                     } catch (err) {
                       console.error('Failed to submit:', err);
-                      // Fallback: show local snapshot on error
-                      setSubmittedData({
-                        domain: cleanDomain,
-                        email: emailVal,
-                        competitors: []
-                      });
-                      setShowSnapshot(true);
-                      
-                      setTimeout(() => {
-                        snapshotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }, 300);
+                      // Still redirect to thank you page even on error
+                      navigate('/lp/ai-visibility/thank-you');
                     } finally {
                       setIsSubmitting(false);
                     }

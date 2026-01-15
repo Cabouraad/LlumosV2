@@ -56,6 +56,7 @@ import ScoreResults from "./pages/ScoreResults";
 import AIRecommendsLanding from "./pages/AIRecommendsLanding";
 import AIRecommendsThankYou from "./pages/AIRecommendsThankYou";
 import AIVisibilityLanding from "./pages/AIVisibilityLanding";
+import AIVisibilityThankYou from "./pages/AIVisibilityThankYou";
 import AIVisibilityResults from "./pages/AIVisibilityResults";
 import LocalAISearchLanding from "./pages/LocalAISearchLanding";
 // ============================================
@@ -187,6 +188,7 @@ const App = () => {
         <Route path="/lp/ai-recommends" element={<AIRecommendsLanding />} />
         <Route path="/lp/ai-recommends/thank-you" element={<AIRecommendsThankYou />} />
         <Route path="/lp/ai-visibility" element={<AIVisibilityLanding />} />
+        <Route path="/lp/ai-visibility/thank-you" element={<AIVisibilityThankYou />} />
         <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
         <Route path="/lp/local-ai-search" element={<LocalAISearchLanding />} />
         {/* ============================================ */}
