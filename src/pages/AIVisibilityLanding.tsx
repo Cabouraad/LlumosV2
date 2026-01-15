@@ -11,6 +11,7 @@ import { Helmet } from 'react-helmet-async';
 import { UpgradeModal } from '@/components/landing/UpgradeModal';
 import { AIVisibilitySnapshot } from '@/components/landing/AIVisibilitySnapshot';
 import { supabase } from '@/integrations/supabase/client';
+import { GoogleAdsTracking } from '@/components/tracking/GoogleAdsTracking';
 
 export default function AIVisibilityLanding() {
   const [url, setUrl] = useState('');
@@ -69,6 +70,7 @@ export default function AIVisibilityLanding() {
 
   return (
     <>
+      <GoogleAdsTracking />
       <Helmet>
         <title>Free AI Visibility Report | See If AI Recommends Your Brand | Llumos</title>
         <meta name="description" content="Discover if ChatGPT, Gemini, and Perplexity recommend your brand or your competitors. Get your free AI visibility report in 2 minutes." />
