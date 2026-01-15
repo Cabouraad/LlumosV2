@@ -23,9 +23,10 @@ export function useBrands() {
     queryFn: async () => {
       if (!user) throw new Error('Not authenticated');
 
+      // Only select needed fields to reduce payload size
       const { data, error } = await supabase
         .from('brands')
-        .select('*')
+        .select('id, org_id, name, domain, is_primary, created_at, updated_at')
         .order('is_primary', { ascending: false })
         .order('created_at', { ascending: true });
 
@@ -33,6 +34,8 @@ export function useBrands() {
       return data as Brand[];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
   const createBrand = useMutation({

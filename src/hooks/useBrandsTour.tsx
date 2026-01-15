@@ -128,48 +128,53 @@ export function useBrandsTour() {
     setRunTour(true);
   };
 
-  const TourComponent = () => (
-    <Joyride
-      steps={steps}
-      run={runTour}
-      continuous
-      showProgress
-      showSkipButton
-      disableOverlayClose={false}
-      disableCloseOnEsc={false}
-      spotlightClicks={false}
-      callback={handleJoyrideCallback}
-      styles={{
-        options: {
-          primaryColor: 'hsl(var(--primary))',
-          zIndex: 10000,
-          arrowColor: 'hsl(var(--popover))',
-          backgroundColor: 'hsl(var(--popover))',
-          textColor: 'hsl(var(--popover-foreground))',
-        },
-        tooltip: {
-          borderRadius: 8,
-        },
-        buttonNext: {
-          backgroundColor: 'hsl(var(--primary))',
-          borderRadius: 6,
-        },
-        buttonBack: {
-          color: 'hsl(var(--muted-foreground))',
-        },
-        buttonClose: {
-          color: 'hsl(var(--muted-foreground))',
-        },
-      }}
-      locale={{
-        back: 'Back',
-        close: 'Close',
-        last: 'Finish',
-        next: 'Next',
-        skip: 'Skip Tour',
-      }}
-    />
-  );
+  // Only render Joyride when tour is actually running to avoid loading the library unnecessarily
+  const TourComponent = () => {
+    if (!runTour) return null;
+    
+    return (
+      <Joyride
+        steps={steps}
+        run={runTour}
+        continuous
+        showProgress
+        showSkipButton
+        disableOverlayClose={false}
+        disableCloseOnEsc={false}
+        spotlightClicks={false}
+        callback={handleJoyrideCallback}
+        styles={{
+          options: {
+            primaryColor: 'hsl(var(--primary))',
+            zIndex: 10000,
+            arrowColor: 'hsl(var(--popover))',
+            backgroundColor: 'hsl(var(--popover))',
+            textColor: 'hsl(var(--popover-foreground))',
+          },
+          tooltip: {
+            borderRadius: 8,
+          },
+          buttonNext: {
+            backgroundColor: 'hsl(var(--primary))',
+            borderRadius: 6,
+          },
+          buttonBack: {
+            color: 'hsl(var(--muted-foreground))',
+          },
+          buttonClose: {
+            color: 'hsl(var(--muted-foreground))',
+          },
+        }}
+        locale={{
+          back: 'Back',
+          close: 'Close',
+          last: 'Finish',
+          next: 'Next',
+          skip: 'Skip Tour',
+        }}
+      />
+    );
+  };
 
   return { TourComponent, resetTour, runTour };
 }
