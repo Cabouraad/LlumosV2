@@ -14,7 +14,9 @@ export async function getSuggestedPrompts(brandId?: string | null) {
     const orgId = await getOrgId();
     if (!isValidUUID(orgId)) throw new Error('Organization not initialized yet. Please retry in a moment.');
 
-    console.log('[getSuggestedPrompts] Fetching for brandId:', brandId, 'orgId:', orgId);
+    if (import.meta.env.DEV) {
+      console.log('[getSuggestedPrompts] Fetching for brandId:', brandId, 'orgId:', orgId);
+    }
 
     // When a brand is selected, show both brand-specific AND org-level (null brand_id) suggestions
     // This ensures users see relevant suggestions even if they were generated at org level
@@ -23,7 +25,7 @@ export async function getSuggestedPrompts(brandId?: string | null) {
       .select('id, text, source, created_at, accepted, search_volume, brand_id')
       .eq('org_id', orgId)
       .eq('accepted', false);
-    
+
     // Filter by brand OR null brand_id (org-level suggestions visible to all brands)
     if (brandId && isValidUUID(brandId)) {
       query = query.or(`brand_id.eq.${brandId},brand_id.is.null`);
@@ -35,7 +37,9 @@ export async function getSuggestedPrompts(brandId?: string | null) {
 
     if (error) throw error;
 
-    console.log('[getSuggestedPrompts] Found', suggestions?.length || 0, 'suggestions');
+    if (import.meta.env.DEV) {
+      console.log('[getSuggestedPrompts] Found', suggestions?.length || 0, 'suggestions');
+    }
     return suggestions ?? [];
   } catch (error) {
     console.error('Suggested prompts data error:', error);
@@ -119,8 +123,10 @@ export async function generateSuggestionsNow(brandId?: string | null) {
     // Check if business context is filled before generating suggestions
     const orgId = await getOrgId();
     if (!isValidUUID(orgId)) throw new Error('Organization not initialized yet. Please complete setup and try again.');
-    
-    console.log('[generateSuggestionsNow] Starting with brandId:', brandId);
+
+    if (import.meta.env.DEV) {
+      console.log('[generateSuggestionsNow] Starting with brandId:', brandId);
+    }
 
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')
@@ -150,7 +156,9 @@ export async function generateSuggestionsNow(brandId?: string | null) {
 
     // Ensure brandId is passed correctly - use undefined check to preserve valid null
     const bodyPayload = { brandId: brandId ?? null };
-    console.log('[generateSuggestionsNow] Invoking edge function with:', bodyPayload);
+    if (import.meta.env.DEV) {
+      console.log('[generateSuggestionsNow] Invoking edge function with:', bodyPayload);
+    }
 
     // Create the function call promise with brandId
     const functionPromise = supabase.functions.invoke('suggest-prompts-now', {
@@ -159,9 +167,11 @@ export async function generateSuggestionsNow(brandId?: string | null) {
 
     // Race between timeout and function call
     const result = await Promise.race([functionPromise, timeoutPromise]) as any;
-    
-    console.log('[generateSuggestionsNow] Edge function result:', result.data);
-    
+
+    if (import.meta.env.DEV) {
+      console.log('[generateSuggestionsNow] Edge function result:', result.data);
+    }
+
     if (result.error) {
       console.error('Supabase function error:', result.error);
       throw new Error(result.error.message || 'Failed to generate suggestions');

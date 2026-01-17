@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,29 +31,34 @@ import { FreeTierUpgradeModal } from '@/components/FreeTierUpgradeModal';
 
 // Transform the existing prompt data to match the PromptList interface
 const transformPromptData = (prompts: any[], promptDetails: any[]) => {
-  return prompts.map(prompt => {
-    // Find the corresponding detailed data for this prompt
-    const details = promptDetails.find(d => d.promptId === prompt.id);
-    
+  const detailsByPromptId = new Map<string, any>();
+  for (const d of promptDetails) {
+    if (d?.promptId) detailsByPromptId.set(d.promptId, d);
+  }
+
+  const thirtyDaysAgoMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  return prompts.map((prompt) => {
+    const details = detailsByPromptId.get(prompt.id);
+
     // Calculate 30-day runs - count responses from last 30 days for rolling history
     let runs_7d = 0;
     let avg_score_7d = 0;
     let scoreCount = 0;
-    
-    if (details) {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      
-      Object.values(details.providers).forEach((provider: any) => {
-        if (provider && (provider.status === 'success' || provider.status === 'completed')) {
-          const runDate = new Date(provider.run_at);
-          if (runDate >= thirtyDaysAgo) {
-            runs_7d++;
-            avg_score_7d += provider.score;
-            scoreCount++;
-          }
-        }
-      });
-      
+
+    if (details?.providers) {
+      for (const provider of Object.values(details.providers) as any[]) {
+        if (!provider) continue;
+        if (provider.status !== 'success' && provider.status !== 'completed') continue;
+
+        const ts = Date.parse(provider.run_at);
+        if (!Number.isFinite(ts) || ts < thirtyDaysAgoMs) continue;
+
+        runs_7d++;
+        avg_score_7d += Number(provider.score) || 0;
+        scoreCount++;
+      }
+
       // Calculate average score for 30-day period
       if (scoreCount > 0) {
         avg_score_7d = avg_score_7d / scoreCount;
@@ -67,7 +72,7 @@ const transformPromptData = (prompts: any[], promptDetails: any[]) => {
       text: prompt.text,
       active: prompt.active,
       created_at: prompt.created_at,
-      runs_7d: runs_7d,
+      runs_7d,
       avg_score_7d: Math.round(avg_score_7d * 10) / 10,
       cluster_tag: prompt.cluster_tag,
     };
@@ -144,13 +149,17 @@ export default function Prompts() {
 
       // Wait for auth to be ready before attempting to load data
       if (!ready || !user) {
-        console.log('🔍 Debug: Auth not ready, skipping prompts data load', { ready, hasUser: !!user });
+        if (import.meta.env.DEV) {
+          console.log('🔍 Debug: Auth not ready, skipping prompts data load', { ready, hasUser: !!user });
+        }
         setError('Authentication required');
         return;
       }
 
       // Ensure org context is ready
-      console.log('🔍 Debug: Loading prompts data with org context:', orgData?.organizations?.id);
+      if (import.meta.env.DEV) {
+        console.log('🔍 Debug: Loading prompts data with org context:', orgData?.organizations?.id);
+      }
       if (!orgData?.organizations?.id) {
         throw new Error('Onboarding incomplete: no org membership');
       }
@@ -160,39 +169,43 @@ export default function Prompts() {
 
       const attemptFetch = async () => {
         const unifiedData = await getUnifiedPromptData(!isFirstLoad, dateFrom, dateTo, selectedBrand?.id || null);
-        
-        // 🐛 DEBUG: Log detailed provider data received
-        console.log('🔍 [Prompts] Unified data received:', {
-          promptsCount: unifiedData.prompts?.length || 0,
-          detailsCount: unifiedData.promptDetails?.length || 0,
-          samplePromptDetail: unifiedData.promptDetails?.[0] ? {
-            promptId: unifiedData.promptDetails[0].promptId,
-            providers: Object.keys(unifiedData.promptDetails[0].providers),
-            providersWithData: Object.entries(unifiedData.promptDetails[0].providers)
-              .filter(([_, data]) => data !== null)
-              .map(([provider]) => provider)
-          } : 'No details'
-        });
-        
-        // 🐛 DEBUG: Count provider responses across all prompts
-        const providerCounts = unifiedData.promptDetails?.reduce((acc: any, detail: any) => {
-          Object.entries(detail.providers).forEach(([provider, data]) => {
-            if (data !== null) {
-              acc[provider] = (acc[provider] || 0) + 1;
-            }
+
+        if (import.meta.env.DEV) {
+          // 🐛 DEBUG: Log detailed provider data received
+          console.log('🔍 [Prompts] Unified data received:', {
+            promptsCount: unifiedData.prompts?.length || 0,
+            detailsCount: unifiedData.promptDetails?.length || 0,
+            samplePromptDetail: unifiedData.promptDetails?.[0]
+              ? {
+                  promptId: unifiedData.promptDetails[0].promptId,
+                  providers: Object.keys(unifiedData.promptDetails[0].providers),
+                  providersWithData: Object.entries(unifiedData.promptDetails[0].providers)
+                    .filter(([_, data]) => data !== null)
+                    .map(([provider]) => provider),
+                }
+              : 'No details',
           });
-          return acc;
-        }, {});
-        console.log('🔍 [Prompts] Provider responses by type:', providerCounts);
-        
+
+          // 🐛 DEBUG: Count provider responses across all prompts
+          const providerCounts = unifiedData.promptDetails?.reduce((acc: any, detail: any) => {
+            Object.entries(detail.providers).forEach(([provider, data]) => {
+              if (data !== null) {
+                acc[provider] = (acc[provider] || 0) + 1;
+              }
+            });
+            return acc;
+          }, {});
+          console.log('🔍 [Prompts] Provider responses by type:', providerCounts);
+        }
+
         setRawPrompts(unifiedData.prompts);
         setProviderData(unifiedData.promptDetails);
         setError(null);
 
         if (showToast && unifiedData.promptDetails.length > 0) {
-          const recentResponses = unifiedData.promptDetails.filter(prompt =>
-            Object.values(prompt.providers).some(p =>
-              p && new Date(p.run_at).getTime() > Date.now() - 5 * 60 * 1000 // Last 5 minutes
+          const recentResponses = unifiedData.promptDetails.filter((prompt) =>
+            Object.values(prompt.providers).some(
+              (p) => p && new Date(p.run_at).getTime() > Date.now() - 5 * 60 * 1000 // Last 5 minutes
             )
           );
 
@@ -527,8 +540,10 @@ export default function Prompts() {
   const handleRunGlobalBatch = async (options = { replace: false, preflight: false }) => {
     setIsRunningGlobalBatch(true);
     try {
-      console.log('🚀 Starting admin global batch processing...', options);
-      
+      if (import.meta.env.DEV) {
+        console.log('🚀 Starting admin global batch processing...', options);
+      }
+
       const { data, error } = await supabase.functions.invoke('admin-batch-trigger', {
         body: options
       });
@@ -538,7 +553,9 @@ export default function Prompts() {
         throw error;
       }
 
-      console.log('✅ Admin batch result:', data);
+      if (import.meta.env.DEV) {
+        console.log('✅ Admin batch result:', data);
+      }
 
       // Show detailed results
       const summary = data.summary;
@@ -591,8 +608,7 @@ export default function Prompts() {
 
 
   // Transform data for the PromptList component
-  const transformedPrompts = transformPromptData(rawPrompts, providerData);
-
+  const transformedPrompts = useMemo(() => transformPromptData(rawPrompts, providerData), [rawPrompts, providerData]);
   // Use role-based admin access
   const { isAdmin } = useAdminAccess();
   // Only allow specific admin email to access debug tools

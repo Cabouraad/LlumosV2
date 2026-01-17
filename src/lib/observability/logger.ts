@@ -61,7 +61,21 @@ export interface StructuredLog {
 
 class Logger {
   private isDev = import.meta.env?.DEV || false;
-  
+
+  private levelOrder: Record<LogLevel, number> = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40,
+  };
+
+  // In production, only log warn/error to avoid blocking the main thread.
+  private minLevel: LogLevel = this.isDev ? 'debug' : 'warn';
+
+  private shouldLog(level: LogLevel): boolean {
+    return this.levelOrder[level] >= this.levelOrder[this.minLevel];
+  }
+
   private formatLog(level: LogLevel, message: string, context: LogContext = {}): StructuredLog {
     // Redact sensitive information from context before logging
     const redactedContext = redactSensitiveFields({
@@ -93,26 +107,35 @@ class Logger {
   private output(logData: StructuredLog): void {
     if (this.isDev) {
       // Development: Pretty print to console
+      // eslint-disable-next-line no-console
       console.log(`[${logData.timestamp}] ${logData.level.toUpperCase()}: ${logData.message}`, logData.context);
-    } else {
-      // Production: Structured JSON for log aggregation
-      console.log(JSON.stringify(logData));
+      return;
     }
+
+    // Production: keep console usage minimal (warn/error only)
+    // eslint-disable-next-line no-console
+    if (logData.level === 'error') return console.error(JSON.stringify(logData));
+    // eslint-disable-next-line no-console
+    if (logData.level === 'warn') return console.warn(JSON.stringify(logData));
   }
 
   debug(message: string, context?: LogContext): void {
+    if (!this.shouldLog('debug')) return;
     this.output(this.formatLog('debug', message, context));
   }
 
   info(message: string, context?: LogContext): void {
+    if (!this.shouldLog('info')) return;
     this.output(this.formatLog('info', message, context));
   }
 
   warn(message: string, context?: LogContext): void {
+    if (!this.shouldLog('warn')) return;
     this.output(this.formatLog('warn', message, context));
   }
 
   error(message: string, error?: Error, context?: LogContext): void {
+    if (!this.shouldLog('error')) return;
     const logData = this.formatLog('error', message, context);
     if (error) {
       logData.stack = error.stack;
@@ -122,10 +145,10 @@ class Logger {
 
   // Specialized methods for specific operations
   auditLog(action: string, context: LogContext): void {
-    this.info(`AUDIT: ${action}`, { 
-      ...context, 
-      component: 'audit', 
-      action 
+    this.info(`AUDIT: ${action}`, {
+      ...context,
+      component: 'audit',
+      action,
     });
   }
 

@@ -84,14 +84,18 @@ export default function Dashboard() {
     // 1. Check orgData structure first
     const hasOrg = Boolean(orgData?.organizations?.id || orgData?.org_id);
     if (user && !hasOrg) {
-      console.log('[Dashboard] No org in orgData, redirecting to onboarding');
+      if (import.meta.env.DEV) {
+        console.log('[Dashboard] No org in orgData, redirecting to onboarding');
+      }
       navigate('/onboarding', { replace: true });
       return;
     }
-    
+
     // 2. Check if dashboard data indicates no org
     if (dashboardData && !dashboardData.success && dashboardData.noOrg) {
-      console.log('[Dashboard] Dashboard data indicates no org, redirecting to onboarding');
+      if (import.meta.env.DEV) {
+        console.log('[Dashboard] Dashboard data indicates no org, redirecting to onboarding');
+      }
       navigate('/onboarding', { replace: true });
       return;
     }
@@ -103,24 +107,26 @@ export default function Dashboard() {
     if (!hasTriggeredReports && user && orgData?.organizations?.id) {
       const triggerReports = async () => {
         try {
-          console.log('[Dashboard] Auto-triggering weekly report generation...');
+          if (import.meta.env.DEV) {
+            console.log('[Dashboard] Auto-triggering weekly report generation...');
+          }
           const { data, error } = await supabase.functions.invoke("generate-weekly-report", {
             body: {}
           });
-          
+
           if (error) {
             console.error('[Dashboard] Error auto-triggering reports:', error);
-          } else {
+          } else if (import.meta.env.DEV) {
             console.log('[Dashboard] Weekly reports triggered successfully:', data);
           }
-          
+
           // Mark as triggered so we don't run again
           localStorage.setItem('weekly-reports-triggered', 'true');
         } catch (error) {
           console.error('[Dashboard] Failed to trigger reports:', error);
         }
       };
-      
+
       // Trigger after a short delay to ensure everything is loaded
       const timeoutId = setTimeout(triggerReports, 2000);
       return () => clearTimeout(timeoutId);
@@ -134,125 +140,165 @@ export default function Dashboard() {
 
   // Compute brand presence stats from existing data
   const presenceStats = useMemo(() => {
-    if (!dashboardData?.responses || dashboardData.responses.length === 0) {
+    const responses = dashboardData?.responses as any[] | undefined;
+    if (!responses || responses.length === 0) {
       return { rate: 0, sparklineData: [], totalCount: 0, presenceCount: 0, weekOverWeekChange: 0 };
     }
 
-    // Get date ranges
     const now = new Date();
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+    const fourteenDaysAgoMs = now.getTime() - 14 * 24 * 60 * 60 * 1000;
+    const DAY_MS = 24 * 60 * 60 * 1000;
 
-    // Filter successful responses in last 7 days (current week)
-    const recentResponses = dashboardData.responses.filter((response: any) => {
-      const responseDate = new Date(response.run_at || response.created_at);
-      return responseDate >= sevenDaysAgo && (response.status === 'success' || response.status === 'completed');
-    });
+    // Sparkline matches existing behavior: 7 buckets (6 days ago midnight -> today).
+    const baseDay = new Date(now);
+    baseDay.setHours(0, 0, 0, 0);
+    baseDay.setDate(baseDay.getDate() - 6);
+    const baseDayMs = baseDay.getTime();
 
-    // Filter successful responses from previous week (8-14 days ago)
-    const previousWeekResponses = dashboardData.responses.filter((response: any) => {
-      const responseDate = new Date(response.run_at || response.created_at);
-      return responseDate >= fourteenDaysAgo && responseDate < sevenDaysAgo && (response.status === 'success' || response.status === 'completed');
-    });
+    const dayTotals = new Array(7).fill(0);
+    const dayPresence = new Array(7).fill(0);
 
-    const totalCount = recentResponses.length;
-    const presenceCount = recentResponses.filter((response: any) => response.org_brand_present === true).length;
-    const rate = totalCount > 0 ? (presenceCount / totalCount) * 100 : 0;
+    let recentTotal = 0;
+    let recentPresence = 0;
 
-    // Calculate previous week rate
-    const prevTotalCount = previousWeekResponses.length;
-    const prevPresenceCount = previousWeekResponses.filter((response: any) => response.org_brand_present === true).length;
-    const prevRate = prevTotalCount > 0 ? (prevPresenceCount / prevTotalCount) * 100 : 0;
+    let prevTotal = 0;
+    let prevPresence = 0;
 
-    // Calculate week-over-week change
-    const weekOverWeekChange = prevTotalCount > 0 ? rate - prevRate : 0;
+    for (const response of responses) {
+      if (!response) continue;
+      const status = response.status;
+      if (status !== 'success' && status !== 'completed') continue;
 
-    // Create 7-day sparkline data
-    const sparklineData: Array<{ value: number }> = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayDate = new Date();
-      dayDate.setDate(dayDate.getDate() - i);
-      dayDate.setHours(0, 0, 0, 0);
-      
-      const nextDay = new Date(dayDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      const dayResponses = recentResponses.filter((response: any) => {
-        const responseDate = new Date(response.run_at || response.created_at);
-        return responseDate >= dayDate && responseDate < nextDay;
-      });
-      
-      const dayTotal = dayResponses.length;
-      const dayPresence = dayResponses.filter((response: any) => response.org_brand_present === true).length;
-      const dayRate = dayTotal > 0 ? (dayPresence / dayTotal) * 100 : 0;
-      
-      sparklineData.push({ value: dayRate });
+      const ts = Date.parse(response.run_at || response.created_at);
+      if (!Number.isFinite(ts)) continue;
+
+      if (ts >= sevenDaysAgoMs) {
+        recentTotal++;
+        if (response.org_brand_present === true) recentPresence++;
+
+        // Only include in sparkline if within the 7-day midnight window (same as previous logic)
+        if (ts >= baseDayMs) {
+          const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
+          if (dayIndex >= 0 && dayIndex < 7) {
+            dayTotals[dayIndex]++;
+            if (response.org_brand_present === true) dayPresence[dayIndex]++;
+          }
+        }
+      } else if (ts >= fourteenDaysAgoMs) {
+        prevTotal++;
+        if (response.org_brand_present === true) prevPresence++;
+      }
     }
 
-    return { rate, sparklineData, totalCount, presenceCount, weekOverWeekChange };
+    const rate = recentTotal > 0 ? (recentPresence / recentTotal) * 100 : 0;
+    const prevRate = prevTotal > 0 ? (prevPresence / prevTotal) * 100 : 0;
+    const weekOverWeekChange = prevTotal > 0 ? rate - prevRate : 0;
+
+    const sparklineData = dayTotals.map((total, idx) => {
+      const value = total > 0 ? (dayPresence[idx] / total) * 100 : 0;
+      return { value };
+    });
+
+    return {
+      rate,
+      sparklineData,
+      totalCount: recentTotal,
+      presenceCount: recentPresence,
+      weekOverWeekChange,
+    };
   }, [dashboardData?.responses]);
 
   // Compute competitor presence chart data
   const competitorChartData = useMemo(() => {
-    if (!dashboardData?.responses || competitorData.length === 0) {
+    const responses = dashboardData?.responses as any[] | undefined;
+    if (!responses || competitorData.length === 0) {
       return [];
     }
 
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const now = new Date();
+
+    // Same 7-day window as before: 6 days ago midnight -> today
+    const baseDay = new Date(now);
+    baseDay.setHours(0, 0, 0, 0);
+    baseDay.setDate(baseDay.getDate() - 6);
+    const baseDayMs = baseDay.getTime();
+    const endMs = baseDayMs + 7 * DAY_MS;
+
+    const competitorNames = competitorData.map((c) => (c?.competitor_name || '').toLowerCase().trim());
+    const competitorIndex = new Map<string, number>();
+    competitorNames.forEach((name, idx) => {
+      if (name) competitorIndex.set(name, idx);
+    });
+
+    const totals = new Array(7).fill(0);
+    const orgPresentCounts = new Array(7).fill(0);
+    const competitorHitCounts: number[][] = Array.from({ length: 7 }, () => new Array(competitorData.length).fill(0));
+
+    for (const response of responses) {
+      if (!response) continue;
+      const status = response.status;
+      if (status !== 'success' && status !== 'completed') continue;
+
+      const ts = Date.parse(response.run_at || response.created_at);
+      if (!Number.isFinite(ts) || ts < baseDayMs || ts >= endMs) continue;
+
+      const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
+      if (dayIndex < 0 || dayIndex >= 7) continue;
+
+      totals[dayIndex]++;
+      if (response.org_brand_present === true) orgPresentCounts[dayIndex]++;
+
+      // competitor presence (count each response at most once per competitor)
+      const raw = response.competitors_json;
+      let arr: string[] = [];
+      if (Array.isArray(raw)) arr = raw;
+      else if (typeof raw === 'string') arr = [raw];
+      else if (raw != null) arr = [String(raw)];
+
+      if (arr.length > 0) {
+        const seen = new Set<number>();
+        for (const item of arr) {
+          if (!item) continue;
+          const idx = competitorIndex.get(String(item).toLowerCase().trim());
+          if (idx !== undefined) seen.add(idx);
+        }
+        for (const idx of seen) {
+          competitorHitCounts[dayIndex][idx]++;
+        }
+      }
+    }
+
     const allDays: any[] = [];
-    
-    // Create 7 days of data to ensure we can find 5 with actual data
-    for (let i = 6; i >= 0; i--) {
-      const dayDate = new Date();
-      dayDate.setDate(dayDate.getDate() - i);
-      dayDate.setHours(0, 0, 0, 0);
-      
-      const nextDay = new Date(dayDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      // Filter responses for this day
-      const dayResponses = dashboardData.responses.filter((response: any) => {
-        const responseDate = new Date(response.run_at || response.created_at);
-        return responseDate >= dayDate && responseDate < nextDay && (response.status === 'success' || response.status === 'completed');
-      });
-      
-      const totalDayResponses = dayResponses.length;
+    for (let i = 0; i < 7; i++) {
+      const totalDayResponses = totals[i];
+      const dayDate = new Date(baseDayMs + i * DAY_MS);
+
       const dayData: any = {
         date: dayDate.toISOString(),
         orgPresence: 0,
-        hasData: totalDayResponses > 0
+        hasData: totalDayResponses > 0,
       };
 
-      // Calculate org presence rate
       if (totalDayResponses > 0) {
-        const orgPresent = dayResponses.filter((r: any) => r.org_brand_present === true).length;
-        dayData.orgPresence = Math.round((orgPresent / totalDayResponses) * 100);
+        dayData.orgPresence = Math.round((orgPresentCounts[i] / totalDayResponses) * 100);
       }
 
-      // Calculate competitor presence rates using competitor_name from API
-      competitorData.forEach((competitor, index) => {
-        const competitorResponses = dayResponses.filter((response: any) => {
-          if (!response.competitors_json) return false;
-          const competitors = Array.isArray(response.competitors_json) ? response.competitors_json : [response.competitors_json];
-          return competitors.some((brand: string) => 
-            brand && brand.toLowerCase().trim() === competitor.competitor_name.toLowerCase().trim()
-          );
-        });
-        
-        const competitorRate = totalDayResponses > 0 ? Math.round((competitorResponses.length / totalDayResponses) * 100) : 0;
-        dayData[`competitor${index}`] = competitorRate;
-      });
+      for (let c = 0; c < competitorData.length; c++) {
+        const rate = totalDayResponses > 0 ? Math.round((competitorHitCounts[i][c] / totalDayResponses) * 100) : 0;
+        dayData[`competitor${c}`] = rate;
+      }
 
       allDays.push(dayData);
     }
 
     // Filter to only days with data, then take the most recent 5
-    const daysWithData = allDays.filter(day => day.hasData);
+    const daysWithData = allDays.filter((day) => day.hasData);
     const result = daysWithData.slice(-5);
-    
+
     // Clean up the hasData flag before returning
-    return result.map(({ hasData, ...rest }) => rest);
+    return result.map(({ hasData, ...rest }: any) => rest);
   }, [dashboardData?.responses, competitorData]);
 
   useEffect(() => {
