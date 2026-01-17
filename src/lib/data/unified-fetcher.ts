@@ -450,7 +450,7 @@ export async function getUnifiedPromptData(
     const brandKey = brandId ? `-brand-${brandId}` : '';
     const cacheKey = `prompt-data-${orgId}${dateKey}${brandKey}`;
     
-    if (useCache && !dateFrom && !dateTo && !brandId) {
+    if (useCache && !dateFrom && !dateTo) {
       const cached = await advancedCache.get<UnifiedPromptData>(cacheKey);
       if (cached && isValidPromptData(cached)) {
         return cached;

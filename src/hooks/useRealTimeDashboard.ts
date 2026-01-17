@@ -9,6 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import { AdaptivePoller } from '@/lib/polling/adaptive-poller';
 import { useBrand } from '@/contexts/BrandContext';
 
+const debug = (...args: any[]) => {
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
 export interface UseRealTimeDashboardOptions {
   autoRefreshInterval?: number; // milliseconds (used as max interval)
   enableAutoRefresh?: boolean;
@@ -65,51 +72,51 @@ export function useRealTimeDashboard(
   const fetchData = useCallback(async (forceRefresh: boolean = false, showLoading: boolean = true) => {
     // Prevent concurrent fetches
     if (fetchInProgressRef.current) {
-      console.log('[Dashboard] Fetch already in progress, skipping');
+      debug('[Dashboard] Fetch already in progress, skipping');
       return;
     }
-    
+
     fetchInProgressRef.current = true;
-    console.log('[Dashboard] Starting fetch:', { forceRefresh, showLoading });
-    
+    debug('[Dashboard] Starting fetch:', { forceRefresh, showLoading });
+
     try {
       // Only show loading state for manual refreshes, not background updates
       if (showLoading) {
         setLoading(true);
       }
       setError(null);
-      
+
       const result = await dashboardFetcher.getData(forceRefresh);
-      
+
       // Handle "no org" case specially - this is not an error, user needs onboarding
       if (result.noOrg) {
-        console.log('[Dashboard] User has no organization - needs onboarding');
+        debug('[Dashboard] User has no organization - needs onboarding');
         setLoading(false);
         setData(null);
         // Don't set error or show toast - let routing logic handle redirect
         return;
       }
-      
+
       // Handle timeout errors silently - the fetcher returns cached data when available
       if (result.isTimeout && !result.success) {
-        console.log('[Dashboard] Database timeout - using cached data or ignoring');
+        debug('[Dashboard] Database timeout - using cached data or ignoring');
         // Don't show error toast for timeouts, they're temporary
         return;
       }
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch dashboard data');
       }
-      
+
       setData(result);
       setLastUpdated(new Date());
-      console.log('[Dashboard] Fetch successful');
-      
+      debug('[Dashboard] Fetch successful');
+
     } catch (err) {
       const error = err as Error;
       console.error('[Dashboard] Fetch error:', error);
       setError(error);
-      
+
       if (onErrorRef.current) {
         onErrorRef.current(error);
       } else if (showLoading) {
@@ -141,13 +148,13 @@ export function useRealTimeDashboard(
   // Auto-refresh interval with adaptive polling
   useEffect(() => {
     if (!enableAutoRefresh) {
-      console.log('[Dashboard] Auto-refresh disabled');
+      debug('[Dashboard] Auto-refresh disabled');
       return;
     }
 
     if (enableAdaptivePolling) {
       // Use adaptive poller with longer intervals
-      console.log('[Dashboard] Setting up adaptive polling');
+      debug('[Dashboard] Setting up adaptive polling');
       adaptivePollerRef.current = new AdaptivePoller({
         minInterval: 120000, // 2 minutes minimum
         maxInterval: Math.max(autoRefreshInterval, 300000), // 5 minutes max
@@ -158,23 +165,23 @@ export function useRealTimeDashboard(
 
       pollerUnsubscribeRef.current = adaptivePollerRef.current.subscribe(async () => {
         if (!fetchInProgressRef.current) {
-          console.log('[Dashboard] Adaptive poll triggered (silent)');
+          debug('[Dashboard] Adaptive poll triggered (silent)');
           return fetchData(false, false); // Silent background refresh
         }
-        console.log('[Dashboard] Adaptive poll skipped, already loading');
+        debug('[Dashboard] Adaptive poll skipped, already loading');
         return Promise.resolve();
       });
 
     } else {
       // Use traditional interval polling with longer interval
       const pollInterval = Math.max(autoRefreshInterval, 120000); // At least 2 minutes
-      console.log('[Dashboard] Setting up traditional polling:', pollInterval);
+      debug('[Dashboard] Setting up traditional polling:', pollInterval);
       intervalRef.current = setInterval(() => {
         if (!fetchInProgressRef.current) {
-          console.log('[Dashboard] Traditional poll triggered (silent)');
+          debug('[Dashboard] Traditional poll triggered (silent)');
           fetchData(false, false); // Silent background refresh
         } else {
-          console.log('[Dashboard] Traditional poll skipped, already loading');
+          debug('[Dashboard] Traditional poll skipped, already loading');
         }
       }, pollInterval);
     }
@@ -195,8 +202,8 @@ export function useRealTimeDashboard(
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      
-      console.log('[Dashboard] Auto-refresh cleared');
+
+      debug('[Dashboard] Auto-refresh cleared');
     };
   }, [enableAutoRefresh, enableAdaptivePolling, autoRefreshInterval, fetchData]);
 
@@ -205,7 +212,7 @@ export function useRealTimeDashboard(
   // Handle visibility change with throttling (disabled when adaptive polling is enabled)
   useEffect(() => {
     if (enableAdaptivePolling) {
-      console.log('[Dashboard] Visibility refresh disabled - using adaptive poller');
+      debug('[Dashboard] Visibility refresh disabled - using adaptive poller');
       return;
     }
 
@@ -215,14 +222,14 @@ export function useRealTimeDashboard(
         const now = Date.now();
         // Increased throttle to 2 minutes to prevent excessive refetching
         if (now - lastVisibilityFetchRef.current > 120000) {
-          console.log('[Dashboard] Tab visible, refreshing (silent)');
+          debug('[Dashboard] Tab visible, refreshing (silent)');
           lastVisibilityFetchRef.current = now;
           fetchData(false, false); // Silent background refresh
         } else {
-          console.log('[Dashboard] Tab visible but throttled');
+          debug('[Dashboard] Tab visible but throttled');
         }
       } else if (document.visibilityState === 'hidden') {
-        console.log('[Dashboard] Tab hidden, pausing activity');
+        debug('[Dashboard] Tab hidden, pausing activity');
         // Tab is hidden - polling continues but we log it for monitoring
       }
     };
