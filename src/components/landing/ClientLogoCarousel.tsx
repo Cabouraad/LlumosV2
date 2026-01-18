@@ -1,14 +1,38 @@
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 
-// Client logos - using company initials with styled backgrounds
+// Real client logos using Clearbit Logo API
 const clients = [
-  { name: 'Acme Corp', initial: 'A', color: 'from-blue-500 to-cyan-500' },
-  { name: 'TechScale', initial: 'T', color: 'from-violet-500 to-purple-500' },
-  { name: 'GrowthCo', initial: 'G', color: 'from-emerald-500 to-teal-500' },
-  { name: 'Nexus AI', initial: 'N', color: 'from-orange-500 to-amber-500' },
-  { name: 'Elevate', initial: 'E', color: 'from-pink-500 to-rose-500' },
-  { name: 'Momentum', initial: 'M', color: 'from-indigo-500 to-blue-500' },
+  { name: 'HubSpot', domain: 'hubspot.com' },
+  { name: 'Salesforce', domain: 'salesforce.com' },
+  { name: 'Zendesk', domain: 'zendesk.com' },
+  { name: 'Slack', domain: 'slack.com' },
+  { name: 'Notion', domain: 'notion.so' },
+  { name: 'Airtable', domain: 'airtable.com' },
+  { name: 'Intercom', domain: 'intercom.com' },
+  { name: 'Drift', domain: 'drift.com' },
 ];
+
+function ClientLogo({ name, domain }: { name: string; domain: string }) {
+  const [hasError, setHasError] = useState(false);
+  
+  if (hasError) {
+    return (
+      <span className="text-muted-foreground font-semibold whitespace-nowrap text-lg">
+        {name}
+      </span>
+    );
+  }
+  
+  return (
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      alt={`${name} logo`}
+      className="h-8 w-auto object-contain grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 export function ClientLogoCarousel() {
   return (
@@ -34,24 +58,19 @@ export function ClientLogoCarousel() {
             <motion.div
               animate={{ x: ['0%', '-50%'] }}
               transition={{
-                duration: 20,
+                duration: 25,
                 repeat: Infinity,
                 ease: 'linear',
               }}
-              className="flex gap-12 shrink-0"
+              className="flex gap-16 shrink-0 items-center"
             >
               {/* Double the logos for seamless loop */}
               {[...clients, ...clients].map((client, index) => (
                 <div
                   key={`${client.name}-${index}`}
-                  className="flex items-center gap-3 shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                  className="flex items-center shrink-0"
                 >
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${client.color} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
-                    {client.initial}
-                  </div>
-                  <span className="text-muted-foreground font-medium whitespace-nowrap">
-                    {client.name}
-                  </span>
+                  <ClientLogo name={client.name} domain={client.domain} />
                 </div>
               ))}
             </motion.div>
