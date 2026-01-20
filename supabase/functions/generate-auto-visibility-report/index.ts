@@ -167,6 +167,169 @@ function getDefaultPrompts(domain: string): string[] {
 }
 
 /**
+ * Determine failure reason based on domain and error context
+ */
+function getFailureReason(domain: string, errorMessage?: string): { reason: string; explanation: string } {
+  const cleanDomain = domain?.trim().toLowerCase() || '';
+  
+  // Check for invalid domain patterns
+  const validDomainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
+  if (!validDomainRegex.test(cleanDomain)) {
+    return {
+      reason: "Invalid Domain Format",
+      explanation: `The domain you entered ("${domain}") doesn't appear to be a valid website address. A valid domain looks like "example.com" or "mybusiness.io". Without a valid domain, we can't analyze how AI search engines perceive your brand.`
+    };
+  }
+  
+  // Check for common typos or incomplete domains
+  if (cleanDomain.length < 4) {
+    return {
+      reason: "Domain Too Short",
+      explanation: `The domain "${domain}" is too short to be a valid website. Please ensure you've entered your complete domain (e.g., "yourbrand.com").`
+    };
+  }
+  
+  // Check if it looks like just a brand name without TLD
+  if (!cleanDomain.includes('.')) {
+    return {
+      reason: "Missing Domain Extension",
+      explanation: `You entered "${domain}" which appears to be a brand name rather than a website domain. Please include the full domain with extension (e.g., "${domain}.com" or "${domain}.io").`
+    };
+  }
+  
+  // Generic error fallback
+  if (errorMessage) {
+    return {
+      reason: "Technical Issue",
+      explanation: `We encountered a technical issue while generating your report. Our team has been notified and is looking into it. This is usually temporary - please try again in a few minutes.`
+    };
+  }
+  
+  return {
+    reason: "Unable to Analyze",
+    explanation: `We weren't able to gather enough information about "${domain}" to generate a meaningful visibility report. This can happen with very new websites, private domains, or sites with limited online presence.`
+  };
+}
+
+/**
+ * Send failure notification email to user
+ */
+async function sendFailureNotificationEmail(
+  email: string,
+  firstName: string,
+  domain: string,
+  errorMessage?: string
+): Promise<boolean> {
+  if (!RESEND_API_KEY) {
+    console.log('[AutoReport] No Resend key, cannot send failure notification');
+    return false;
+  }
+
+  const { reason, explanation } = getFailureReason(domain, errorMessage);
+  const calendlyLink = "https://calendly.com/llumos-info/llumos-demo";
+  const displayName = firstName?.trim() || 'there';
+
+  try {
+    const resend = new Resend(RESEND_API_KEY);
+    
+    await resend.emails.send({
+      from: "Llumos AI <reports@llumos.app>",
+      to: [email],
+      subject: `Your AI Visibility Report Could Not Be Generated`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9fafb;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #8b5cf6, #3b82f6); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                <span style="font-size: 28px;">🔍</span>
+              </div>
+              <h1 style="margin: 0; color: #1f2937; font-size: 24px;">
+                Llumos AI Visibility Report
+              </h1>
+            </div>
+
+            <!-- Main Content Card -->
+            <div style="background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); margin-bottom: 24px;">
+              <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                Hi ${displayName},
+              </p>
+              
+              <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Thank you for your interest in understanding your brand's AI search visibility! Unfortunately, we weren't able to generate your report for <strong style="color: #4f46e5;">${domain}</strong>.
+              </p>
+
+              <!-- Reason Box -->
+              <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-left: 4px solid #f59e0b; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <h3 style="margin: 0 0 8px 0; color: #92400e; font-size: 16px; font-weight: 600;">
+                  ⚠️ ${reason}
+                </h3>
+                <p style="margin: 0; color: #78350f; font-size: 14px; line-height: 1.5;">
+                  ${explanation}
+                </p>
+              </div>
+
+              <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                <strong>We'd love to help!</strong> If you believe there's been an error or you'd like personalized assistance with your AI visibility analysis, our team is here for you.
+              </p>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${calendlyLink}" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);">
+                  📅 Schedule a Free Consultation
+                </a>
+              </div>
+
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 0; text-align: center;">
+                In a 15-minute call, we can help you:
+              </p>
+              <ul style="color: #6b7280; font-size: 14px; line-height: 1.8; margin: 12px 0 0 0; padding-left: 20px;">
+                <li>Understand your current AI search visibility</li>
+                <li>Identify opportunities to improve your brand's presence</li>
+                <li>Get personalized recommendations for your industry</li>
+              </ul>
+            </div>
+
+            <!-- Alternative Action -->
+            <div style="background: #f3f4f6; border-radius: 12px; padding: 24px; text-align: center;">
+              <p style="color: #6b7280; font-size: 14px; margin: 0 0 12px 0;">
+                Want to try again with a different domain?
+              </p>
+              <a href="https://llumos.app" style="color: #4f46e5; font-weight: 600; text-decoration: none;">
+                Visit llumos.app →
+              </a>
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Llumos AI. All rights reserved.
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; margin: 8px 0 0 0;">
+                You received this email because you requested an AI visibility report.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+
+    console.log(`[AutoReport] Failure notification sent to ${email} for domain ${domain}`);
+    return true;
+  } catch (error) {
+    console.error('[AutoReport] Error sending failure notification:', error);
+    return false;
+  }
+}
+
+/**
  * Query ChatGPT (OpenAI)
  */
 async function queryChatGPT(prompt: string, brandName: string): Promise<ProviderResult> {
@@ -1169,8 +1332,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Declare variables outside try block for access in catch
+  let firstName = '';
+  let email = '';
+  let domain = '';
+  let score = 0;
+
   try {
-    const { firstName, email, domain, score }: ReportRequest = await req.json();
+    const body: ReportRequest = await req.json();
+    firstName = body.firstName;
+    email = body.email;
+    domain = body.domain;
+    score = body.score;
 
     console.log(`[AutoReport] Starting report generation for ${domain}`);
 
@@ -1206,9 +1379,9 @@ serve(async (req) => {
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
     const overallScore = validResults.length > 0 
       ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
-      : score; // Fall back to original score if no valid results
+      : 0;
 
-    console.log(`[AutoReport] Overall score: ${overallScore} from ${validResults.length} valid results`);
+    console.log(`[AutoReport] Overall score: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
@@ -1259,8 +1432,46 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error("[AutoReport] Error:", error);
+    
+    // Send failure notification email if we have user details
+    let failureNotificationSent = false;
+    if (email && domain) {
+      console.log(`[AutoReport] Sending failure notification to ${email} for ${domain}`);
+      failureNotificationSent = await sendFailureNotificationEmail(
+        email,
+        firstName,
+        domain,
+        error?.message
+      );
+      
+      // Update database record with error status
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await supabase
+          .from('visibility_report_requests')
+          .update({
+            status: 'error',
+            metadata: {
+              firstName,
+              errorAt: new Date().toISOString(),
+              errorMessage: error?.message || 'Unknown error',
+              failureNotificationSent
+            }
+          })
+          .eq('email', email)
+          .eq('domain', domain)
+          .order('created_at', { ascending: false })
+          .limit(1);
+      } catch (dbError) {
+        console.error('[AutoReport] Failed to update database with error status:', dbError);
+      }
+    }
+    
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ 
+        error: error.message || "Internal server error",
+        failureNotificationSent 
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
