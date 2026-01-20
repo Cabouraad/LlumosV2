@@ -73,31 +73,8 @@ serve(async (req) => {
       throw insertError;
     }
 
-    // Send email notification to info@llumos.app
-    if (RESEND_API_KEY) {
-      try {
-        const resend = new Resend(RESEND_API_KEY);
-        await resend.emails.send({
-          from: "Llumos Reports <reports@llumos.app>",
-          to: ["info@llumos.app"],
-          subject: `New Visibility Report Request - ${domain}`,
-          html: `
-            <h2>New Visibility Report Request</h2>
-            <p><strong>Name:</strong> ${firstName}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Domain:</strong> ${domain}</p>
-            <p><strong>Llumos Score:</strong> ${score}</p>
-            <p><strong>Requested at:</strong> ${new Date().toISOString()}</p>
-            <hr>
-            <p><em>Please prepare and send the comprehensive visibility report to ${email}</em></p>
-          `,
-        });
-        console.log(`Notification email sent to info@llumos.app for ${domain}`);
-      } catch (emailError) {
-        console.error("Error sending notification email:", emailError);
-        // Don't fail the request if email fails
-      }
-    }
+    // NOTE: Admin notification removed - reports are now fully automated via generate-auto-visibility-report
+    // The function generates PDFs and emails them directly to users
 
     // Submit to HubSpot Forms API
     if (HUBSPOT_PORTAL_ID && HUBSPOT_FORM_GUID) {
