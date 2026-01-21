@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,10 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Loader2, Shield, CheckCircle, XCircle, Building2, Trash2, RefreshCw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Shield, CheckCircle, XCircle, Building2, Trash2, RefreshCw, FileText } from 'lucide-react';
 import { format, differenceInMilliseconds, startOfTomorrow } from 'date-fns';
 import { toast } from 'sonner';
-import { useCallback } from 'react';
+import { FormSubmissionsTab } from '@/components/admin/FormSubmissionsTab';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,164 +154,184 @@ export default function SuperAdmin() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Shield className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
-              <p className="text-muted-foreground">System-wide account management</p>
-            </div>
+        <div className="flex items-center gap-3 mb-8">
+          <Shield className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
+            <p className="text-muted-foreground">System-wide account management</p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => fetchAdminData(true)}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Accounts</CardDescription>
-              <CardTitle className="text-3xl">{totalAccounts}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active Subscriptions</CardDescription>
-              <CardTitle className="text-3xl">{activeSubscriptions}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Prompts</CardDescription>
-              <CardTitle className="text-3xl">{totalPrompts.toLocaleString()}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
+        <Tabs defaultValue="accounts" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="accounts" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Accounts
+            </TabsTrigger>
+            <TabsTrigger value="submissions" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Form Submissions
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Danger Zone */}
-        <Card className="border-destructive/50 mb-8">
-          <CardHeader>
-            <CardTitle className="text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" />
-              Danger Zone
-            </CardTitle>
-            <CardDescription>
-              Irreversible actions. Protected accounts: abouraa.chri@gmail.com, emaediongeyo5@gmail.com, eliza.templet@gmail.com, amir@test.com, 409450051@qq.com
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={deleting}>
-                  {deleting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete All Non-Protected Accounts
-                    </>
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete ALL accounts except the protected ones. This action cannot be undone.
-                    All organization data, prompts, and related records will be removed.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAccounts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Yes, delete all accounts
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
-
-        {/* Accounts Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              All Accounts
-            </CardTitle>
-            <CardDescription>
-              Complete list of organizations in the system
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Owner Email</TableHead>
-                    <TableHead>Tier</TableHead>
-                    <TableHead>Subscription</TableHead>
-                    <TableHead className="text-right">Prompts</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Login</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accounts.map((account) => (
-                    <TableRow key={account.org_id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{account.org_name}</div>
-                          <div className="text-sm text-muted-foreground">{account.org_domain}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{account.owner_email || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={account.subscription_tier === 'pro' ? 'default' : 'secondary'}>
-                          {account.subscription_tier}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {account.is_subscribed ? (
-                          <div className="flex items-center gap-1 text-green-600">
-                            <CheckCircle className="h-4 w-4" />
-                            <span className="text-sm">Active</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <XCircle className="h-4 w-4" />
-                            <span className="text-sm">Inactive</span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">{account.prompts_count}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {format(new Date(account.created_at), 'MMM d, yyyy')}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {account.last_login_at 
-                          ? format(new Date(account.last_login_at), 'MMM d, yyyy')
-                          : '-'
-                        }
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          <TabsContent value="accounts" className="space-y-6">
+            <div className="flex justify-end">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => fetchAdminData(true)}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Total Accounts</CardDescription>
+                  <CardTitle className="text-3xl">{totalAccounts}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Active Subscriptions</CardDescription>
+                  <CardTitle className="text-3xl">{activeSubscriptions}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Total Prompts</CardDescription>
+                  <CardTitle className="text-3xl">{totalPrompts.toLocaleString()}</CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Danger Zone */}
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-destructive flex items-center gap-2">
+                  <Trash2 className="h-5 w-5" />
+                  Danger Zone
+                </CardTitle>
+                <CardDescription>
+                  Irreversible actions. Protected accounts: abouraa.chri@gmail.com, emaediongeyo5@gmail.com, eliza.templet@gmail.com, amir@test.com, 409450051@qq.com
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleting}>
+                      {deleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete All Non-Protected Accounts
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete ALL accounts except the protected ones. This action cannot be undone.
+                        All organization data, prompts, and related records will be removed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteAccounts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Yes, delete all accounts
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
+            {/* Accounts Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  All Accounts
+                </CardTitle>
+                <CardDescription>
+                  Complete list of organizations in the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>Owner Email</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Subscription</TableHead>
+                        <TableHead className="text-right">Prompts</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Last Login</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {accounts.map((account) => (
+                        <TableRow key={account.org_id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{account.org_name}</div>
+                              <div className="text-sm text-muted-foreground">{account.org_domain}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{account.owner_email || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant={account.subscription_tier === 'pro' ? 'default' : 'secondary'}>
+                              {account.subscription_tier}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {account.is_subscribed ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="text-sm">Active</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <XCircle className="h-4 w-4" />
+                                <span className="text-sm">Inactive</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">{account.prompts_count}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {format(new Date(account.created_at), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {account.last_login_at 
+                              ? format(new Date(account.last_login_at), 'MMM d, yyyy')
+                              : '-'
+                            }
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="submissions">
+            <FormSubmissionsTab />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
