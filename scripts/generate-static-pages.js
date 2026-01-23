@@ -56,6 +56,7 @@ const ROUTES = [
   // Blog posts
   { path: '/blog/how-to-optimize-for-chatgpt-search', waitForSelector: 'h1', validateText: ['ChatGPT'], outputPath: 'blog/how-to-optimize-for-chatgpt-search/index.html' },
   { path: '/blog/profound-ai-alternative-pricing', waitForSelector: 'h1', validateText: ['Profound', 'Alternative'], outputPath: 'blog/profound-ai-alternative-pricing/index.html' },
+  { path: '/blog/chatgpt-introducing-ads-how-brands-should-prepare', waitForSelector: 'h1', validateText: ['ChatGPT', 'Ads'], outputPath: 'blog/chatgpt-introducing-ads-how-brands-should-prepare/index.html' },
   
   // Resources/Blog posts
   { path: '/resources/understanding-ai-search-optimization', waitForSelector: 'h1', validateText: ['AI Search'], outputPath: 'resources/understanding-ai-search-optimization/index.html' },
