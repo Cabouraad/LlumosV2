@@ -272,6 +272,9 @@ cron_health_monitor = { schedule = "0 */6 * * *", endpoint = "/cron-health-monit
 # === EMAIL SEQUENCES: Process pending emails (every 30 minutes) ===
 snapshot_email_sequence = { schedule = "*/30 * * * *", endpoint = "/snapshot-email-sequence", method = "POST", headers = { "x-cron-secret" = "${CRON_SECRET}" }, body = "{\"action\": \"process\"}" }
 
+# === PENDING VISIBILITY REPORTS: Process pending submissions daily at 10:00 AM UTC ===
+process_pending_reports = { schedule = "0 10 * * *", endpoint = "/process-pending-reports", method = "POST", headers = { "x-cron-secret" = "${CRON_SECRET}" } }
+
 [functions.send-visibility-alert]
 verify_jwt = false
 
@@ -356,3 +359,6 @@ verify_jwt = false
 
 [functions.generate-auto-visibility-report.env]
 ENABLE_GOOGLE_AIO = "true"
+
+[functions.process-pending-reports]
+verify_jwt = false
