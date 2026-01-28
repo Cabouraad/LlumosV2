@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2, Search, Clock, CheckCircle } from 'lucide-react';
+import { ArrowRight, Loader2, Search, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { MockChatInterface } from './MockChatInterface';
 import { LiveStats } from './LiveStats';
 import { useNavigate } from 'react-router-dom';
@@ -10,12 +10,16 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { HubSpotForm, HUBSPOT_CONFIG, preloadHubSpotForms, HubSpotFormData } from '@/components/hubspot/HubSpotForm';
 import { supabase } from '@/integrations/supabase/client';
+import { validateDomain, DomainValidationResult } from '@/utils/domainValidation';
 
 export function HeroSection() {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
   const [cleanedDomain, setCleanedDomain] = useState('');
+  const [domainWarning, setDomainWarning] = useState<string | null>(null);
+  const [showWarningConfirm, setShowWarningConfirm] = useState(false);
+  const [pendingValidation, setPendingValidation] = useState<DomainValidationResult | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,25 +35,44 @@ export function HeroSection() {
       return;
     }
 
-    // Clean up the URL
-    let cleanUrl = url.trim().toLowerCase();
-    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-      cleanUrl = cleanUrl.replace(/^(www\.)?/, '');
-    } else {
-      cleanUrl = cleanUrl.replace(/^https?:\/\/(www\.)?/, '');
-    }
-    cleanUrl = cleanUrl.replace(/\/.*$/, '');
-
-    // Basic validation
-    const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
-    if (!domainRegex.test(cleanUrl)) {
-      toast.error('Please enter a valid domain (e.g., example.com)');
+    // Validate the domain
+    const validation = validateDomain(url);
+    
+    if (!validation.isValid) {
+      // Hard block - show error
+      toast.error(validation.warning || 'Please enter a valid domain');
+      setDomainWarning(validation.warning || null);
       return;
     }
 
-    // Store cleaned domain and show HubSpot modal
-    setCleanedDomain(cleanUrl);
+    if (validation.warning) {
+      // Soft warning - ask for confirmation
+      setPendingValidation(validation);
+      setShowWarningConfirm(true);
+      return;
+    }
+
+    // All good - proceed
+    proceedWithDomain(validation.cleanedDomain);
+  };
+
+  const proceedWithDomain = (domain: string) => {
+    setCleanedDomain(domain);
+    setDomainWarning(null);
+    setPendingValidation(null);
+    setShowWarningConfirm(false);
     setShowHubSpotModal(true);
+  };
+
+  const handleWarningConfirm = () => {
+    if (pendingValidation) {
+      proceedWithDomain(pendingValidation.cleanedDomain);
+    }
+  };
+
+  const handleWarningCancel = () => {
+    setShowWarningConfirm(false);
+    setPendingValidation(null);
   };
 
   const handleHubSpotSubmit = async (formData?: HubSpotFormData) => {
@@ -179,10 +202,15 @@ export function HeroSection() {
                   <div className="relative flex-1">
                     <Input
                       type="text"
-                      placeholder="Enter your website URL"
+                      placeholder="yourcompany.com"
                       value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      className="h-14 px-5 text-base bg-card/50 border-white/10 focus:border-violet-500/50 placeholder:text-muted-foreground/60"
+                      onChange={(e) => {
+                        setUrl(e.target.value);
+                        setDomainWarning(null); // Clear warning on change
+                      }}
+                      className={`h-14 px-5 text-base bg-card/50 border-white/10 focus:border-violet-500/50 placeholder:text-muted-foreground/60 ${
+                        domainWarning ? 'border-amber-500/50' : ''
+                      }`}
                     />
                   </div>
                   <Button
@@ -204,6 +232,14 @@ export function HeroSection() {
                     )}
                   </Button>
                 </div>
+                
+                {/* Domain warning message */}
+                {domainWarning && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-amber-400">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>{domainWarning}</span>
+                  </div>
+                )}
                 
                 {/* Trust indicators */}
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-2">
@@ -260,6 +296,43 @@ export function HeroSection() {
           <p className="text-xs text-center text-muted-foreground mt-4">
             No credit card required • Results in 30 seconds
           </p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Warning Confirmation Dialog */}
+      <Dialog open={showWarningConfirm} onOpenChange={setShowWarningConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
+              Domain Warning
+            </DialogTitle>
+            <DialogDescription className="text-base mt-2">
+              {pendingValidation?.warning}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-muted/50 rounded-lg p-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              You entered: <strong className="text-foreground">{pendingValidation?.cleanedDomain}</strong>
+            </p>
+          </div>
+
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleWarningCancel}
+            >
+              Go Back & Edit
+            </Button>
+            <Button
+              className="flex-1 bg-amber-600 hover:bg-amber-500"
+              onClick={handleWarningConfirm}
+            >
+              Continue Anyway
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>
