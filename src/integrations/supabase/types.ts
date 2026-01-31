@@ -124,6 +124,59 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_checks: {
+        Row: {
+          audit_id: string
+          created_at: string
+          effort: string | null
+          evidence: Json | null
+          fix: string | null
+          id: string
+          impact: string | null
+          key: string
+          module: string
+          score: number
+          status: string
+          why: string | null
+        }
+        Insert: {
+          audit_id: string
+          created_at?: string
+          effort?: string | null
+          evidence?: Json | null
+          fix?: string | null
+          id?: string
+          impact?: string | null
+          key: string
+          module: string
+          score?: number
+          status: string
+          why?: string | null
+        }
+        Update: {
+          audit_id?: string
+          created_at?: string
+          effort?: string | null
+          evidence?: Json | null
+          fix?: string | null
+          id?: string
+          impact?: string | null
+          key?: string
+          module?: string
+          score?: number
+          status?: string
+          why?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_checks_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           data: Json | null
@@ -162,6 +215,68 @@ export type Database = {
           },
         ]
       }
+      audit_pages: {
+        Row: {
+          audit_id: string
+          canonical: string | null
+          created_at: string
+          h1: string | null
+          has_schema: boolean | null
+          headings: Json | null
+          id: string
+          image_count: number | null
+          images_with_alt: number | null
+          meta_description: string | null
+          schema_types: string[] | null
+          status: number | null
+          title: string | null
+          url: string
+          word_count: number | null
+        }
+        Insert: {
+          audit_id: string
+          canonical?: string | null
+          created_at?: string
+          h1?: string | null
+          has_schema?: boolean | null
+          headings?: Json | null
+          id?: string
+          image_count?: number | null
+          images_with_alt?: number | null
+          meta_description?: string | null
+          schema_types?: string[] | null
+          status?: number | null
+          title?: string | null
+          url: string
+          word_count?: number | null
+        }
+        Update: {
+          audit_id?: string
+          canonical?: string | null
+          created_at?: string
+          h1?: string | null
+          has_schema?: boolean | null
+          headings?: Json | null
+          id?: string
+          image_count?: number | null
+          images_with_alt?: number | null
+          meta_description?: string | null
+          schema_types?: string[] | null
+          status?: number | null
+          title?: string | null
+          url?: string
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_pages_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_runs: {
         Row: {
           artifact_url: string | null
@@ -195,6 +310,48 @@ export type Database = {
           started_at?: string
           status?: string
           summary?: Json | null
+        }
+        Relationships: []
+      }
+      audits: {
+        Row: {
+          brand_name: string | null
+          business_type: string | null
+          completed_at: string | null
+          created_at: string
+          domain: string
+          error_message: string | null
+          id: string
+          module_scores: Json | null
+          overall_score: number | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          brand_name?: string | null
+          business_type?: string | null
+          completed_at?: string | null
+          created_at?: string
+          domain: string
+          error_message?: string | null
+          id?: string
+          module_scores?: Json | null
+          overall_score?: number | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          brand_name?: string | null
+          business_type?: string | null
+          completed_at?: string | null
+          created_at?: string
+          domain?: string
+          error_message?: string | null
+          id?: string
+          module_scores?: Json | null
+          overall_score?: number | null
+          status?: string
+          user_id?: string | null
         }
         Relationships: []
       }
