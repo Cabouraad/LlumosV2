@@ -11,9 +11,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const USER_AGENT = 'LlumosAuditBot/1.0 (+https://llumos.ai)';
-const FETCH_TIMEOUT = 8000;
-const BATCH_SIZE = 75;
-const CONCURRENCY = 12;
+const FETCH_TIMEOUT = 5000;
+const BATCH_SIZE = 15;
+const CONCURRENCY = 5;
 
 // Tracking params to remove from URLs
 const TRACKING_PARAMS = new Set([
