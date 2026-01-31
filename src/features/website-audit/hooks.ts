@@ -213,9 +213,14 @@ export function useAudit(auditId: string | undefined) {
         .from('audits')
         .select('*')
         .eq('id', auditId)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching audit:', error);
+        throw error;
+      }
+      
+      if (!data) return null;
       
       return {
         ...data,
@@ -225,6 +230,7 @@ export function useAudit(auditId: string | undefined) {
     },
     enabled: !!auditId,
     staleTime: 60 * 1000,
+    retry: 2,
     refetchInterval: (query) => {
       // Poll while not completed
       const d = query.state.data;
