@@ -177,6 +177,59 @@ export type Database = {
           },
         ]
       }
+      audit_crawl_state: {
+        Row: {
+          allow_subdomains: boolean
+          audit_id: string
+          crawl_limit: number
+          crawled_count: number
+          created_at: string
+          error: string | null
+          last_cursor: string | null
+          queue: Json
+          robots_rules: Json | null
+          seen_hashes: string[]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allow_subdomains?: boolean
+          audit_id: string
+          crawl_limit?: number
+          crawled_count?: number
+          created_at?: string
+          error?: string | null
+          last_cursor?: string | null
+          queue?: Json
+          robots_rules?: Json | null
+          seen_hashes?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allow_subdomains?: boolean
+          audit_id?: string
+          crawl_limit?: number
+          crawled_count?: number
+          created_at?: string
+          error?: string | null
+          last_cursor?: string | null
+          queue?: Json
+          robots_rules?: Json | null
+          seen_hashes?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_crawl_state_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: true
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           data: Json | null
@@ -318,6 +371,7 @@ export type Database = {
           brand_name: string | null
           business_type: string | null
           completed_at: string | null
+          crawl_limit: number | null
           created_at: string
           domain: string
           error_message: string | null
@@ -331,6 +385,7 @@ export type Database = {
           brand_name?: string | null
           business_type?: string | null
           completed_at?: string | null
+          crawl_limit?: number | null
           created_at?: string
           domain: string
           error_message?: string | null
@@ -344,6 +399,7 @@ export type Database = {
           brand_name?: string | null
           business_type?: string | null
           completed_at?: string | null
+          crawl_limit?: number | null
           created_at?: string
           domain?: string
           error_message?: string | null

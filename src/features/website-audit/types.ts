@@ -6,10 +6,36 @@ export interface Audit {
   business_type: string | null;
   overall_score: number | null;
   module_scores: ModuleScores;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  crawl_limit?: number;
+  status: 'pending' | 'running' | 'crawling' | 'completed' | 'failed' | 'error';
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface CrawlState {
+  audit_id: string;
+  queue: string[];
+  seen_hashes: string[];
+  crawled_count: number;
+  crawl_limit: number;
+  allow_subdomains: boolean;
+  robots_rules: unknown;
+  last_cursor: string | null;
+  status: 'pending' | 'running' | 'done' | 'error';
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrawlProgress {
+  audit_id: string;
+  crawled_count: number;
+  crawl_limit: number;
+  queue_size: number;
+  pages_this_batch?: number;
+  done: boolean;
+  error?: string;
 }
 
 export interface ModuleScores {
