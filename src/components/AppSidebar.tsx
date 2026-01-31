@@ -46,7 +46,8 @@ import {
   LineChart,
   HelpCircle,
   Play,
-  Sparkles
+  Sparkles,
+  ScanSearch
 } from 'lucide-react';
 
 export function AppSidebar() {
@@ -93,6 +94,7 @@ export function AppSidebar() {
     { name: 'Optimizations', href: '/optimizations', icon: Lightbulb, iconColor: 'text-yellow-500', tooltip: 'AI-powered recommendations to improve visibility' },
     { name: 'Content Studio', href: '/content-studio', icon: Sparkles, iconColor: 'text-rose-500', tooltip: 'Generate content blueprints from recommendations' },
     { name: 'Reports', href: '/reports', icon: FileBarChart, iconColor: 'text-cyan-500', tooltip: 'Weekly performance reports and insights' },
+    { name: 'Site Audit', href: '/audit', icon: ScanSearch, iconColor: 'text-violet-500', tooltip: 'Run SEO + GEO website audits' },
     { name: 'LLMs.txt', href: '/llms-txt', icon: FileCode, iconColor: 'text-indigo-500', tooltip: 'Configure LLM-specific instructions' },
     { name: 'Settings', href: '/settings', icon: Settings, iconColor: 'text-gray-500', tooltip: 'Organization and account settings' },
     ...(isAdmin ? [
