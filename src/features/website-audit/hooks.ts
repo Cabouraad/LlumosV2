@@ -302,3 +302,39 @@ export function useUserAudits(userId: string | undefined) {
     enabled: !!userId
   });
 }
+
+export function useDomainAudit(domain: string | undefined) {
+  return useQuery({
+    queryKey: ['domain-audit', domain],
+    queryFn: async (): Promise<Audit | null> => {
+      if (!domain) return null;
+      
+      // Normalize domain for lookup
+      const normalizedDomain = domain.toLowerCase().replace(/^www\./, '');
+      
+      const { data, error } = await supabase
+        .from('audits')
+        .select('*')
+        .or(`domain.eq.${normalizedDomain},domain.eq.www.${normalizedDomain}`)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching domain audit:', error);
+        return null;
+      }
+      
+      if (!data) return null;
+      
+      return {
+        ...data,
+        module_scores: (data.module_scores || {}) as unknown as ModuleScores,
+        status: data.status as Audit['status']
+      } as Audit;
+    },
+    enabled: !!domain,
+    staleTime: 60 * 1000
+  });
+}
