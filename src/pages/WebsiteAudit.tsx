@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -12,9 +14,9 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Globe, Sparkles, Shield, Zap, TrendingUp } from 'lucide-react';
-import { useRunAudit } from '@/features/website-audit/hooks';
+import { useProgressiveAudit } from '@/features/website-audit/hooks';
 import { AuditProgress } from '@/features/website-audit/components/AuditProgress';
-import { BUSINESS_TYPES, SCAN_STEPS } from '@/features/website-audit/types';
+import { BUSINESS_TYPES } from '@/features/website-audit/types';
 import { validateDomain } from '@/utils/domainValidation';
 import { toast } from '@/hooks/use-toast';
 import { MarketingLayout } from '@/components/landing/MarketingLayout';
@@ -24,20 +26,10 @@ export default function WebsiteAudit() {
   const [domain, setDomain] = useState('');
   const [brandName, setBrandName] = useState('');
   const [businessType, setBusinessType] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [crawlLimit, setCrawlLimit] = useState(100);
+  const [allowSubdomains, setAllowSubdomains] = useState(false);
 
-  const runAudit = useRunAudit();
-
-  // Simulate progress steps while audit runs
-  useEffect(() => {
-    if (isRunning && currentStep < SCAN_STEPS.length - 1) {
-      const timer = setTimeout(() => {
-        setCurrentStep(prev => prev + 1);
-      }, 4000 + Math.random() * 2000); // 4-6 seconds per step
-      return () => clearTimeout(timer);
-    }
-  }, [isRunning, currentStep]);
+  const { runAudit, progress, phase, error, isRunning } = useProgressiveAudit();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,25 +44,25 @@ export default function WebsiteAudit() {
       return;
     }
 
-    setIsRunning(true);
-    setCurrentStep(0);
-
     try {
-      const result = await runAudit.mutateAsync({
+      const result = await runAudit({
         domain: validation.cleanedDomain,
         brand_name: brandName || undefined,
-        business_type: businessType || undefined
+        business_type: businessType || undefined,
+        crawl_limit: crawlLimit,
+        allow_subdomains: allowSubdomains
       });
 
-      navigate(`/audit/results/${result.audit_id}`);
-    } catch (error) {
-      console.error('Audit failed:', error);
+      if (result.success) {
+        navigate(`/audit/results/${result.audit_id}`);
+      }
+    } catch (err) {
+      console.error('Audit failed:', err);
       toast({
         title: 'Audit Failed',
-        description: 'Unable to complete the audit. Please try again.',
+        description: error || 'Unable to complete the audit. Please try again.',
         variant: 'destructive'
       });
-      setIsRunning(false);
     }
   };
 
@@ -111,7 +103,11 @@ export default function WebsiteAudit() {
     return (
       <MarketingLayout>
         <div className="container py-16">
-          <AuditProgress currentStep={currentStep} domain={domain} />
+          <AuditProgress 
+            domain={domain} 
+            phase={phase} 
+            progress={progress} 
+          />
         </div>
       </MarketingLayout>
     );
@@ -138,7 +134,7 @@ export default function WebsiteAudit() {
             <CardHeader>
               <CardTitle>Run Your Free Audit</CardTitle>
               <CardDescription>
-                We'll analyze up to 25 pages and generate a detailed report
+                We'll crawl up to {crawlLimit} pages and generate a detailed report
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -182,17 +178,49 @@ export default function WebsiteAudit() {
                   </Select>
                 </div>
 
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Pages to Crawl</Label>
+                    <span className="text-sm font-medium">{crawlLimit}</span>
+                  </div>
+                  <Slider
+                    value={[crawlLimit]}
+                    onValueChange={(v) => setCrawlLimit(v[0])}
+                    min={25}
+                    max={500}
+                    step={25}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    More pages = more thorough analysis, but takes longer
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="subdomains">Include Subdomains</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Crawl blog.example.com, shop.example.com, etc.
+                    </p>
+                  </div>
+                  <Switch
+                    id="subdomains"
+                    checked={allowSubdomains}
+                    onCheckedChange={setAllowSubdomains}
+                  />
+                </div>
+
                 <Button
                   type="submit"
                   size="lg"
                   className="w-full"
-                  disabled={!domain.trim() || runAudit.isPending}
+                  disabled={!domain.trim() || isRunning}
                 >
-                  {runAudit.isPending ? 'Starting Audit...' : 'Run Audit'}
+                  {isRunning ? 'Running Audit...' : 'Run Audit'}
                 </Button>
 
                 <p className="text-xs text-muted-foreground text-center">
-                  No credit card required • Results in ~60 seconds
+                  No credit card required • Takes {crawlLimit > 100 ? '2-5' : '1-2'} minutes
                 </p>
               </form>
             </CardContent>
