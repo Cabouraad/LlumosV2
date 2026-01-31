@@ -61,6 +61,7 @@ import AIVisibilityLanding from "./pages/AIVisibilityLanding";
 import AIVisibilityThankYou from "./pages/AIVisibilityThankYou";
 import AIVisibilityResults from "./pages/AIVisibilityResults";
 import LocalAISearchLanding from "./pages/LocalAISearchLanding";
+import WebsiteAudit from "./pages/WebsiteAudit";
 // ============================================
 // LAZY LOADED - Auth Routes
 // ============================================
@@ -122,6 +123,7 @@ const DynamicIndustryLandingPage = lazy(() => loadChunkWithRetry(() => import(".
 const AICompetitorFinder = lazy(() => loadChunkWithRetry(() => import("./pages/AICompetitorFinder")));
 const SharedScanReport = lazy(() => loadChunkWithRetry(() => import("./pages/SharedScanReport")));
 const SharedReport = lazy(() => loadChunkWithRetry(() => import("./pages/SharedReport")));
+const WebsiteAuditResults = lazy(() => loadChunkWithRetry(() => import("./pages/WebsiteAuditResults")));
 const NotFound = lazy(() => loadChunkWithRetry(() => import("./pages/NotFound")));
 
 // Suspense fallback for lazy-loaded routes
@@ -195,6 +197,7 @@ const App = () => {
         <Route path="/lp/ai-visibility/thank-you" element={<AIVisibilityThankYou />} />
         <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
         <Route path="/lp/local-ai-search" element={<LocalAISearchLanding />} />
+        <Route path="/audit" element={<WebsiteAudit />} />
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
         {/* ============================================ */}
@@ -208,6 +211,7 @@ const App = () => {
               <Route path="/black-friday-success" element={<BlackFridaySuccess />} />
               <Route path="/solutions/:industry" element={<IndustryLandingPage />} />
               <Route path="/audit-results" element={<AuditResults />} />
+              <Route path="/audit/results/:auditId" element={<WebsiteAuditResults />} />
               <Route path="/compare/chatgpt-vs-perplexity" element={<ChatGPTvsPerplexity />} />
               <Route path="/knowledge/geo-guide" element={<KnowledgeBaseArticle />} />
               <Route path="/vs/:competitor" element={<ComparisonLandingPage />} />
