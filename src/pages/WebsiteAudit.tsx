@@ -186,20 +186,23 @@ export default function WebsiteAudit() {
                 {/* Module Scores Preview */}
                 {existingAudit.module_scores && (
                   <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(existingAudit.module_scores).slice(0, 6).map(([module, score]) => (
-                      <div key={module} className="text-center p-2 bg-muted/50 rounded">
-                        <div className={`text-lg font-bold ${
-                          score >= 80 ? 'text-green-600' :
-                          score >= 60 ? 'text-yellow-600' :
-                          score >= 40 ? 'text-orange-600' : 'text-red-600'
-                        }`}>
-                          {score}
+                    {Object.entries(existingAudit.module_scores).slice(0, 6).map(([module, scoreValue]) => {
+                      const score = typeof scoreValue === 'number' ? scoreValue : 0;
+                      return (
+                        <div key={module} className="text-center p-2 bg-muted/50 rounded">
+                          <div className={`text-lg font-bold ${
+                            score >= 80 ? 'text-green-600' :
+                            score >= 60 ? 'text-yellow-600' :
+                            score >= 40 ? 'text-orange-600' : 'text-red-600'
+                          }`}>
+                            {score}
+                          </div>
+                          <div className="text-xs text-muted-foreground capitalize">
+                            {module.replace(/_/g, ' ')}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground capitalize">
-                          {module.replace(/_/g, ' ')}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
