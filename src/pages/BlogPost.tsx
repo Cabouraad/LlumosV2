@@ -195,7 +195,8 @@ const BlogPost = () => {
                 prose-blockquote:text-muted-foreground prose-blockquote:border-l-primary prose-blockquote:italic
                 prose-a:text-primary prose-a:no-underline hover:prose-a:underline
                 prose-code:text-primary prose-code:bg-muted prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:text-sm
-                prose-pre:bg-muted prose-pre:rounded-lg"
+                prose-pre:bg-muted prose-pre:rounded-lg
+                prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8 prose-img:w-full"
             >
               <ReactMarkdown>{post.content}</ReactMarkdown>
             </motion.div>
