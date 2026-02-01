@@ -36,7 +36,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </div>
           
-          <main className="p-8 pt-6 bg-gradient-subtle min-h-screen">
+          <main className="p-8 bg-gradient-subtle min-h-screen">
             {children}
           </main>
         </SidebarInset>
