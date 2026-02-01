@@ -53,8 +53,6 @@ You can read the [full whitepaper here](https://arxiv.org/pdf/2601.16858).
 
 ### Finding 1: Extremely Low Overlap Between Google and AI Sources
 
-![Domain overlap between Google Search and AI engines is only 4-15%](/images/blog/geo-overlap-diagram.jpg)
-
 The most striking finding is the near-complete divergence between Google search results and AI-generated sources.
 
 According to the study, **GPT-4 shows only 4% domain overlap with Google's top 10 results**. Gemini shows 11.1%, Claude shows 12.6%, and Perplexity—the highest—still only reaches 15.2%.
