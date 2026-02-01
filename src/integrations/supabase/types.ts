@@ -279,6 +279,7 @@ export type Database = {
           id: string
           image_count: number | null
           images_with_alt: number | null
+          last_modified: string | null
           meta_description: string | null
           schema_types: string[] | null
           status: number | null
@@ -296,6 +297,7 @@ export type Database = {
           id?: string
           image_count?: number | null
           images_with_alt?: number | null
+          last_modified?: string | null
           meta_description?: string | null
           schema_types?: string[] | null
           status?: number | null
@@ -313,6 +315,7 @@ export type Database = {
           id?: string
           image_count?: number | null
           images_with_alt?: number | null
+          last_modified?: string | null
           meta_description?: string | null
           schema_types?: string[] | null
           status?: number | null

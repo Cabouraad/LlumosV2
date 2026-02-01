@@ -36,6 +36,7 @@ interface PageData {
   image_count: number;
   images_with_alt: number;
   headings: Record<string, number>;
+  last_modified: string | null;
 }
 
 interface CheckResult {
@@ -379,6 +380,65 @@ function runAIReadinessChecks(
     evidence: { found: faqPages.length },
     why: 'FAQ pages are prime sources for AI to pull accurate answers.',
     fix: faqPages.length === 0 ? 'Create an FAQ page with FAQPage schema markup.' : '',
+    impact: 'high',
+    effort: 'medium'
+  });
+  
+  // Content freshness check - GEO research shows recency is a key signal
+  const now = new Date();
+  const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+  const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  
+  const pagesWithDates = pages.filter(p => p.last_modified);
+  const freshPages = pagesWithDates.filter(p => {
+    const modDate = new Date(p.last_modified!);
+    return modDate >= sixMonthsAgo;
+  });
+  const recentPages = pagesWithDates.filter(p => {
+    const modDate = new Date(p.last_modified!);
+    return modDate >= twelveMonthsAgo;
+  });
+  
+  let freshnessScore: number;
+  let freshnessStatus: 'pass' | 'warn' | 'fail';
+  let freshnessFix = '';
+  
+  if (pagesWithDates.length === 0) {
+    // No date metadata found
+    freshnessScore = 40;
+    freshnessStatus = 'warn';
+    freshnessFix = 'Add last-modified dates to your pages using meta tags (article:modified_time) or HTTP headers.';
+  } else {
+    const freshRatio = freshPages.length / pagesWithDates.length;
+    const recentRatio = recentPages.length / pagesWithDates.length;
+    
+    if (freshRatio >= 0.5) {
+      freshnessScore = 100;
+      freshnessStatus = 'pass';
+    } else if (recentRatio >= 0.5) {
+      freshnessScore = 70;
+      freshnessStatus = 'warn';
+      freshnessFix = `Only ${Math.round(freshRatio * 100)}% of pages updated in the last 6 months. Consider refreshing older content.`;
+    } else {
+      freshnessScore = 30;
+      freshnessStatus = 'fail';
+      freshnessFix = `Most content is over a year old. AI engines prioritize fresh content—update key pages regularly.`;
+    }
+  }
+  
+  checks.push({
+    module: 'ai_readiness',
+    key: 'content_freshness',
+    status: freshnessStatus,
+    score: freshnessScore,
+    evidence: { 
+      pages_with_dates: pagesWithDates.length,
+      fresh_last_6mo: freshPages.length,
+      recent_last_12mo: recentPages.length,
+      total_pages: pages.length
+    },
+    why: 'Generative engines prioritize recently updated content. Fresh content signals authority and relevance.',
+    fix: freshnessFix,
     impact: 'high',
     effort: 'medium'
   });
