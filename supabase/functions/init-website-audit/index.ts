@@ -137,13 +137,17 @@ function parseRobotsTxt(robotsTxt: string): RobotsRule[] {
   const rules: RobotsRule[] = [];
   const lines = robotsTxt.split('\n');
   let appliesToUs = false;
+  let inWildcardSection = false;
   
   for (const line of lines) {
     const trimmed = line.trim().toLowerCase();
     
     if (trimmed.startsWith('user-agent:')) {
       const agent = trimmed.substring(11).trim();
-      appliesToUs = agent === '*' || agent.includes('llumos') || agent.includes('bot');
+      // Only apply rules from wildcard (*) section or our specific bot name
+      // Don't match other bots that happen to contain 'bot' in their name
+      appliesToUs = agent === '*' || agent === 'llumosauditbot' || agent === 'llumos';
+      inWildcardSection = agent === '*';
     } else if (appliesToUs && trimmed.startsWith('disallow:')) {
       const path = trimmed.substring(9).trim();
       if (path) {
@@ -357,35 +361,65 @@ serve(async (req) => {
     const homepageLinks: string[] = [];
     if (homepageRes?.ok) {
       const html = await homepageRes.text();
+      console.log(`[InitAudit] Homepage HTML length: ${html.length}`);
       const links = extractLinks(html, baseUrl, baseHostname, allow_subdomains);
       homepageLinks.push(...links);
       console.log(`[InitAudit] Found ${homepageLinks.length} links on homepage`);
+      if (homepageLinks.length > 0) {
+        console.log(`[InitAudit] Sample link: ${homepageLinks[0]}`);
+      }
+    } else {
+      console.log(`[InitAudit] Homepage fetch failed: ${homepageRes?.status || 'no response'}`);
     }
 
     // Build initial queue - prioritize homepage, then nav links, then sitemap
     const seenHashes = new Set<string>();
     const queue: string[] = [];
     
+    // Helper to safely check if URL is allowed
+    const safeIsAllowedByRobots = (url: string): boolean => {
+      try {
+        const pathname = new URL(url).pathname;
+        return isAllowedByRobots(pathname, robotsRules);
+      } catch (e) {
+        console.log(`[InitAudit] Error parsing URL for robots check: ${url}`);
+        return true; // Allow by default if we can't parse
+      }
+    };
+    
     // Always add homepage first
     const normalizedHomepage = normalizeUrl(baseUrl, baseHostname);
-    if (normalizedHomepage && isAllowedByRobots(new URL(normalizedHomepage).pathname, robotsRules)) {
+    console.log(`[InitAudit] Normalized homepage: ${normalizedHomepage}`);
+    const homepageAllowed = normalizedHomepage ? safeIsAllowedByRobots(normalizedHomepage) : false;
+    console.log(`[InitAudit] Homepage allowed by robots: ${homepageAllowed}`);
+    console.log(`[InitAudit] Robots rules count: ${robotsRules.length}`);
+    if (normalizedHomepage && homepageAllowed) {
       queue.push(normalizedHomepage);
       seenHashes.add(normalizedHomepage);
+      console.log(`[InitAudit] Added homepage to queue`);
     }
     
     // Add homepage links (high priority - nav/footer links)
     for (const url of homepageLinks) {
-      if (!seenHashes.has(url) && isAllowedByRobots(new URL(url).pathname, robotsRules)) {
-        queue.push(url);
-        seenHashes.add(url);
+      try {
+        if (!seenHashes.has(url) && safeIsAllowedByRobots(url)) {
+          queue.push(url);
+          seenHashes.add(url);
+        }
+      } catch (e) {
+        console.log(`[InitAudit] Error processing homepage link: ${url}`);
       }
     }
     
     // Add sitemap URLs
     for (const url of sitemapUrls) {
-      if (!seenHashes.has(url) && isAllowedByRobots(new URL(url).pathname, robotsRules)) {
-        queue.push(url);
-        seenHashes.add(url);
+      try {
+        if (!seenHashes.has(url) && safeIsAllowedByRobots(url)) {
+          queue.push(url);
+          seenHashes.add(url);
+        }
+      } catch (e) {
+        console.log(`[InitAudit] Error processing sitemap URL: ${url}`);
       }
     }
 
