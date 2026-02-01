@@ -51,7 +51,7 @@ export function AuditProgress({ domain, phase, progress }: AuditProgressProps) {
         <h2 className="text-2xl font-bold">Auditing {domain}</h2>
         <p className="text-muted-foreground">
           {phase === 'crawling' && progress
-            ? `Crawled ${progress.crawled_count} of ${progress.crawl_limit} pages (${progress.queue_size} in queue)`
+            ? `Crawled ${progress.crawled_count} of ${progress.crawl_limit} pages`
             : phase === 'scoring'
             ? 'Analyzing SEO & GEO factors...'
             : 'Setting up the audit...'}
@@ -62,14 +62,10 @@ export function AuditProgress({ domain, phase, progress }: AuditProgressProps) {
 
       {/* Crawl stats */}
       {phase === 'crawling' && progress && (
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-2 gap-4 text-center max-w-sm mx-auto">
           <div className="p-3 rounded-lg bg-muted/50">
             <div className="text-2xl font-bold text-primary">{progress.crawled_count}</div>
             <div className="text-xs text-muted-foreground">Pages Crawled</div>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/50">
-            <div className="text-2xl font-bold">{progress.queue_size}</div>
-            <div className="text-xs text-muted-foreground">In Queue</div>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
             <div className="text-2xl font-bold">{progress.crawl_limit}</div>
