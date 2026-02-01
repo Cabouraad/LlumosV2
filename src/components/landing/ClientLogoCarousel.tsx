@@ -24,22 +24,29 @@ const clients = [
 ];
 
 function ClientLogo({ name, domain }: { name: string; domain: string }) {
-  const [hasError, setHasError] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(`https://logo.clearbit.com/${domain}`);
+  const [retryCount, setRetryCount] = useState(0);
   
-  if (hasError) {
-    return (
-      <span className="text-muted-foreground font-semibold whitespace-nowrap text-lg">
-        {name}
-      </span>
-    );
-  }
+  const handleError = () => {
+    if (retryCount === 0) {
+      // Try Google favicon as first fallback
+      setLogoUrl(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+      setRetryCount(1);
+    } else if (retryCount === 1) {
+      // Try UI Avatars as final fallback
+      setLogoUrl(`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=64&background=6366f1&color=ffffff&bold=true&format=svg`);
+      setRetryCount(2);
+    }
+  };
   
   return (
     <img
-      src={`https://logo.clearbit.com/${domain}`}
+      src={logoUrl}
       alt={`${name} logo`}
       className="h-8 w-auto object-contain grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-      onError={() => setHasError(true)}
+      onError={handleError}
+      loading="lazy"
+      decoding="async"
     />
   );
 }
