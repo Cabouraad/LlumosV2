@@ -87,20 +87,41 @@ const ROUTES = [
 
 let serverProcess = null;
 
+function getServeCommand() {
+  // Avoid relying on `npx` (often unavailable in cloud build environments).
+  // Run the installed dependency directly via Node.
+  const serveEntry = join(__dirname, '..', 'node_modules', 'serve', 'build', 'main.js');
+  return {
+    command: process.execPath,
+    args: [serveEntry, DIST_DIR, '-l', PORT.toString(), '-s'],
+  };
+}
+
 async function startServer() {
   return new Promise((resolve, reject) => {
     console.log(`🚀 Starting local server on port ${PORT}...`);
-    
-    serverProcess = spawn('npx', ['serve', DIST_DIR, '-l', PORT.toString(), '-s'], {
+
+    let settled = false;
+    let timeoutId = null;
+    const settle = (value, isError = false) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (isError) reject(value);
+      else resolve(value);
+    };
+
+    const { command, args } = getServeCommand();
+    serverProcess = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true
+      shell: false,
     });
 
     serverProcess.stdout.on('data', (data) => {
       const output = data.toString();
       if (output.includes('Accepting connections') || output.includes('Serving')) {
         console.log('✅ Server started successfully');
-        resolve();
+        settle(true);
       }
     });
 
@@ -109,18 +130,18 @@ async function startServer() {
       const output = data.toString();
       if (output.includes('Accepting connections') || output.includes('Serving')) {
         console.log('✅ Server started successfully');
-        resolve();
+        settle(true);
       }
     });
 
     serverProcess.on('error', (err) => {
-      reject(new Error(`Failed to start server: ${err.message}`));
+      settle(new Error(`Failed to start server: ${err.message}`), true);
     });
 
     // Fallback timeout - assume server is ready after 3 seconds
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       console.log('✅ Server assumed ready (timeout fallback)');
-      resolve();
+      settle(true);
     }, 3000);
   });
 }
@@ -284,7 +305,14 @@ async function main() {
     console.log('✅ Browser launched');
     
     // Start local server
-    await startServer();
+    try {
+      await startServer();
+    } catch (serverError) {
+      console.log('⚠️  Local server could not start in this environment');
+      console.log('   Skipping prerendering - build will complete without static HTML generation');
+      console.log(`   Reason: ${serverError?.message || String(serverError)}\n`);
+      process.exit(0);
+    }
     
     // Prerender each route
     const results = [];
