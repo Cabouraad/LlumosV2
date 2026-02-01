@@ -37,7 +37,8 @@ const CHECK_LABELS: Record<string, string> = {
   brand_name_present_in_title_or_h1: 'Brand Name in Title/H1',
   large_images_detected: 'Image Optimization',
   render_blocking_assets_detected: 'Render-Blocking Assets',
-  pagespeed_mobile: 'Mobile Page Speed'
+  pagespeed_mobile: 'Mobile Page Speed',
+  content_freshness: 'Content Freshness'
 };
 
 // Checks that can show affected pages
