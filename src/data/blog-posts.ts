@@ -26,6 +26,8 @@ export const blogPosts: BlogPost[] = [
     featured: true,
     content: `# New Research Confirms: Google Rankings Don't Guarantee AI Search Visibility
 
+![AI Search vs Traditional Search - The paradigm shift in information retrieval](/images/blog/geo-whitepaper-hero.jpg)
+
 The way your customers find information is changing faster than most marketing teams realize. Instead of scanning ten blue links, users now ask ChatGPT, Claude, or Perplexity a question and receive a synthesized, conversational answer—often without clicking a single link.
 
 For years, marketers operated on an assumption: if you rank well on Google, you'll be visible everywhere that matters. New academic research from the University of Toronto proves this assumption is dangerously wrong.
@@ -53,6 +55,8 @@ You can read the [full whitepaper here](https://arxiv.org/pdf/2601.16858).
 
 ### Finding 1: Extremely Low Overlap Between Google and AI Sources
 
+![Domain overlap between Google Search and AI engines is only 4-15%](/images/blog/geo-overlap-diagram.jpg)
+
 The most striking finding is the near-complete divergence between Google search results and AI-generated sources.
 
 According to the study, **GPT-4 shows only 4% domain overlap with Google's top 10 results**. Gemini shows 11.1%, Claude shows 12.6%, and Perplexity—the highest—still only reaches 15.2%.
@@ -66,6 +70,8 @@ Ranking #1 on Google for your target keywords does not mean ChatGPT, Claude, or 
 The research confirms what marketers have begun to observe anecdotally: brands dominating traditional search are often completely absent from AI responses, while smaller competitors with different content strategies get cited repeatedly.
 
 ### Finding 2: AI Engines Favor Earned Media Over Social Content
+
+![AI engines prioritize earned media and authoritative third-party sources](/images/blog/geo-earned-media.jpg)
 
 The study classified sources into three categories: brand-owned sites, earned media (independent publications and reviews), and social media (user-generated content like Reddit, forums, YouTube comments).
 
@@ -83,6 +89,8 @@ If your AI visibility strategy relies on user-generated content, Reddit threads,
 AI engines appear to prioritize authoritative, editorially-produced content from established publications. Brands that invest in earned media placements, industry publication features, and expert reviews are more likely to be cited than those relying on community buzz.
 
 ### Finding 3: AI Sources Are Significantly Fresher Than Google Results
+
+![Content freshness is critical for AI search visibility](/images/blog/geo-content-freshness.jpg)
 
 Content freshness emerged as a critical differentiator. The researchers measured article age in days across verticals and found consistently younger sources in AI responses.
 
