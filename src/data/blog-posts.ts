@@ -24,9 +24,7 @@ export const blogPosts: BlogPost[] = [
     updatedAt: "2026-02-01T10:00:00Z",
     readTime: 14,
     featured: true,
-    content: `# New Research Confirms: Google Rankings Don't Guarantee AI Search Visibility
-
-![AI Search vs Traditional Search - The paradigm shift in information retrieval](/images/blog/geo-whitepaper-hero.jpg)
+    content: `![AI Search vs Traditional Search - The paradigm shift in information retrieval](/images/blog/geo-whitepaper-hero.jpg)
 
 The way your customers find information is changing faster than most marketing teams realize. Instead of scanning ten blue links, users now ask ChatGPT, Claude, or Perplexity a question and receive a synthesized, conversational answer—often without clicking a single link.
 
@@ -71,7 +69,7 @@ The research confirms what marketers have begun to observe anecdotally: brands d
 
 ### Finding 2: AI Engines Favor Earned Media Over Social Content
 
-![AI engines prioritize earned media and authoritative third-party sources](/images/blog/geo-earned-media.jpg)
+![Domain Classification Distribution by Model and Intent - Brand, Social, and Earned media percentages across AI models](/images/blog/geo-domain-classification.png)
 
 The study classified sources into three categories: brand-owned sites, earned media (independent publications and reviews), and social media (user-generated content like Reddit, forums, YouTube comments).
 
