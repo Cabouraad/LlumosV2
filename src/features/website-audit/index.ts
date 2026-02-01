@@ -4,3 +4,4 @@ export { ScoreGauge } from './components/ScoreGauge';
 export { ModuleCard } from './components/ModuleCard';
 export { CheckRow } from './components/CheckRow';
 export { AuditProgress } from './components/AuditProgress';
+export { AffectedPagesList } from './components/AffectedPagesList';
