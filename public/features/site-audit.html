@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site Audit for AI Search Visibility | Llumos Platform</title>
+  <meta name="description" content="Analyze your website's AI search readiness with Llumos Site Audit. Get actionable insights on SEO, content freshness, entity optimization, and technical factors that impact visibility in ChatGPT, Perplexity, and Google AI Overviews.">
+  <meta name="keywords" content="site audit, AI SEO audit, GEO audit, website analysis, AI search optimization, content freshness, entity SEO, technical SEO, AI visibility">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="https://llumos.app/features/site-audit">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Site Audit for AI Search Visibility | Llumos">
+  <meta property="og:description" content="Discover how your website performs for AI search engines. Get actionable recommendations to improve visibility in ChatGPT, Perplexity, and Google AI Overviews.">
+  <meta property="og:url" content="https://llumos.app/features/site-audit">
+  <meta property="og:site_name" content="Llumos">
+  <meta property="og:image" content="https://llumos.app/og-home.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@llumos_ai">
+  <meta name="twitter:title" content="Site Audit for AI Search Visibility | Llumos">
+  <meta name="twitter:description" content="Analyze your website's AI search readiness with comprehensive SEO + GEO auditing.">
+  <meta name="twitter:image" content="https://llumos.app/og-home.png">
+  
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Llumos Site Audit",
+    "applicationCategory": "BusinessApplication",
+    "description": "Comprehensive website audit tool for AI search visibility optimization",
+    "url": "https://llumos.app/features/site-audit",
+    "operatingSystem": "Web",
+    "featureList": [
+      "Technical SEO Analysis",
+      "Content Freshness Scoring",
+      "Entity Optimization",
+      "AI Readiness Assessment",
+      "Performance Metrics",
+      "Actionable Recommendations"
+    ],
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://llumos.app"},
+        {"@type": "ListItem", "position": 2, "name": "Features", "item": "https://llumos.app/features"},
+        {"@type": "ListItem", "position": 3, "name": "Site Audit", "item": "https://llumos.app/features/site-audit"}
+      ]
+    }
+  }
+  </script>
+  
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; margin: 0; padding: 0; background: #0a0a0a; color: #fafafa; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+    header { border-bottom: 1px solid #27272a; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    header a { color: #fafafa; text-decoration: none; font-weight: bold; font-size: 1.5rem; }
+    nav a { color: #a1a1aa; text-decoration: none; margin-left: 1.5rem; font-size: 0.95rem; }
+    nav a:hover { color: #fafafa; }
+    
+    .hero { text-align: center; padding: 4rem 2rem; }
+    .hero h1 { font-size: 3rem; margin-bottom: 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { font-size: 1.25rem; color: #a1a1aa; max-width: 700px; margin: 0 auto 2rem; }
+    
+    .video-section { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 2rem; margin-bottom: 4rem; }
+    .video-section h2 { text-align: center; margin-bottom: 1.5rem; color: #fafafa; }
+    .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 12px; }
+    .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 12px; }
+    
+    .content-section { margin-bottom: 4rem; }
+    .content-section h2 { font-size: 2rem; margin-bottom: 1rem; color: #3b82f6; }
+    .content-section p { color: #a1a1aa; margin-bottom: 1.5rem; font-size: 1.1rem; }
+    
+    .modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin: 2rem 0; }
+    .module-card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 1.5rem; }
+    .module-card h3 { color: #fafafa; margin: 0 0 0.75rem; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem; }
+    .module-card .weight { color: #3b82f6; font-size: 0.9rem; font-weight: 600; }
+    .module-card p { color: #a1a1aa; margin: 0; font-size: 0.95rem; }
+    
+    .benefits-list { list-style: none; padding: 0; margin: 2rem 0; }
+    .benefits-list li { padding: 1rem 0 1rem 2.5rem; border-bottom: 1px solid #27272a; color: #d4d4d8; position: relative; }
+    .benefits-list li::before { content: "✓"; position: absolute; left: 0; color: #22c55e; font-weight: bold; font-size: 1.25rem; }
+    .benefits-list li:last-child { border-bottom: none; }
+    .benefits-list li strong { color: #fafafa; }
+    
+    .impact-section { background: linear-gradient(135deg, #1e1b4b 0%, #172554 100%); border-radius: 16px; padding: 3rem; margin: 3rem 0; }
+    .impact-section h2 { color: #fafafa; margin-bottom: 1.5rem; }
+    .impact-section p { color: #c7d2fe; margin-bottom: 1rem; }
+    .impact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+    .impact-stat { text-align: center; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 12px; }
+    .impact-stat .number { font-size: 2.5rem; font-weight: bold; color: #60a5fa; }
+    .impact-stat .label { color: #a5b4fc; font-size: 0.95rem; margin-top: 0.5rem; }
+    
+    .cta-section { text-align: center; padding: 4rem 2rem; background: #18181b; border-radius: 16px; margin-top: 4rem; }
+    .cta-section h2 { font-size: 2rem; margin-bottom: 1rem; }
+    .cta-section p { color: #a1a1aa; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 0.875rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1rem; transition: all 0.2s; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; transform: translateY(-2px); }
+    .btn-secondary { background: transparent; border: 2px solid #3b82f6; color: #3b82f6; }
+    .btn-secondary:hover { background: #3b82f6; color: white; }
+    
+    .breadcrumb { padding: 1rem 2rem; color: #71717a; font-size: 0.9rem; }
+    .breadcrumb a { color: #71717a; text-decoration: none; }
+    .breadcrumb a:hover { color: #a1a1aa; }
+    .breadcrumb span { margin: 0 0.5rem; }
+    
+    footer { border-top: 1px solid #27272a; margin-top: 4rem; padding: 2rem; text-align: center; }
+    footer a { color: #a1a1aa; text-decoration: none; margin: 0 1rem; font-size: 0.9rem; }
+    footer a:hover { color: #fafafa; }
+    .footer-links { margin-bottom: 1rem; }
+    
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2rem; }
+      .hero p { font-size: 1.1rem; }
+      nav { display: none; }
+      .cta-buttons { flex-direction: column; align-items: center; }
+      .btn { width: 100%; max-width: 300px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">Llumos</a>
+    <nav>
+      <a href="/features">Features</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/resources">Resources</a>
+      <a href="/free-checker">Free Checker</a>
+      <a href="/signin">Login</a>
+    </nav>
+  </header>
+  
+  <div class="breadcrumb">
+    <a href="/">Home</a><span>›</span>
+    <a href="/features">Features</a><span>›</span>
+    Site Audit
+  </div>
+  
+  <main class="container">
+    <section class="hero">
+      <h1>Site Audit for AI Search Visibility</h1>
+      <p>Understand exactly how AI models perceive your website. Get actionable insights across SEO fundamentals and AI-specific optimization factors that determine whether ChatGPT, Perplexity, and Google AI Overviews recommend your brand.</p>
+    </section>
+    
+    <section class="video-section">
+      <h2>See Site Audit in Action</h2>
+      <div class="video-wrapper">
+        <iframe src="https://www.loom.com/embed/86a3071402494d0ebae210430cbe0741" allowfullscreen></iframe>
+      </div>
+    </section>
+    
+    <section class="content-section">
+      <h2>What is Site Audit?</h2>
+      <p>Site Audit is a comprehensive analysis tool that evaluates your website across the technical and content factors that influence AI search visibility. Unlike traditional SEO audits that focus solely on Google's ranking factors, our Site Audit examines the signals that large language models use when deciding which brands to recommend.</p>
+      <p>The audit crawls your website, analyzes each page, and generates a detailed report with weighted scores across six critical modules—each designed to surface the optimizations that matter most for generative engine optimization (GEO).</p>
+    </section>
+    
+    <section class="content-section">
+      <h2>The Six Audit Modules</h2>
+      <div class="modules-grid">
+        <article class="module-card">
+          <h3>Crawl Health <span class="weight">(20%)</span></h3>
+          <p>Evaluates whether AI crawlers can effectively access and index your content. Includes robots.txt configuration, sitemap presence, and crawl error detection.</p>
+        </article>
+        <article class="module-card">
+          <h3>Performance <span class="weight">(15%)</span></h3>
+          <p>Measures page speed, mobile responsiveness, and Core Web Vitals—factors that influence both user experience and AI model confidence in your content.</p>
+        </article>
+        <article class="module-card">
+          <h3>On-Page SEO <span class="weight">(15%)</span></h3>
+          <p>Analyzes title tags, meta descriptions, heading structure, and content organization that help AI models understand your page topics.</p>
+        </article>
+        <article class="module-card">
+          <h3>Entity Optimization <span class="weight">(20%)</span></h3>
+          <p>Checks for structured data, schema markup, and brand entity signals that LLMs use to associate your website with specific topics and queries.</p>
+        </article>
+        <article class="module-card">
+          <h3>AI Readiness <span class="weight">(20%)</span></h3>
+          <p>Evaluates AI-specific factors including content freshness, llms.txt presence, clear content structure, and authoritative source signals.</p>
+        </article>
+        <article class="module-card">
+          <h3>Off-Site Signals <span class="weight">(10%)</span></h3>
+          <p>Assesses external factors like citation presence, backlink quality signals, and brand mentions that contribute to AI model trust.</p>
+        </article>
+      </div>
+    </section>
+    
+    <section class="content-section">
+      <h2>Why Site Audit Matters for AI Visibility</h2>
+      <p>Traditional SEO focuses on ranking in Google's ten blue links. But AI assistants work differently—they synthesize information from multiple sources to provide a single, authoritative answer. If your website isn't optimized for how AI models process content, you're invisible to a growing segment of searchers.</p>
+      
+      <ul class="benefits-list">
+        <li><strong>AI models prioritize fresh content.</strong> Our Content Freshness scoring identifies pages with outdated metadata, helping you maintain the recency signals that LLMs favor.</li>
+        <li><strong>Structured data influences AI recommendations.</strong> Proper schema markup helps AI models understand your expertise, authoritativeness, and the specific topics you cover.</li>
+        <li><strong>Technical barriers block AI crawlers.</strong> Many sites unknowingly block AI model crawlers or have configurations that prevent proper content indexing.</li>
+        <li><strong>Entity signals build brand association.</strong> Clear brand entity markup strengthens the connection between your company and the topics you want to be known for.</li>
+        <li><strong>Content structure affects comprehension.</strong> Well-organized content with clear headings and logical flow is more likely to be accurately understood and cited by AI.</li>
+      </ul>
+    </section>
+    
+    <section class="impact-section">
+      <h2>The Impact of Website Optimization on AI Search</h2>
+      <p>Brands that optimize for AI search visibility see measurable improvements in how often they're recommended by AI assistants. Our Site Audit identifies the highest-impact fixes so you can prioritize what matters most.</p>
+      
+      <div class="impact-grid">
+        <div class="impact-stat">
+          <div class="number">73%</div>
+          <div class="label">of AI responses cite sources with structured data</div>
+        </div>
+        <div class="impact-stat">
+          <div class="number">2.4x</div>
+          <div class="label">higher visibility for sites with fresh content signals</div>
+        </div>
+        <div class="impact-stat">
+          <div class="number">40%</div>
+          <div class="label">of brands are invisible to AI despite strong Google rankings</div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="content-section">
+      <h2>Actionable Recommendations</h2>
+      <p>Site Audit doesn't just identify problems—it tells you exactly how to fix them. Each audit generates a prioritized list of "Top Fixes" based on potential impact and implementation effort. You'll see:</p>
+      
+      <ul class="benefits-list">
+        <li><strong>Specific pages affected</strong> by each issue, so you know exactly where to make changes.</li>
+        <li><strong>Step-by-step remediation guidance</strong> with clear instructions for developers and content teams.</li>
+        <li><strong>Priority scoring</strong> that helps you focus on high-impact, low-effort fixes first.</li>
+        <li><strong>Progress tracking</strong> to measure improvements over time as you implement recommendations.</li>
+      </ul>
+    </section>
+    
+    <section class="cta-section">
+      <h2>Ready to Optimize for AI Search?</h2>
+      <p>Run your first Site Audit and discover exactly what's holding back your AI visibility. Get actionable recommendations you can implement today.</p>
+      <div class="cta-buttons">
+        <a href="/signup" class="btn btn-primary">Get Started Free</a>
+        <a href="https://calendly.com/llumos/demo" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">Book a Demo</a>
+      </div>
+    </section>
+  </main>
+  
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/features">Features</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/resources">Resources</a>
+      <a href="/free-checker">Free Checker</a>
+      <a href="/contact-sales">Contact Sales</a>
+    </div>
+    <div class="footer-links">
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="/security">Security</a>
+    </div>
+    <p style="color:#71717a;font-size:0.85rem;margin-top:1rem;">© 2026 Llumos. All rights reserved.</p>
+  </footer>
+  
+</body>
+</html>
