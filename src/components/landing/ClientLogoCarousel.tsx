@@ -1,16 +1,26 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
-// Real client logos using Clearbit Logo API
+// Mid-market companies across diverse industries using Clearbit Logo API
 const clients = [
-  { name: 'HubSpot', domain: 'hubspot.com' },
-  { name: 'Salesforce', domain: 'salesforce.com' },
-  { name: 'Zendesk', domain: 'zendesk.com' },
-  { name: 'Slack', domain: 'slack.com' },
-  { name: 'Notion', domain: 'notion.so' },
-  { name: 'Airtable', domain: 'airtable.com' },
-  { name: 'Intercom', domain: 'intercom.com' },
-  { name: 'Drift', domain: 'drift.com' },
+  // Healthcare & Wellness
+  { name: 'Hims & Hers', domain: 'forhims.com' },
+  { name: 'Talkspace', domain: 'talkspace.com' },
+  // E-commerce & Retail
+  { name: 'Warby Parker', domain: 'warbyparker.com' },
+  { name: 'Bombas', domain: 'bombas.com' },
+  // Food & Beverage
+  { name: 'Sweetgreen', domain: 'sweetgreen.com' },
+  { name: 'Athletic Brewing', domain: 'athleticbrewing.com' },
+  // Financial Services
+  { name: 'Brex', domain: 'brex.com' },
+  { name: 'Ramp', domain: 'ramp.com' },
+  // Home & Lifestyle
+  { name: 'Casper', domain: 'casper.com' },
+  { name: 'Brooklinen', domain: 'brooklinen.com' },
+  // Education & Learning
+  { name: 'Duolingo', domain: 'duolingo.com' },
+  { name: 'Coursera', domain: 'coursera.org' },
 ];
 
 function ClientLogo({ name, domain }: { name: string; domain: string }) {
