@@ -206,7 +206,7 @@ export default function WebsiteAuditResults() {
             ) : (
               <div className="space-y-3">
                 {topFixes.map((check) => (
-                  <CheckRow key={check.id} check={check} showModule />
+                  <CheckRow key={check.id} check={check} showModule pages={pages} />
                 ))}
               </div>
             )}
@@ -222,7 +222,7 @@ export default function WebsiteAuditResults() {
                 <h3 className="text-xl font-semibold">{MODULE_LABELS[selectedModule]}</h3>
                 <div className="space-y-3">
                   {checksByModule[selectedModule]?.map((check) => (
-                    <CheckRow key={check.id} check={check} />
+                    <CheckRow key={check.id} check={check} pages={pages} />
                   ))}
                 </div>
               </div>

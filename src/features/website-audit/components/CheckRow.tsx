@@ -2,11 +2,13 @@ import { cn } from '@/lib/utils';
 import { CheckCircle, AlertCircle, XCircle, ChevronDown, ChevronUp, Zap, Clock } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { AuditCheck } from '../types';
+import { AuditCheck, AuditPage } from '../types';
+import { AffectedPagesList } from './AffectedPagesList';
 
 interface CheckRowProps {
   check: AuditCheck;
   showModule?: boolean;
+  pages?: AuditPage[];
 }
 
 const CHECK_LABELS: Record<string, string> = {
@@ -38,7 +40,20 @@ const CHECK_LABELS: Record<string, string> = {
   pagespeed_mobile: 'Mobile Page Speed'
 };
 
-export function CheckRow({ check, showModule = false }: CheckRowProps) {
+// Checks that can show affected pages
+const PAGE_LEVEL_CHECKS = [
+  'title_present',
+  'meta_description_present',
+  'h1_present',
+  'heading_hierarchy_reasonable',
+  'duplicate_titles_across_sample',
+  'thin_content_pages',
+  'organization_schema_present',
+  'canonical_redirect_consistency',
+  'large_images_detected'
+];
+
+export function CheckRow({ check, showModule = false, pages = [] }: CheckRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const statusIcon = {
@@ -64,6 +79,8 @@ export function CheckRow({ check, showModule = false }: CheckRowProps) {
     medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     high: 'bg-red-100 text-red-700 border-red-200'
   };
+
+  const canShowAffectedPages = PAGE_LEVEL_CHECKS.includes(check.key) && pages.length > 0;
 
   return (
     <div className={cn('rounded-lg border', statusBg[check.status])}>
@@ -107,7 +124,7 @@ export function CheckRow({ check, showModule = false }: CheckRowProps) {
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t pt-3">
+        <div className="px-4 pb-4 space-y-4 border-t pt-3">
           {check.why && (
             <div>
               <h4 className="text-sm font-semibold text-muted-foreground mb-1">Why it matters</h4>
@@ -115,7 +132,17 @@ export function CheckRow({ check, showModule = false }: CheckRowProps) {
             </div>
           )}
           
-          {check.evidence && Object.keys(check.evidence).length > 0 && (
+          {/* Show affected pages for page-level checks */}
+          {canShowAffectedPages && check.status !== 'pass' && (
+            <AffectedPagesList 
+              pages={pages} 
+              checkKey={check.key} 
+              totalPages={pages.length}
+            />
+          )}
+          
+          {/* Show raw evidence for non-page-level checks or as fallback */}
+          {check.evidence && Object.keys(check.evidence).length > 0 && !canShowAffectedPages && (
             <div>
               <h4 className="text-sm font-semibold text-muted-foreground mb-1">Evidence</h4>
               <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
