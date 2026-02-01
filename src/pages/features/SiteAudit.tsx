@@ -79,7 +79,7 @@ const SiteAudit = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" asChild className="text-lg px-8 py-6">
-                  <Link to="/signup">Run Your Free Audit <ArrowRight className="ml-2 w-5 h-5" /></Link>
+                  <a href="https://llumos.app/lp/ai-visibility" target="_blank" rel="noopener noreferrer">Get Your AI Visibility Score <ArrowRight className="ml-2 w-5 h-5" /></a>
                 </Button>
                 <Button variant="outline" size="lg" asChild className="text-lg px-8 py-6">
               <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
@@ -413,7 +413,7 @@ const SiteAudit = () => {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button size="lg" asChild className="text-lg px-8 py-6">
-              <Link to="/signup">Get Started Free <ArrowRight className="ml-2 w-5 h-5" /></Link>
+              <a href="https://llumos.app/lp/ai-visibility" target="_blank" rel="noopener noreferrer">Get Your AI Visibility Score <ArrowRight className="ml-2 w-5 h-5" /></a>
             </Button>
             <Button variant="outline" size="lg" asChild className="text-lg px-8 py-6">
             <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
