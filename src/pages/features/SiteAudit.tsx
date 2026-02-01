@@ -82,9 +82,9 @@ const SiteAudit = () => {
                   <Link to="/signup">Run Your Free Audit <ArrowRight className="ml-2 w-5 h-5" /></Link>
                 </Button>
                 <Button variant="outline" size="lg" asChild className="text-lg px-8 py-6">
-                  <a href="https://calendly.com/vishalshenoy/30-minute-meeting" target="_blank" rel="noopener noreferrer">
-                    Book a Demo
-                  </a>
+              <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+                Book a Demo
+              </a>
                 </Button>
               </div>
             </div>
@@ -416,9 +416,9 @@ const SiteAudit = () => {
               <Link to="/signup">Get Started Free <ArrowRight className="ml-2 w-5 h-5" /></Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="text-lg px-8 py-6">
-              <a href="https://calendly.com/vishalshenoy/30-minute-meeting" target="_blank" rel="noopener noreferrer">
-                Book a Demo
-              </a>
+            <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
+              Book a Demo
+            </a>
             </Button>
           </div>
           
