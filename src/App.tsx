@@ -36,6 +36,7 @@ import CitationAnalysisFeature from "./pages/features/CitationAnalysisFeature";
 import LLMsTextFeature from "./pages/features/LLMsTextFeature";
 import TierComparison from "./pages/features/TierComparison";
 import ContentStudioFeature from "./pages/features/ContentStudio";
+import SiteAudit from "./pages/features/SiteAudit";
 
 // Plan pages (eagerly loaded for SSG)
 import StarterPlan from "./pages/plans/StarterPlan";
@@ -172,6 +173,7 @@ const App = () => {
         <Route path="/features/llms-txt" element={<LLMsTextFeature />} />
         <Route path="/features/tier-comparison" element={<TierComparison />} />
         <Route path="/features/content-studio" element={<ContentStudioFeature />} />
+        <Route path="/features/site-audit" element={<SiteAudit />} />
         
         {/* Plan pages (SSG Pre-rendered) */}
         <Route path="/plans/starter" element={<StarterPlan />} />
