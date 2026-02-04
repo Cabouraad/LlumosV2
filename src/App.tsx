@@ -39,6 +39,7 @@ import ContentStudioFeature from "./pages/features/ContentStudio";
 import SiteAudit from "./pages/features/SiteAudit";
 
 // Plan pages (eagerly loaded for SSG)
+import FreePlan from "./pages/plans/FreePlan";
 import StarterPlan from "./pages/plans/StarterPlan";
 import GrowthPlan from "./pages/plans/GrowthPlan";
 import ProPlan from "./pages/plans/ProPlan";
@@ -176,6 +177,7 @@ const App = () => {
         <Route path="/features/site-audit" element={<SiteAudit />} />
         
         {/* Plan pages (SSG Pre-rendered) */}
+        <Route path="/plans/free" element={<FreePlan />} />
         <Route path="/plans/starter" element={<StarterPlan />} />
         <Route path="/plans/growth" element={<GrowthPlan />} />
         <Route path="/plans/pro" element={<ProPlan />} />
