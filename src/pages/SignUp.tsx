@@ -69,8 +69,8 @@ export default function SignUp() {
   return (
     <>
       <SEOHelmet
-        title="Sign Up - Start Free Trial"
-        description="Create your Llumos account and start tracking your brand's AI search visibility. 7-day free trial, cancel anytime."
+        title="Sign Up - Start Free"
+        description="Create your Llumos account and start tracking AI search visibility. 7-day free trial."
         canonicalPath="/signup"
       />
       <div className="min-h-screen flex items-center justify-center bg-background relative">

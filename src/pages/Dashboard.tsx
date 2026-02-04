@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import { SEOHelmet } from '@/components/SEOHelmet';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { AdminDiagnosticPanel } from '@/components/AdminDiagnosticPanel';
 import { useAuth } from '@/contexts/AuthContext';

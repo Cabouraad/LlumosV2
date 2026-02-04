@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Layout } from '@/components/Layout';
+import { SEOHelmet } from '@/components/SEOHelmet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -171,7 +172,13 @@ export default function CitationAnalytics() {
   };
 
   return (
-    <Layout>
+    <>
+      <SEOHelmet
+        title="Citation Analytics"
+        description="Analyze your brand citations."
+        noIndex={true}
+      />
+      <Layout>
       <div className="space-y-8">
         {/* Page Header */}
         <div className="flex items-start justify-between">
@@ -499,5 +506,6 @@ export default function CitationAnalytics() {
         </Card>
       </div>
     </Layout>
+    </>
   );
 }

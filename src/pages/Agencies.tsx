@@ -27,8 +27,8 @@ const Agencies = () => {
   return (
     <>
       <SEOHelmet
-        title="AI Visibility Reporting Tool for Marketing Agencies | Llumos"
-        description="White-label AI visibility reports for your clients. The first AEO reporting tool built for marketing agencies. Grow your revenue with AI search services."
+        title="AI Visibility for Agencies"
+        description="White-label AI visibility reports for your clients. Grow agency revenue with AI search services."
         keywords="agency AI reports, white-label SEO, AEO reporting, marketing agency tools, AI visibility for agencies"
         canonicalPath="/agencies"
       />

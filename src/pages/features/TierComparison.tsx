@@ -112,8 +112,8 @@ export default function TierComparison() {
   return (
     <Layout>
       <SEOHelmet 
-        title="Feature Comparison - Starter vs Growth vs Pro | Llumos"
-        description="Compare Llumos pricing tiers in detail. See exactly what features are included in Starter, Growth, and Pro plans for AI search optimization."
+        title="Feature Comparison - Plan Tiers"
+        description="Compare Llumos Starter, Growth, and Pro plans. See exactly what features are included in each tier."
       />
       
       <div className="space-y-12 pb-12">

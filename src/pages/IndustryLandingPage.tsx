@@ -28,7 +28,7 @@ const industryData: Record<string, IndustryData> = {
     headline: "AI Visibility Tracking for SaaS Brands",
     painPoint: "Is ChatGPT recommending your SaaS competitors?",
     description: "Track how often AI platforms recommend your B2B software in comparisons, reviews, and buying decisions.",
-    seoDescription: "Stop losing deals to competitors in AI search. Track your SaaS brand visibility in ChatGPT, Gemini, and Perplexity. Get actionable insights to improve your AI search presence.",
+    seoDescription: "Track your SaaS brand visibility in ChatGPT, Gemini, and Perplexity. Get insights to improve AI presence.",
     focusArea: "B2B software comparisons",
     chatExample: {
       question: "What's the best CRM software for startups?",
@@ -53,7 +53,7 @@ const industryData: Record<string, IndustryData> = {
     headline: "AI Visibility Tracking for E-commerce Brands",
     painPoint: "Is ChatGPT recommending your e-commerce competitors?",
     description: "Track how often AI platforms recommend your products when shoppers ask for buying advice.",
-    seoDescription: "Capture more sales by appearing in AI product recommendations. Track your e-commerce brand visibility in ChatGPT, Gemini, and Perplexity.",
+    seoDescription: "Capture more sales by appearing in AI product recommendations. Track e-commerce visibility in ChatGPT.",
     focusArea: "Product recommendations",
     chatExample: {
       question: "What are the best running shoes for beginners?",
@@ -78,7 +78,7 @@ const industryData: Record<string, IndustryData> = {
     headline: "AI Visibility Tracking for Marketing Agencies",
     painPoint: "Are your clients invisible in AI search results?",
     description: "White-label AI visibility tracking and reporting to help your clients dominate AI search platforms.",
-    seoDescription: "Offer AI search visibility tracking as a service. Help your agency clients appear in ChatGPT, Gemini, and Perplexity recommendations with actionable reporting.",
+    seoDescription: "White-label AI visibility tracking for agencies. Help clients appear in ChatGPT recommendations.",
     focusArea: "Client reporting",
     chatExample: {
       question: "What's the best digital marketing agency in NYC?",
@@ -126,7 +126,7 @@ const IndustryLandingPage = () => {
   return (
     <>
       <SEOHelmet
-        title={`AI Search Optimization (GEO) for ${data.name} Companies`}
+        title={`${data.name} AI Visibility Tracking`}
         description={data.seoDescription}
         canonicalPath={`/solutions/${data.slug}`}
         structuredData={structuredData}

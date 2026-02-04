@@ -170,8 +170,8 @@ export default function Pricing() {
   return (
     <>
       <SEOHelmet
-        title="Pricing Plans - AI Search Visibility Tracking"
-        description="Choose the perfect Llumos plan for your business. Track AI search visibility across ChatGPT, Perplexity, Gemini and more. Plans start at $49/month with a 7-day free trial."
+        title="Pricing - AI Search Visibility Plans"
+        description="Track AI search visibility from $49/month. Plans for individuals, teams, and agencies. 7-day free trial."
         keywords="AI search pricing, ChatGPT tracking pricing, Perplexity monitoring cost, AI SEO pricing, brand visibility pricing"
         canonicalPath="/pricing"
         ogImage="/og-pricing.png"

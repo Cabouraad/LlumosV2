@@ -2,15 +2,16 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { MessageSquare, Users, Lightbulb, Plus, Edit, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
-import { Helmet } from 'react-helmet-async';
+import { SEOHelmet } from '@/components/SEOHelmet';
 
 export default function UserGuide() {
   return (
     <Layout>
-      <Helmet>
-        <title>User Guide - Llumos</title>
-        <meta name="description" content="Complete guide to using Llumos for LLM visibility optimization. Learn how to track prompts, analyze competitors, and implement AI-generated recommendations." />
-      </Helmet>
+      <SEOHelmet
+        title="User Guide"
+        description="Learn how to use Llumos for AI visibility tracking."
+        noIndex={true}
+      />
 
       <div className="max-w-4xl mx-auto space-y-8">
         <header>

@@ -133,8 +133,8 @@ export default function FreeChecker() {
   return (
     <>
       <SEOHelmet
-        title="Free AI Visibility Score Checker | Audit Your Brand in ChatGPT"
-        description="Instant analysis. See how often AI models mention your brand vs. competitors. Get your free Llumos Score and actionable insights in under 2 minutes."
+        title="Free AI Visibility Checker"
+        description="See how AI mentions your brand vs. competitors. Free Llumos Score and insights in under 2 minutes."
         keywords="AI visibility checker, ChatGPT audit, brand visibility score, free AI analysis, competitor comparison"
         canonicalPath="/free-checker"
         structuredData={[
