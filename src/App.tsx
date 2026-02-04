@@ -66,6 +66,7 @@ import AIVisibilityThankYou from "./pages/AIVisibilityThankYou";
 import AIVisibilityResults from "./pages/AIVisibilityResults";
 import LocalAISearchLanding from "./pages/LocalAISearchLanding";
 import WebsiteAudit from "./pages/WebsiteAudit";
+import LandingWinBothSearches from "./pages/LandingWinBothSearches";
 // ============================================
 // LAZY LOADED - Auth Routes
 // ============================================
@@ -205,6 +206,7 @@ const App = () => {
         <Route path="/lp/ai-visibility/thank-you" element={<AIVisibilityThankYou />} />
         <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
         <Route path="/lp/local-ai-search" element={<LocalAISearchLanding />} />
+        <Route path="/lp/win-google-and-ai-search" element={<LandingWinBothSearches />} />
         <Route path="/audit" element={<WebsiteAudit />} />
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
