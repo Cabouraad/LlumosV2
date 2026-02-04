@@ -152,8 +152,8 @@ export default function ContactSales() {
   return (
     <>
       <SEOHelmet
-        title="Contact Sales - Llumos Agency & Enterprise Plans"
-        description="Get in touch with our sales team to learn about Llumos Agency and Enterprise plans. Custom solutions for agencies managing multiple brands."
+        title="Contact Sales - Enterprise Plans"
+        description="Talk to our sales team about Llumos Agency and Enterprise plans for multi-brand AI visibility."
         keywords="contact sales, agency pricing, enterprise AI visibility, custom plans"
         canonicalPath="/contact-sales"
       />
@@ -190,7 +190,7 @@ export default function ContactSales() {
                   {benefits.map((benefit) => (
                     <Card key={benefit.title} className="bg-card/50">
                       <CardHeader className="pb-2">
-                        <benefit.icon className="h-8 w-8 text-primary mb-2" />
+                        <benefit.icon className="h-8 w-8 text-primary mb-2" aria-hidden="true" />
                         <CardTitle className="text-base">{benefit.title}</CardTitle>
                         <CardDescription className="text-sm">{benefit.description}</CardDescription>
                       </CardHeader>
@@ -207,15 +207,15 @@ export default function ContactSales() {
                     </div>
                     <ul className="space-y-2 text-sm">
                       <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
+                        <Check className="h-4 w-4 text-primary" aria-hidden="true" />
                         <span>Custom onboarding & training</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
+                        <Check className="h-4 w-4 text-primary" aria-hidden="true" />
                         <span>Dedicated account manager</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
+                        <Check className="h-4 w-4 text-primary" aria-hidden="true" />
                         <span>Priority support & SLA</span>
                       </li>
                     </ul>
