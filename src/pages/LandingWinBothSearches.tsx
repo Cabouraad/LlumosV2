@@ -32,10 +32,10 @@ const LandingWinBothSearches = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <Button asChild size="lg" className="text-lg px-8 py-6">
-                <Link to="/request-visibility-report">
+                <a href="https://llumos.app/lp/ai-visibility">
                   Get Your AI Visibility Report
                   <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-                </Link>
+                </a>
               </Button>
               <Button asChild variant="outline" size="lg" className="text-lg px-8 py-6">
                 <Link to="/demo">
@@ -292,10 +292,10 @@ const LandingWinBothSearches = () => {
             </h2>
 
             <Button asChild size="lg" className="text-lg px-10 py-7 mt-4">
-              <Link to="/request-visibility-report">
+              <a href="https://llumos.app/lp/ai-visibility">
                 Get Your AI Visibility Report
                 <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-              </Link>
+              </a>
             </Button>
           </div>
         </section>
