@@ -12,7 +12,15 @@ export const PUBLIC_ROUTES = [
   '/privacy',
   '/terms',
   '/demo',
-  '/data-deletion'
+  '/data-deletion',
+  '/sitemap',
+  '/security',
+  '/agencies',
+  '/vs-competitors',
+  '/contact-sales',
+  '/dashboard-demo',
+  '/score-results',
+  '/audit'
 ];
 
 export function isPublicRoute(pathname: string): boolean {
