@@ -93,10 +93,11 @@ export default function AgencyPlan() {
   return (
     <>
       <SEOHelmet
-        title="Agency Plan - Enterprise AI Search Visibility for Agencies"
-        description="Manage up to 10 brands with 300 daily prompts, white-label reports, and dedicated support. Built for agencies and enterprises managing AI visibility at scale. $399/month."
+        title="Agency Plan - Multi-Brand AI Visibility"
+        description="Manage 10 brands with 300 daily prompts, white-label reports, and dedicated account manager. $399/month."
         keywords="agency AI tracking, white-label AI reports, multi-brand management, enterprise AI visibility, agency SEO tools"
         canonicalPath="/plans/agency"
+        ogImage="/og-agency.png"
       />
       <div className="min-h-screen bg-gradient-bg">
         {/* Header */}
