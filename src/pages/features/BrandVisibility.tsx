@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { 
   Search, 
   Target, 
@@ -21,14 +21,12 @@ import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 const BrandVisibility = () => {
   return (
     <div className="min-h-screen bg-background">
-      <Helmet>
-        <title>Brand Visibility Monitoring - Track Your AI Search Presence | Llumos</title>
-        <meta name="description" content="Monitor your brand's visibility across AI search platforms like ChatGPT, Gemini, and Perplexity. Real-time tracking with visibility scoring and sentiment analysis." />
-        <meta property="og:title" content="Brand Visibility Monitoring - Track Your AI Search Presence" />
-        <meta property="og:description" content="Real-time brand tracking across all major AI platforms with visibility scoring and sentiment analysis." />
-        <meta property="og:image" content="https://llumos.app/og-home.png" />
-        <link rel="canonical" href="https://llumos.app/features/brand-visibility" />
-      </Helmet>
+      <SEOHead
+        title="Brand Visibility Monitoring - Track Your AI Search Presence"
+        description="Monitor your brand's visibility across AI search platforms like ChatGPT, Gemini, and Perplexity. Real-time tracking with visibility scoring and sentiment analysis."
+        canonical="/features/brand-visibility"
+        ogImage="/og-home.png"
+      />
 
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
