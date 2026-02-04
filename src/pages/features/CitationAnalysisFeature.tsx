@@ -10,8 +10,9 @@ export default function CitationAnalysisFeature() {
   return (
     <Layout>
       <SEOHelmet 
-        title="Citation Analysis - Track AI Model Citations | Llumos"
-        description="Understand which content AI models trust and cite most. Track citations across ChatGPT, Claude, Perplexity, and more. Optimize your content for AI visibility."
+        title="Citation Analysis - AI Model Tracking"
+        description="Track which content AI models cite. Analyze ChatGPT, Claude, Perplexity citations."
+        noIndex={true}
       />
       
       <div className="space-y-12 pb-12">

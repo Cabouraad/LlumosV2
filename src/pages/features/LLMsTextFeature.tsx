@@ -10,8 +10,9 @@ export default function LLMsTextFeature() {
   return (
     <Layout>
       <SEOHelmet 
-        title="llms.txt Generator - Optimize Your Site for AI | Llumos"
-        description="Generate and optimize your llms.txt file to help AI models understand your website better. Auto-generate or customize your AI-readable site summary."
+        title="llms.txt Generator - AI Site Optimizer"
+        description="Generate llms.txt files to help AI models understand your website. Auto-generate or customize."
+        noIndex={true}
       />
       
       <div className="space-y-12 pb-12">

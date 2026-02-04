@@ -23,8 +23,8 @@ const ActionableRecommendations = () => {
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Actionable Recommendations - AI Search Optimization Guide"
-        description="Get specific, prioritized recommendations to improve your AI search rankings. AI-powered insights with implementation tracking and impact scoring."
+        title="AI Search Optimization Recommendations"
+        description="Get prioritized recommendations to improve AI search rankings with implementation tracking."
         canonical="/features/actionable-recommendations"
         ogImage="/og-home.png"
       />

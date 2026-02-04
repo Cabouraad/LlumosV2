@@ -47,8 +47,8 @@ const Index = () => {
   return (
     <>
       <SEOHelmet
-        title="Turn AI Search Mentions Into Revenue | Llumos"
-        description="See how your brand appears in ChatGPT, Gemini, and Perplexity — and get clear actions to improve visibility and win more demand from AI-powered search."
+        title="AI Search Visibility Tracking"
+        description="Track how your brand appears in ChatGPT, Gemini, and Perplexity. Get actions to improve AI visibility."
         keywords="AI search visibility, ChatGPT ranking, GEO platform, brand visibility tracking, AI SEO, Gemini search, Perplexity monitoring"
         canonicalPath="/"
         ogImage="/og-home.png"
