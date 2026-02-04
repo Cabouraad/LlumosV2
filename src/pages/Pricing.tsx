@@ -170,8 +170,8 @@ export default function Pricing() {
   return (
     <>
       <SEOHelmet
-        title="Pricing - AI Search Visibility Plans"
-        description="Track AI search visibility from $49/month. Plans for individuals, teams, and agencies. 7-day free trial."
+        title="Pricing - AI Visibility Plans"
+        description="AI search visibility from $49/mo. Plans for teams and agencies with 7-day trial."
         keywords="AI search pricing, ChatGPT tracking pricing, Perplexity monitoring cost, AI SEO pricing, brand visibility pricing"
         canonicalPath="/pricing"
         ogImage="/og-pricing.png"

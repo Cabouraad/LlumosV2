@@ -49,8 +49,8 @@ export default function StarterPlan() {
   return (
     <>
       <SEOHelmet
-        title="Starter Plan - AI Search Visibility for Small Businesses"
-        description="Start tracking your AI search visibility with our Starter plan. Monitor ChatGPT and Perplexity AI with 25 daily prompts. $49/month with 7-day free trial."
+        title="Starter Plan - $49/mo AI Tracking"
+        description="Track AI search visibility with 25 daily prompts on ChatGPT and Perplexity. 7-day free trial."
         keywords="starter plan, AI search tracking, ChatGPT monitoring, small business AI SEO"
         canonicalPath="/plans/starter"
       />
@@ -99,7 +99,7 @@ export default function StarterPlan() {
             </div>
             <Link to="/signup">
               <Button size="lg" className="text-lg px-8">
-                Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
+                Start Free Trial <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
               </Button>
             </Link>
           </div>
@@ -111,7 +111,7 @@ export default function StarterPlan() {
               {features.map((feature) => (
                 <Card key={feature.title}>
                   <CardHeader>
-                    <feature.icon className="h-10 w-10 text-primary mb-2" />
+                    <feature.icon className="h-10 w-10 text-primary mb-2" aria-hidden="true" />
                     <CardTitle className="text-xl">{feature.title}</CardTitle>
                     <CardDescription>{feature.description}</CardDescription>
                   </CardHeader>
@@ -129,7 +129,7 @@ export default function StarterPlan() {
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" aria-hidden="true" />
                     <span>1 user account</span>
                   </div>
                   <div className="flex items-start gap-3">

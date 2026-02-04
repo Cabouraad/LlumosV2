@@ -64,8 +64,8 @@ export default function GrowthPlan() {
   return (
     <>
       <SEOHelmet
-        title="Growth Plan - Advanced AI Search Visibility Tracking"
-        description="Scale your AI visibility with our Growth plan. Monitor all 4 AI platforms, track competitors, and get AI-powered recommendations. $99/month with full team access."
+        title="Growth Plan - $99/mo AI Visibility"
+        description="Monitor all 4 AI platforms, track competitors, get AI recommendations. $99/mo team access."
         keywords="growth plan, AI search optimization, competitor tracking, team collaboration, AI SEO"
         canonicalPath="/plans/growth"
       />
@@ -110,7 +110,7 @@ export default function GrowthPlan() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="text-lg px-8" asChild>
                 <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
-                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" />
+                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                 </a>
               </Button>
               <Link to="/signup">
@@ -128,7 +128,7 @@ export default function GrowthPlan() {
               {features.map((feature) => (
                 <Card key={feature.title} className="border-primary/20">
                   <CardHeader>
-                    <feature.icon className="h-10 w-10 text-primary mb-2" />
+                    <feature.icon className="h-10 w-10 text-primary mb-2" aria-hidden="true" />
                     <CardTitle className="text-xl">{feature.title}</CardTitle>
                     <CardDescription>{feature.description}</CardDescription>
                   </CardHeader>
@@ -146,7 +146,7 @@ export default function GrowthPlan() {
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" aria-hidden="true" />
                     <span>Up to 3 user accounts</span>
                   </div>
                   <div className="flex items-start gap-3">

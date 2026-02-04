@@ -22,8 +22,8 @@ const BrandVisibility = () => {
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Brand Visibility Monitoring - Track Your AI Search Presence"
-        description="Monitor your brand's visibility across AI search platforms like ChatGPT, Gemini, and Perplexity. Real-time tracking with visibility scoring and sentiment analysis."
+        title="Brand Visibility - AI Search Monitoring"
+        description="Monitor brand visibility across ChatGPT, Gemini, Perplexity with real-time tracking."
         canonical="/features/brand-visibility"
         ogImage="/og-home.png"
       />

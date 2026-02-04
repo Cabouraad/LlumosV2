@@ -11,8 +11,9 @@ export default function Terms() {
     <>
       <SEOHelmet
         title="Terms of Service"
-        description="Read the Llumos Terms of Service. Understand your rights and responsibilities when using our AI search visibility tracking platform."
+        description="Read the Llumos Terms of Service for our AI search visibility tracking platform."
         keywords="Llumos terms of service, terms and conditions, user agreement, AI visibility terms"
+        noIndex={true}
         canonicalPath="/terms"
       />
       <MarketingLayout>
@@ -24,7 +25,7 @@ export default function Terms() {
           >
             <Button variant="outline" asChild className="mb-8 border-white/10 hover:bg-white/5">
               <Link to="/">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                 Back to Home
               </Link>
             </Button>

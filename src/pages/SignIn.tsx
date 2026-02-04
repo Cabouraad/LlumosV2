@@ -41,9 +41,10 @@ export default function SignIn() {
   return (
     <>
       <SEOHelmet
-        title="Sign In"
-        description="Sign in to your Llumos account to track your brand's AI search visibility across ChatGPT, Gemini, and Perplexity."
+        title="Sign In to Your Account"
+        description="Access your Llumos dashboard to track AI search visibility across ChatGPT, Gemini, and Perplexity."
         canonicalPath="/signin"
+        noIndex={true}
       />
       <div className="min-h-screen flex items-center justify-center bg-background relative">
       <Link 

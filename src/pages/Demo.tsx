@@ -11,8 +11,8 @@ export default function Demo() {
   return (
     <>
       <SEOHelmet
-        title="Product Demo - See Llumos in Action"
-        description="Watch our comprehensive product demo to see how Llumos helps you track, analyze, and improve your brand's visibility across AI platforms like ChatGPT, Gemini, and Perplexity."
+        title="Product Demo - See It in Action"
+        description="Watch our demo to see how Llumos tracks your brand across ChatGPT, Gemini, and Perplexity."
         keywords="Llumos demo, AI visibility demo, ChatGPT tracking demo, brand visibility software demo"
         canonicalPath="/demo"
         ogImage="/og-demo.png"

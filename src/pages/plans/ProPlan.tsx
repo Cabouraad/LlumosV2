@@ -75,8 +75,8 @@ export default function ProPlan() {
   return (
     <>
       <SEOHelmet
-        title="Pro Plan - Enterprise AI Search Visibility Solution"
-        description="Enterprise-grade AI visibility tracking with 300 daily prompts, 10 team members, white-label reports, and dedicated support. $250/month for comprehensive brand management."
+        title="Pro Plan - Enterprise AI Visibility"
+        description="Enterprise AI tracking: 300 daily prompts, 10 users, white-label reports. $225/month."
         keywords="enterprise AI tracking, white-label reports, multi-brand management, dedicated support, AI SEO enterprise"
         canonicalPath="/plans/pro"
       />
@@ -102,7 +102,7 @@ export default function ProPlan() {
           {/* Hero Section */}
           <div className="max-w-4xl mx-auto text-center mb-12">
             <Badge className="mb-4 bg-gradient-to-r from-primary to-primary/60">
-              <Crown className="w-3 h-3 mr-1" /> Enterprise
+              <Crown className="w-3 h-3 mr-1" aria-hidden="true" /> Enterprise
             </Badge>
             <h1 className="text-5xl font-bold mb-4">Enterprise-Grade AI Visibility</h1>
             <p className="text-xl text-muted-foreground mb-8">
@@ -123,7 +123,7 @@ export default function ProPlan() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="text-lg px-8" asChild>
                 <a href="https://calendly.com/llumos-info/llumos-demo" target="_blank" rel="noopener noreferrer">
-                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" />
+                  Meet with Us <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                 </a>
               </Button>
               <Link to="/signup">
@@ -141,7 +141,7 @@ export default function ProPlan() {
               {features.map((feature) => (
                 <Card key={feature.title} className="border-primary/30 bg-card/50">
                   <CardHeader>
-                    <feature.icon className="h-10 w-10 text-primary mb-2" />
+                    <feature.icon className="h-10 w-10 text-primary mb-2" aria-hidden="true" />
                     <CardTitle className="text-lg">{feature.title}</CardTitle>
                     <CardDescription className="text-sm">{feature.description}</CardDescription>
                   </CardHeader>
@@ -159,7 +159,7 @@ export default function ProPlan() {
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
+                    <Check className="h-5 w-5 text-primary mt-1 flex-shrink-0" aria-hidden="true" />
                     <span>Up to 10 user accounts</span>
                   </div>
                   <div className="flex items-start gap-3">

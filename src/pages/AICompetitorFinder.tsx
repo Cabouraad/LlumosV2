@@ -81,9 +81,9 @@ export default function AICompetitorFinder() {
   return (
     <>
       <SEOHead
-        title="Free AI Competitor Finder - Discover Your Top Competitors"
-        description="Enter your website URL and our AI will instantly identify your top 3 competitors in AI search results. Free tool by Llumos."
-        canonicalUrl="/tools/ai-competitor-finder"
+        title="Free AI Competitor Finder Tool"
+        description="Enter your URL and our AI identifies your top 3 competitors in AI search results."
+        canonical="/tools/ai-competitor-finder"
         ogImage="/og-home.png"
       />
       
@@ -92,7 +92,7 @@ export default function AICompetitorFinder() {
         <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between">
             <Link to="/" className="flex items-center space-x-2">
-              <Search className="w-8 h-8 text-primary" />
+              <Search className="w-8 h-8 text-primary" aria-hidden="true" />
               <span className="text-2xl font-bold">Llumos</span>
             </Link>
             <nav className="flex items-center space-x-4">
@@ -123,7 +123,7 @@ export default function AICompetitorFinder() {
             <form onSubmit={handleSubmit} className="max-w-xl mx-auto">
               <div className="flex gap-3">
                 <div className="relative flex-1">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" aria-hidden="true" />
                   <Input
                     type="text"
                     placeholder="Enter your website (e.g., acme.com)"

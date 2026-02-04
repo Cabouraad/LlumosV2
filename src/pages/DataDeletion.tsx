@@ -11,8 +11,9 @@ export default function DataDeletion() {
     <>
       <SEOHelmet
         title="Data Deletion Policy"
-        description="Learn how to request deletion of your personal data from Llumos. Our data deletion policy explains the process and timeline for removing your information."
+        description="Request deletion of your personal data from Llumos. Learn about our GDPR-compliant process."
         keywords="Llumos data deletion, delete my data, GDPR deletion, data removal, right to erasure"
+        noIndex={true}
         canonicalPath="/data-deletion"
       />
       <MarketingLayout>
@@ -24,7 +25,7 @@ export default function DataDeletion() {
           >
             <Button variant="outline" asChild className="mb-8 border-white/10 hover:bg-white/5">
               <Link to="/">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                 Back to Home
               </Link>
             </Button>

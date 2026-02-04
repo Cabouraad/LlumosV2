@@ -31,8 +31,8 @@ const Features = () => {
   return (
     <>
       <SEOHelmet
-        title="Features - AI Search Visibility Platform"
-        description="Explore Llumos features: brand visibility monitoring, competitive analysis, actionable recommendations, and multi-platform AI search tracking across ChatGPT, Gemini, and Perplexity."
+        title="Features - AI Search Platform"
+        description="Track brand visibility, analyze competitors, and get AI-powered recommendations across ChatGPT, Gemini, and Perplexity."
         keywords="AI visibility features, brand monitoring, competitive analysis, ChatGPT tracking, AI SEO tools, Perplexity monitoring"
         canonicalPath="/features"
         ogImage="/og-home.png"

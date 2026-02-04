@@ -11,8 +11,9 @@ export default function Privacy() {
     <>
       <SEOHelmet
         title="Privacy Policy"
-        description="Learn how Llumos collects, uses, and protects your data. Our privacy policy explains our data practices for AI search visibility tracking."
+        description="Learn how Llumos collects, uses, and protects your data for AI search visibility."
         keywords="Llumos privacy policy, data protection, privacy, GDPR, data security"
+        noIndex={true}
         canonicalPath="/privacy"
       />
       <MarketingLayout>
@@ -24,7 +25,7 @@ export default function Privacy() {
           >
             <Button variant="outline" asChild className="mb-8 border-white/10 hover:bg-white/5">
               <Link to="/">
-                <ArrowLeft className="mr-2 h-4 w-4" />
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                 Back to Home
               </Link>
             </Button>
