@@ -12,6 +12,7 @@ interface SEOHelmetProps {
   authorName?: string;
   schemaType?: 'WebSite' | 'Article' | 'SoftwareApplication' | 'Organization';
   structuredData?: object | object[];
+  noIndex?: boolean;
 }
 
 export function SEOHelmet({
@@ -25,7 +26,8 @@ export function SEOHelmet({
   modifiedDate,
   authorName = 'Llumos',
   schemaType,
-  structuredData
+  structuredData,
+  noIndex = false
 }: SEOHelmetProps) {
   const baseUrl = 'https://llumos.app';
   const fullUrl = `${baseUrl}${canonicalPath}`;
@@ -146,8 +148,12 @@ export function SEOHelmet({
       <meta name="twitter:image" content={fullOgImage} />
       <meta name="twitter:site" content="@llumos_ai" />
       
-      {/* Robots - Enhanced for rich snippets */}
-      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+      {/* Robots */}
+      {noIndex ? (
+        <meta name="robots" content="noindex, nofollow" />
+      ) : (
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+      )}
 
       {/* JSON-LD Structured Data */}
       {allStructuredData && (

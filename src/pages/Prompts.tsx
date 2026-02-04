@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { SEOHelmet } from '@/components/SEOHelmet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';

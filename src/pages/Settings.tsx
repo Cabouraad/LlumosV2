@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
+import { SEOHelmet } from '@/components/SEOHelmet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
 import { getOrgMembership } from '@/lib/org';
@@ -172,7 +173,13 @@ export default function Settings() {
   }
 
   return (
-    <Layout>
+    <>
+      <SEOHelmet
+        title="Settings"
+        description="Manage your Llumos account settings."
+        noIndex={true}
+      />
+      <Layout>
       <div className="p-6 space-y-8">
         <h1 className="text-3xl font-semibold">Settings</h1>
         
@@ -376,5 +383,6 @@ export default function Settings() {
         </section>
       </div>
     </Layout>
+    </>
   );
 }

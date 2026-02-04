@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
+import { SEOHelmet } from '@/components/SEOHelmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -253,7 +254,13 @@ Learn more at: https://llmstxt.org/`;
   }
 
   return (
-    <Layout>
+    <>
+      <SEOHelmet
+        title="LLMs.txt Generator"
+        description="Create your llms.txt file."
+        noIndex={true}
+      />
+      <Layout>
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div className="space-y-4">
@@ -530,5 +537,6 @@ Learn more at: https://llmstxt.org/`;
         </div>
       </div>
     </Layout>
+    </>
   );
 }
