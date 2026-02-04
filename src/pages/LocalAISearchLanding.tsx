@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
 import { LocalScanWizard } from '@/components/local-scan/LocalScanWizard';
@@ -135,12 +135,12 @@ export default function LocalAISearchLanding() {
 
   return (
     <>
-      <Helmet>
-        <title>Get More Local Leads From AI Search | Llumos</title>
-        <meta name="description" content="You worked hard on Local SEO. But customers now ask AI for recommendations. Find out if AI sends leads to you — or your competitors. Free scan." />
-        <meta name="keywords" content="local SEO, get more local leads, Google Maps ranking, local marketing help, AI local search, local business marketing" />
-        <link rel="canonical" href="https://llumos.app/lp/local-ai-search" />
-      </Helmet>
+      <SEOHead
+        title="Get More Local Leads From AI Search"
+        description="You worked hard on Local SEO. But customers now ask AI for recommendations. Find out if AI sends leads to you — or your competitors. Free scan."
+        keywords="local SEO, get more local leads, Google Maps ranking, local marketing help, AI local search, local business marketing"
+        canonical="/lp/local-ai-search"
+      />
 
       <div className="min-h-screen bg-background">
         {/* Header */}

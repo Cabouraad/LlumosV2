@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { 
   Search, 
   ArrowRight,
@@ -22,14 +22,12 @@ import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 const SiteAudit = () => {
   return (
     <div className="min-h-screen bg-background">
-      <Helmet>
-        <title>AI-Powered Site Audit - Technical SEO for AI Search Visibility | Llumos</title>
-        <meta name="description" content="Comprehensive website audit optimized for AI search engines. Analyze crawlability, performance, on-page SEO, entity optimization, and AI readiness to improve your GEO." />
-        <meta property="og:title" content="AI-Powered Site Audit - Technical SEO for AI Search Visibility" />
-        <meta property="og:description" content="6-module technical audit framework designed for Generative Engine Optimization (GEO). Improve how AI models understand and recommend your website." />
-        <meta property="og:image" content="https://llumos.app/og-home.png" />
-        <link rel="canonical" href="https://llumos.app/features/site-audit" />
-      </Helmet>
+      <SEOHead
+        title="AI-Powered Site Audit - Technical SEO for AI Search Visibility"
+        description="Comprehensive website audit optimized for AI search engines. Analyze crawlability, performance, on-page SEO, entity optimization, and AI readiness to improve your GEO."
+        canonical="/features/site-audit"
+        ogImage="/og-home.png"
+      />
 
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">

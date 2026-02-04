@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { HubSpotForm } from '@/components/hubspot/HubSpotForm';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { UpgradeModal } from '@/components/landing/UpgradeModal';
 import { AIVisibilitySnapshot } from '@/components/landing/AIVisibilitySnapshot';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,10 +71,11 @@ export default function AIVisibilityLanding() {
   return (
     <>
       <GoogleAdsTracking />
-      <Helmet>
-        <title>Free AI Visibility Report | See If AI Recommends Your Brand | Llumos</title>
-        <meta name="description" content="Discover if ChatGPT, Gemini, and Perplexity recommend your brand or your competitors. Get your free AI visibility report in 2 minutes." />
-      </Helmet>
+      <SEOHead
+        title="Free AI Visibility Report | See If AI Recommends Your Brand"
+        description="Discover if ChatGPT, Gemini, and Perplexity recommend your brand or your competitors. Get your free AI visibility report in 2 minutes."
+        canonical="/lp/ai-visibility"
+      />
 
       <div className="min-h-screen bg-background">
         {/* Minimal Header - Logo Only */}

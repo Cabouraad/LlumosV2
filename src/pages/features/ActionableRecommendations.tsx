@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { 
   Search, 
   Zap, 
@@ -22,14 +22,12 @@ import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 const ActionableRecommendations = () => {
   return (
     <div className="min-h-screen bg-background">
-      <Helmet>
-        <title>Actionable Recommendations - AI Search Optimization Guide | Llumos</title>
-        <meta name="description" content="Get specific, prioritized recommendations to improve your AI search rankings. AI-powered insights with implementation tracking and impact scoring." />
-        <meta property="og:title" content="Actionable Recommendations - AI Search Optimization Guide" />
-        <meta property="og:description" content="Skip the guesswork. Get specific, prioritized actions you can implement today to improve your AI search rankings." />
-        <meta property="og:image" content="https://llumos.app/og-home.png" />
-        <link rel="canonical" href="https://llumos.app/features/actionable-recommendations" />
-      </Helmet>
+      <SEOHead
+        title="Actionable Recommendations - AI Search Optimization Guide"
+        description="Get specific, prioritized recommendations to improve your AI search rankings. AI-powered insights with implementation tracking and impact scoring."
+        canonical="/features/actionable-recommendations"
+        ogImage="/og-home.png"
+      />
 
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">

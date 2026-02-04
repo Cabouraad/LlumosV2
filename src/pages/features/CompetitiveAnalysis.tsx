@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { SEOHead } from '@/components/seo/SEOHead';
 import { 
   Search, 
   TrendingUp, 
@@ -22,14 +22,12 @@ import { RelatedFeatures } from '@/components/seo/RelatedFeatures';
 const CompetitiveAnalysis = () => {
   return (
     <div className="min-h-screen bg-background">
-      <Helmet>
-        <title>Competitive Analysis - AI Search Intelligence | Llumos</title>
-        <meta name="description" content="Analyze competitors' AI search performance across ChatGPT, Gemini, and Perplexity. Identify gaps, benchmark performance, and discover untapped opportunities." />
-        <meta property="og:title" content="Competitive Analysis - AI Search Intelligence" />
-        <meta property="og:description" content="See exactly where competitors dominate AI search results and identify opportunities to outrank them." />
-        <meta property="og:image" content="https://llumos.app/og-home.png" />
-        <link rel="canonical" href="https://llumos.app/features/competitive-analysis" />
-      </Helmet>
+      <SEOHead
+        title="Competitive Analysis - AI Search Intelligence"
+        description="Analyze competitors' AI search performance across ChatGPT, Gemini, and Perplexity. Identify gaps, benchmark performance, and discover untapped opportunities."
+        canonical="/features/competitive-analysis"
+        ogImage="/og-home.png"
+      />
 
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
