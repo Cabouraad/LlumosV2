@@ -50,6 +50,7 @@ import ContactSales from "./pages/ContactSales";
 import BlogPostGPT from "./pages/BlogPostGPT";
 import BlogPostProfoundAlternative from "./pages/BlogPostProfoundAlternative";
 import BlogPostAIVisibility2026 from "./pages/BlogPostAIVisibility2026";
+import BlogPostSEOGEO from "./pages/BlogPostSEOGEO";
 import BlogPostChatGPTAds from "./pages/BlogPostChatGPTAds";
 
 // Other marketing pages (eagerly loaded for SSG)
@@ -188,6 +189,7 @@ const App = () => {
         <Route path="/blog/how-to-optimize-for-chatgpt-search" element={<BlogPostGPT />} />
         <Route path="/blog/profound-ai-alternative-pricing" element={<BlogPostProfoundAlternative />} />
         <Route path="/blog/ai-search-visibility-2026-brands-ranking-number-one-invisible" element={<BlogPostAIVisibility2026 />} />
+        <Route path="/blog/seo-geo-guide" element={<BlogPostSEOGEO />} />
         <Route path="/blog/chatgpt-introducing-ads-how-brands-should-prepare" element={<BlogPostChatGPTAds />} />
         
         {/* Other marketing pages (SSG Pre-rendered) */}
