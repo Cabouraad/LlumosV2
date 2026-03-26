@@ -559,7 +559,10 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!PERPLEXITY_API_KEY) {
@@ -576,23 +579,21 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
       },
       body: JSON.stringify({
         model: 'sonar',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         return_citations: true
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Perplexity error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Perplexity error: ${response.status}`);
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
