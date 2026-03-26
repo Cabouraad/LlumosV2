@@ -505,7 +505,10 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!OPENAI_API_KEY) {
@@ -522,24 +525,22 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 800
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenAI error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
