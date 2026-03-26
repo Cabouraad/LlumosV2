@@ -1355,15 +1355,27 @@ async function generatePDF(
   y = drawSection(page, 'Provider Consistency Score', y);
 
   const consistency = calculateProviderConsistency(results);
+  const consistencyColor = consistency.label === 'No Visibility'
+    ? red
+    : consistency.score >= 80
+    ? green
+    : consistency.score >= 50
+    ? amber
+    : red;
 
   // Score circle
-  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistency.score >= 80 ? green : consistency.score >= 50 ? amber : red });
+  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistencyColor });
   page.drawText(consistency.label, { x: M + 80, y: y + 2, size: 11, font: helveticaBold, color: dark });
   y -= 18;
   y = drawWrappedText(page, consistency.detail, M + 80, y, { size: 9, font: helvetica, color: mid, maxChars: 70, lineSpacing: 13 });
 
   y -= 10;
-  page.drawText('High consistency = AI platforms agree about your brand = strong visibility signal', { x: M + 5, y, size: 8, font: helveticaOblique, color: light });
+  page.drawText(
+    consistency.label === 'No Visibility'
+      ? 'Consistency remains 0 when your brand is absent from every AI response.'
+      : 'High consistency = AI platforms agree about your brand = strong visibility signal',
+    { x: M + 5, y, size: 8, font: helveticaOblique, color: light }
+  );
 
   // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
   const h2h = buildHeadToHeadMatrix(results, domain);
