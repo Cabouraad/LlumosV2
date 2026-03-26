@@ -840,7 +840,7 @@ function generateExecutiveSummary(
 }
 
 /**
- * Generate PDF report with executive summary, charts, content gaps, and benchmarks
+ * Generate professional PDF report
  */
 async function generatePDF(
   firstName: string,
@@ -852,492 +852,275 @@ async function generatePDF(
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  const pageWidth = 612;
-  const pageHeight = 792;
-  const margin = 50;
-  
-  // Get benchmark and analysis data
+  const helveticaOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+
+  const W = 612;
+  const H = 792;
+  const M = 50; // margin
+  const contentW = W - M * 2;
+
+  // Colours
+  const dark   = rgb(0.10, 0.12, 0.16);
+  const mid    = rgb(0.30, 0.30, 0.35);
+  const light  = rgb(0.55, 0.55, 0.60);
+  const faint  = rgb(0.88, 0.88, 0.90);
+  const accent = rgb(0.31, 0.27, 0.51); // deep purple
+  const green  = rgb(0.13, 0.59, 0.33);
+  const amber  = rgb(0.85, 0.55, 0.08);
+  const red    = rgb(0.75, 0.18, 0.18);
+  const white  = rgb(1, 1, 1);
+
+  const scoreColor = (s: number) => s >= 70 ? green : s >= 40 ? amber : red;
+  const scoreLabel = (s: number) => s >= 70 ? 'Strong' : s >= 40 ? 'Moderate' : 'Low';
+
   const industryBenchmark = getIndustryBenchmark(businessContext);
   const contentGaps = analyzeContentGaps(results, domain);
-  const executiveSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
-  
-  // Page 1: Cover with Executive Summary
-  let page = pdfDoc.addPage([pageWidth, pageHeight]);
-  
-  // Header
-  page.drawText('AI VISIBILITY REPORT', {
-    x: margin,
-    y: pageHeight - 60,
-    size: 28,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  page.drawText(`Prepared for ${firstName}`, {
-    x: margin,
-    y: pageHeight - 90,
-    size: 14,
-    font: helvetica,
-    color: rgb(0.4, 0.4, 0.4)
-  });
-  
-  page.drawText(`Domain: ${domain}  |  Generated: ${new Date().toLocaleDateString()}`, {
-    x: margin,
-    y: pageHeight - 108,
-    size: 11,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
-  });
-  
-  // Divider line
-  page.drawLine({
-    start: { x: margin, y: pageHeight - 125 },
-    end: { x: pageWidth - margin, y: pageHeight - 125 },
-    thickness: 1,
-    color: rgb(0.9, 0.9, 0.9)
-  });
-  
-  // Overall Score Section with visual bar
-  const scoreColor = overallScore >= 70 ? rgb(0.2, 0.7, 0.3) : 
-                     overallScore >= 40 ? rgb(0.9, 0.6, 0.1) : 
-                     rgb(0.8, 0.2, 0.2);
-  
-  page.drawText('OVERALL VISIBILITY SCORE', {
-    x: margin,
-    y: pageHeight - 160,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  // Large score display
-  page.drawText(`${overallScore}`, {
-    x: margin,
-    y: pageHeight - 210,
-    size: 56,
-    font: helveticaBold,
-    color: scoreColor
-  });
-  
-  page.drawText('/ 100', {
-    x: margin + 80,
-    y: pageHeight - 210,
-    size: 20,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
-  });
-  
-  // Score bar visualization
-  const barWidth = 200;
-  const barHeight = 12;
-  const barX = margin + 160;
-  const barY = pageHeight - 200;
-  
-  // Background bar
-  page.drawRectangle({
-    x: barX,
-    y: barY,
-    width: barWidth,
-    height: barHeight,
-    color: rgb(0.9, 0.9, 0.9)
-  });
-  
-  // Score fill bar
-  page.drawRectangle({
-    x: barX,
-    y: barY,
-    width: (overallScore / 100) * barWidth,
-    height: barHeight,
-    color: scoreColor
-  });
-  
-  // Industry benchmark marker on bar
-  const benchmarkX = barX + (industryBenchmark.benchmark / 100) * barWidth;
-  page.drawLine({
-    start: { x: benchmarkX, y: barY - 3 },
-    end: { x: benchmarkX, y: barY + barHeight + 3 },
-    thickness: 2,
-    color: rgb(0.3, 0.3, 0.3)
-  });
-  
-  page.drawText(`Industry avg: ${industryBenchmark.benchmark}`, {
-    x: barX,
-    y: barY - 15,
-    size: 9,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
-  });
-  
-  // Score interpretation
-  const scoreLabel = overallScore >= 70 ? 'Strong AI Visibility' :
-                     overallScore >= 40 ? 'Moderate AI Visibility' :
-                     'Low AI Visibility - Immediate Action Needed';
-  
-  page.drawText(scoreLabel, {
-    x: margin,
-    y: pageHeight - 240,
-    size: 12,
-    font: helveticaBold,
-    color: scoreColor
-  });
-  
-  // Executive Summary Section
-  let yPos = pageHeight - 280;
-  
-  page.drawText('EXECUTIVE SUMMARY', {
-    x: margin,
-    y: yPos,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  yPos -= 22;
-  
-  for (const point of executiveSummary) {
-    const lines = wrapText(point, 85);
+  const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
+  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+
+  // Aggregate competitor counts across all results
+  const competitorMentions = new Map<string, number>();
+  for (const r of validResults) {
+    for (const c of r.competitors) {
+      competitorMentions.set(c, (competitorMentions.get(c) || 0) + 1);
+    }
+  }
+  const sortedCompetitors = Array.from(competitorMentions.entries())
+    .sort((a, b) => b[1] - a[1]);
+
+  // Provider aggregate stats
+  const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
+  for (const r of results) {
+    if (!providerStats[r.provider]) providerStats[r.provider] = { total: 0, count: 0, mentioned: 0 };
+    providerStats[r.provider].total += r.score;
+    providerStats[r.provider].count++;
+    if (r.brandMentioned) providerStats[r.provider].mentioned++;
+  }
+
+  // ---- helpers ----
+  function drawFooter(pg: any) {
+    pg.drawLine({ start: { x: M, y: 40 }, end: { x: W - M, y: 40 }, thickness: 0.5, color: faint });
+    pg.drawText('llumos.app', { x: M, y: 26, size: 8, font: helvetica, color: light });
+    pg.drawText('AI Visibility Intelligence', { x: W - M - 120, y: 26, size: 8, font: helvetica, color: light });
+  }
+
+  function newPage() {
+    const pg = pdfDoc.addPage([W, H]);
+    drawFooter(pg);
+    return pg;
+  }
+
+  function drawSection(pg: any, title: string, y: number): number {
+    pg.drawRectangle({ x: M, y: y - 1, width: contentW, height: 1, color: faint });
+    pg.drawText(title.toUpperCase(), { x: M, y: y - 18, size: 10, font: helveticaBold, color: accent });
+    return y - 32;
+  }
+
+  function drawWrappedText(pg: any, text: string, x: number, y: number, opts: { size: number; font: any; color: any; maxChars?: number; lineSpacing?: number }): number {
+    const lines = wrapText(text, opts.maxChars || 90);
+    const spacing = opts.lineSpacing || (opts.size + 4);
     for (const line of lines) {
-      page.drawText(`• ${line}`, {
-        x: margin,
-        y: yPos,
-        size: 11,
-        font: helvetica,
-        color: rgb(0.25, 0.25, 0.25)
-      });
-      yPos -= 16;
+      if (y < 60) { pg = newPage(); y = H - 60; }
+      pg.drawText(line, { x, y, size: opts.size, font: opts.font, color: opts.color });
+      y -= spacing;
     }
+    return y;
   }
-  
-  yPos -= 15;
-  
-  // Provider Performance Chart Section
-  page.drawText('VISIBILITY BY AI PLATFORM', {
-    x: margin,
-    y: yPos,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  yPos -= 25;
-  
-  // Group results by provider
-  const providerScores: Record<string, { total: number; count: number; mentioned: number }> = {};
-  
-  for (const result of results) {
-    if (!providerScores[result.provider]) {
-      providerScores[result.provider] = { total: 0, count: 0, mentioned: 0 };
-    }
-    providerScores[result.provider].total += result.score;
-    providerScores[result.provider].count++;
-    if (result.brandMentioned) {
-      providerScores[result.provider].mentioned++;
-    }
-  }
-  
-  // Draw horizontal bar chart for each provider
-  const chartBarWidth = 250;
-  for (const [provider, data] of Object.entries(providerScores)) {
-    const avgScore = Math.round(data.total / data.count);
-    const mentionRate = `${data.mentioned}/${data.count}`;
-    const providerColor = avgScore >= 50 ? rgb(0.2, 0.7, 0.3) : 
-                          avgScore >= 25 ? rgb(0.9, 0.6, 0.1) : 
-                          rgb(0.8, 0.2, 0.2);
-    
-    // Provider label
-    page.drawText(`${provider}`, {
-      x: margin,
-      y: yPos,
-      size: 11,
-      font: helveticaBold,
-      color: rgb(0.2, 0.2, 0.2)
-    });
-    
-    // Score bar background
-    page.drawRectangle({
-      x: margin + 80,
-      y: yPos - 2,
-      width: chartBarWidth,
-      height: 14,
-      color: rgb(0.92, 0.92, 0.92)
-    });
-    
-    // Score bar fill
-    page.drawRectangle({
-      x: margin + 80,
-      y: yPos - 2,
-      width: (avgScore / 100) * chartBarWidth,
-      height: 14,
-      color: providerColor
-    });
-    
-    // Score value
-    page.drawText(`${avgScore}/100`, {
-      x: margin + 90 + chartBarWidth,
-      y: yPos,
-      size: 10,
-      font: helveticaBold,
-      color: rgb(0.3, 0.3, 0.3)
-    });
-    
-    // Mention rate
-    page.drawText(`Mentioned: ${mentionRate}`, {
-      x: margin + 155 + chartBarWidth,
-      y: yPos,
-      size: 10,
-      font: helvetica,
-      color: rgb(0.5, 0.5, 0.5)
-    });
-    
-    yPos -= 28;
-  }
-  
-  yPos -= 15;
-  
-  // Industry Benchmark Comparison
-  page.drawText('INDUSTRY BENCHMARK', {
-    x: margin,
-    y: yPos,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  yPos -= 20;
-  
-  const benchmarkDiff = overallScore - industryBenchmark.benchmark;
-  const benchmarkText = benchmarkDiff >= 0 
-    ? `+${benchmarkDiff} points above ${industryBenchmark.industry} average`
-    : `${benchmarkDiff} points below ${industryBenchmark.industry} average`;
-  const benchmarkColor = benchmarkDiff >= 0 ? rgb(0.2, 0.7, 0.3) : rgb(0.8, 0.2, 0.2);
-  
-  page.drawText(`Your score: ${overallScore}  |  ${industryBenchmark.industry} average: ${industryBenchmark.benchmark}`, {
-    x: margin,
-    y: yPos,
-    size: 11,
-    font: helvetica,
-    color: rgb(0.3, 0.3, 0.3)
-  });
-  
-  yPos -= 18;
-  
-  page.drawText(benchmarkText, {
-    x: margin,
-    y: yPos,
-    size: 12,
-    font: helveticaBold,
-    color: benchmarkColor
-  });
-  
-  yPos -= 30;
-  
-  // Content Gap Analysis
-  page.drawText('CONTENT GAP OPPORTUNITIES', {
-    x: margin,
-    y: yPos,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  yPos -= 20;
-  
-  page.drawText('Topics where your brand is missing from AI responses:', {
-    x: margin,
-    y: yPos,
-    size: 10,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
-  });
-  
-  yPos -= 18;
-  
-  for (const gap of contentGaps) {
-    const lines = wrapText(`• ${gap}`, 80);
-    for (const line of lines) {
-      page.drawText(line, {
-        x: margin + 10,
-        y: yPos,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.3, 0.3, 0.3)
-      });
-      yPos -= 14;
-    }
-  }
-  
-  // Page 2+: Detailed Results
-  yPos = pageHeight - 80;
-  page = pdfDoc.addPage([pageWidth, pageHeight]);
-  
-  page.drawText('DETAILED PROMPT ANALYSIS', {
-    x: margin,
-    y: yPos,
-    size: 18,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  yPos -= 40;
-  
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    
-    // Check if we need a new page
-    if (yPos < 150) {
-      page = pdfDoc.addPage([pageWidth, pageHeight]);
-      yPos = pageHeight - 80;
-    }
-    
-    // Prompt header
-    page.drawText(`Prompt ${i + 1}: ${result.provider}`, {
-      x: margin,
-      y: yPos,
-      size: 12,
-      font: helveticaBold,
-      color: rgb(0.16, 0.19, 0.26)
-    });
-    
-    yPos -= 18;
-    
-    // The prompt text
-    const promptLines = wrapText(result.prompt, 80);
-    for (const line of promptLines) {
-      page.drawText(`"${line}"`, {
-        x: margin,
-        y: yPos,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.3, 0.3, 0.3)
-      });
-      yPos -= 14;
-    }
-    
-    yPos -= 5;
-    
-    // Brand mentioned status (using ASCII-safe characters for PDF compatibility)
-    const mentionStatus = result.brandMentioned ? '[YES] Brand Mentioned' : '[NO] Brand Not Mentioned';
-    const mentionColor = result.brandMentioned ? rgb(0.2, 0.7, 0.3) : rgb(0.8, 0.2, 0.2);
-    
-    page.drawText(mentionStatus, {
-      x: margin,
-      y: yPos,
-      size: 10,
-      font: helveticaBold,
-      color: mentionColor
-    });
-    
-    page.drawText(`Score: ${result.score}/100`, {
-      x: margin + 150,
-      y: yPos,
-      size: 10,
-      font: helvetica,
-      color: rgb(0.3, 0.3, 0.3)
-    });
-    
-    yPos -= 18;
-    
-    // Competitors mentioned (shown transparently)
-    if (result.competitors.length > 0) {
-      page.drawText('Competitors mentioned:', {
-        x: margin,
-        y: yPos,
-        size: 10,
-        font: helveticaBold,
-        color: rgb(0.4, 0.4, 0.4)
-      });
-      
-      yPos -= 16;
-      
-      // Show actual competitor names
-      const competitorList = result.competitors.join(', ');
-      // Wrap long competitor lists across multiple lines
-      const maxLineWidth = pageWidth - margin * 2 - 10;
-      const charsPerLine = Math.floor(maxLineWidth / 5.5); // approx chars per line at size 10
-      const lines: string[] = [];
-      let remaining = competitorList;
-      while (remaining.length > 0) {
-        if (remaining.length <= charsPerLine) {
-          lines.push(remaining);
-          break;
-        }
-        let breakIdx = remaining.lastIndexOf(', ', charsPerLine);
-        if (breakIdx === -1) breakIdx = charsPerLine;
-        else breakIdx += 2; // include the ", "
-        lines.push(remaining.substring(0, breakIdx));
-        remaining = remaining.substring(breakIdx);
-      }
-      
-      for (const line of lines) {
-        page.drawText(line, {
-          x: margin + 10,
-          y: yPos,
-          size: 10,
-          font: helvetica,
-          color: rgb(0.25, 0.25, 0.25)
-        });
-        yPos -= 14;
-      }
-    }
-    
-    yPos -= 20;
-  }
-  
-  // Final page: CTA
-  page = pdfDoc.addPage([pageWidth, pageHeight]);
-  
-  page.drawText('UNLOCK YOUR FULL REPORT', {
-    x: margin,
-    y: pageHeight - 100,
-    size: 22,
-    font: helveticaBold,
-    color: rgb(0.16, 0.19, 0.26)
-  });
-  
-  page.drawText('This preview report shows your basic AI visibility metrics.', {
-    x: margin,
-    y: pageHeight - 140,
-    size: 12,
-    font: helvetica,
-    color: rgb(0.3, 0.3, 0.3)
-  });
-  
-  page.drawText('Get the full Llumos platform to:', {
-    x: margin,
-    y: pageHeight - 180,
-    size: 12,
-    font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2)
-  });
-  
-  const benefits = [
-    '• See unblurred competitor analysis',
-    '• Track visibility changes over time',
-    '• Get AI-powered recommendations',
-    '• Monitor citations and sources',
-    '• Receive weekly visibility reports'
+
+  // ====================== PAGE 1: COVER ======================
+  let page = newPage();
+  let y = H - 50;
+
+  // Header bar
+  page.drawRectangle({ x: 0, y: H - 90, width: W, height: 90, color: accent });
+  page.drawText('AI VISIBILITY REPORT', { x: M, y: H - 48, size: 22, font: helveticaBold, color: white });
+  page.drawText(`${domain}`, { x: M, y: H - 70, size: 13, font: helvetica, color: rgb(0.82, 0.78, 0.95) });
+  page.drawText(`Prepared for ${firstName}  |  ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { x: M, y: H - 85, size: 9, font: helvetica, color: rgb(0.72, 0.68, 0.85) });
+
+  y = H - 120;
+
+  // Score card
+  const cardY = y - 5;
+  page.drawRectangle({ x: M, y: cardY - 100, width: contentW, height: 100, color: rgb(0.97, 0.97, 0.98), borderColor: faint, borderWidth: 1 });
+
+  page.drawText(`${overallScore}`, { x: M + 20, y: cardY - 55, size: 52, font: helveticaBold, color: scoreColor(overallScore) });
+  page.drawText('/100', { x: M + 85, y: cardY - 55, size: 18, font: helvetica, color: light });
+
+  page.drawText(`${scoreLabel(overallScore)} AI Visibility`, { x: M + 20, y: cardY - 80, size: 11, font: helveticaBold, color: scoreColor(overallScore) });
+
+  // Mini bar
+  const barX = M + 170;
+  const barW = contentW - 190;
+  page.drawRectangle({ x: barX, y: cardY - 50, width: barW, height: 10, color: faint });
+  page.drawRectangle({ x: barX, y: cardY - 50, width: Math.max(1, (overallScore / 100) * barW), height: 10, color: scoreColor(overallScore) });
+
+  // Benchmark marker
+  const bmkX = barX + (industryBenchmark.benchmark / 100) * barW;
+  page.drawLine({ start: { x: bmkX, y: cardY - 54 }, end: { x: bmkX, y: cardY - 38 }, thickness: 2, color: dark });
+  page.drawText(`Ind. avg: ${industryBenchmark.benchmark}`, { x: barX, y: cardY - 67, size: 8, font: helvetica, color: light });
+
+  // Key metrics row
+  const mentionCount = validResults.filter(r => r.brandMentioned).length;
+  const mentionRate = validResults.length > 0 ? Math.round((mentionCount / validResults.length) * 100) : 0;
+  const promptsTested = new Set(results.map(r => r.prompt)).size;
+  const providersUsed = Object.keys(providerStats).length;
+
+  const metricsY = cardY - 30;
+  const metricCols = [
+    { label: 'Prompts Tested', value: `${promptsTested}` },
+    { label: 'AI Platforms', value: `${providersUsed}` },
+    { label: 'Brand Mention Rate', value: `${mentionRate}%` },
+    { label: 'Total Checks', value: `${validResults.length}` },
   ];
-  
-  let benefitY = pageHeight - 210;
-  for (const benefit of benefits) {
-    page.drawText(benefit, {
-      x: margin + 20,
-      y: benefitY,
-      size: 11,
-      font: helvetica,
-      color: rgb(0.3, 0.3, 0.3)
-    });
-    benefitY -= 22;
+  const colW = (contentW - 170) / metricCols.length;
+  for (let i = 0; i < metricCols.length; i++) {
+    const mx = barX + i * colW;
+    page.drawText(metricCols[i].value, { x: mx, y: metricsY - 10, size: 16, font: helveticaBold, color: dark });
+    page.drawText(metricCols[i].label, { x: mx, y: metricsY - 24, size: 7, font: helvetica, color: light });
   }
-  
-  page.drawText('Book a demo: https://llumos.app', {
-    x: margin,
-    y: benefitY - 30,
-    size: 14,
-    font: helveticaBold,
-    color: rgb(0.4, 0.2, 0.8)
-  });
+
+  y = cardY - 120;
+
+  // Executive Summary
+  y = drawSection(page, 'Executive Summary', y);
+  for (const point of execSummary) {
+    y = drawWrappedText(page, `  ${point}`, M + 5, y, { size: 10, font: helvetica, color: mid, maxChars: 88, lineSpacing: 15 });
+    y -= 2;
+  }
+
+  // Platform Performance
+  y -= 10;
+  y = drawSection(page, 'Visibility by AI Platform', y);
+
+  for (const [provider, data] of Object.entries(providerStats)) {
+    const avg = Math.round(data.total / data.count);
+    const mRate = `${data.mentioned}/${data.count} mentioned`;
+
+    page.drawText(provider, { x: M + 5, y, size: 10, font: helveticaBold, color: dark });
+    page.drawText(mRate, { x: M + 100, y, size: 9, font: helvetica, color: light });
+
+    y -= 16;
+    const pBarW = contentW - 80;
+    page.drawRectangle({ x: M + 5, y: y + 2, width: pBarW, height: 8, color: faint });
+    page.drawRectangle({ x: M + 5, y: y + 2, width: Math.max(1, (avg / 100) * pBarW), height: 8, color: scoreColor(avg) });
+    page.drawText(`${avg}`, { x: M + pBarW + 12, y, size: 9, font: helveticaBold, color: scoreColor(avg) });
+
+    y -= 20;
+  }
+
+  // Industry Benchmark
+  y -= 5;
+  y = drawSection(page, 'Industry Benchmark', y);
+  const bDiff = overallScore - industryBenchmark.benchmark;
+  const bText = bDiff >= 0
+    ? `+${bDiff} points above the ${industryBenchmark.industry} average (${industryBenchmark.benchmark}/100)`
+    : `${bDiff} points below the ${industryBenchmark.industry} average (${industryBenchmark.benchmark}/100)`;
+  page.drawText(`Your Score: ${overallScore}  |  ${bText}`, { x: M + 5, y, size: 10, font: helvetica, color: bDiff >= 0 ? green : red });
+  y -= 22;
+
+  // Competitor Landscape
+  if (sortedCompetitors.length > 0) {
+    y -= 5;
+    y = drawSection(page, 'Competitor Landscape', y);
+    page.drawText('Brands mentioned by AI when your audience searches for relevant topics:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    y -= 18;
+
+    for (const [name, count] of sortedCompetitors) {
+      const cBarW = Math.min(200, (count / validResults.length) * 200);
+      page.drawText(name, { x: M + 5, y, size: 10, font: helvetica, color: dark });
+      page.drawRectangle({ x: M + 140, y: y + 1, width: cBarW, height: 8, color: rgb(0.40, 0.35, 0.60) });
+      page.drawText(`${count}x`, { x: M + 145 + cBarW, y, size: 8, font: helveticaBold, color: accent });
+      y -= 16;
+      if (y < 80) break;
+    }
+  }
+
+  // Content Gaps
+  if (contentGaps.length > 0 && y > 120) {
+    y -= 10;
+    y = drawSection(page, 'Content Gap Opportunities', y);
+    page.drawText('Topics where your brand is absent from AI responses:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    y -= 16;
+    for (const gap of contentGaps) {
+      y = drawWrappedText(page, `  ${gap}`, M + 5, y, { size: 9, font: helvetica, color: mid, maxChars: 85, lineSpacing: 13 });
+      y -= 4;
+    }
+  }
+
+  // ====================== PAGE 2+: DETAILED RESULTS ======================
+  page = newPage();
+  y = H - 50;
+
+  // Section header
+  page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+  page.drawText('DETAILED PROMPT ANALYSIS', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+
+  y = H - 70;
+
+  // Group results by prompt
+  const promptGroups = new Map<string, ProviderResult[]>();
+  for (const r of results) {
+    const arr = promptGroups.get(r.prompt) || [];
+    arr.push(r);
+    promptGroups.set(r.prompt, arr);
+  }
+
+  let promptIdx = 0;
+  for (const [prompt, providerResults] of promptGroups) {
+    promptIdx++;
+
+    // Check space for new prompt block (need ~180px minimum)
+    if (y < 200) {
+      page = newPage();
+      y = H - 60;
+    }
+
+    // Prompt header
+    page.drawRectangle({ x: M, y: y - 2, width: contentW, height: 20, color: rgb(0.95, 0.95, 0.97) });
+    page.drawText(`Prompt ${promptIdx}`, { x: M + 6, y: y + 2, size: 10, font: helveticaBold, color: accent });
+    y -= 22;
+
+    // Prompt text
+    y = drawWrappedText(page, `"${prompt}"`, M + 6, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
+    y -= 8;
+
+    for (const r of providerResults) {
+      if (y < 100) { page = newPage(); y = H - 60; }
+
+      // Provider row
+      const mentioned = r.brandMentioned;
+      const statusColor = mentioned ? green : red;
+      const statusText = mentioned ? 'MENTIONED' : 'NOT FOUND';
+
+      page.drawText(r.provider, { x: M + 10, y, size: 10, font: helveticaBold, color: dark });
+      page.drawText(statusText, { x: M + 100, y, size: 8, font: helveticaBold, color: statusColor });
+      page.drawText(`Score: ${r.score}/100`, { x: M + 180, y, size: 8, font: helvetica, color: light });
+
+      y -= 14;
+
+      // Response excerpt (first 200 chars)
+      if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
+        const excerpt = r.response.substring(0, 220).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 220 ? '...' : '');
+        y = drawWrappedText(page, excerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
+        y -= 4;
+      }
+
+      // Per-response competitors
+      if (r.competitors.length > 0) {
+        page.drawText(`Competitors in response: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helvetica, color: accent });
+        y -= 12;
+      }
+
+      y -= 6;
+    }
+
+    // Divider
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: faint });
+    y -= 16;
+  }
+
+  // ====================== FINAL PAGE: CTA ======================
+  page = newPage();
   
   // Footer
   page.drawText('© Llumos.app - AI Visibility Intelligence', {
