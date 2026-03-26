@@ -535,7 +535,7 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
     result.response = data.choices[0]?.message?.content || '';
 
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.competitors = competitorCandidates.slice(0, 8);
     result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
@@ -587,7 +587,7 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
     result.response = data.choices[0]?.message?.content || '';
 
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.competitors = competitorCandidates.slice(0, 8);
     result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
@@ -662,7 +662,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     }
 
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.competitors = competitorCandidates.slice(0, 8);
     result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
