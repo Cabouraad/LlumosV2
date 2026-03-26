@@ -1111,29 +1111,47 @@ async function generatePDF(
     
     yPos -= 18;
     
-    // Competitors (BLURRED)
+    // Competitors mentioned (shown transparently)
     if (result.competitors.length > 0) {
       page.drawText('Competitors mentioned:', {
         x: margin,
         y: yPos,
         size: 10,
-        font: helvetica,
-        color: rgb(0.5, 0.5, 0.5)
+        font: helveticaBold,
+        color: rgb(0.4, 0.4, 0.4)
       });
       
-      yPos -= 14;
+      yPos -= 16;
       
-      // Show blurred competitor names
-      const blurredCompetitors = result.competitors.map(c => blurText(c)).join(', ');
-      page.drawText(blurredCompetitors, {
-        x: margin + 10,
-        y: yPos,
-        size: 10,
-        font: helvetica,
-        color: rgb(0.6, 0.6, 0.6)
-      });
+      // Show actual competitor names
+      const competitorList = result.competitors.join(', ');
+      // Wrap long competitor lists across multiple lines
+      const maxLineWidth = pageWidth - margin * 2 - 10;
+      const charsPerLine = Math.floor(maxLineWidth / 5.5); // approx chars per line at size 10
+      const lines: string[] = [];
+      let remaining = competitorList;
+      while (remaining.length > 0) {
+        if (remaining.length <= charsPerLine) {
+          lines.push(remaining);
+          break;
+        }
+        let breakIdx = remaining.lastIndexOf(', ', charsPerLine);
+        if (breakIdx === -1) breakIdx = charsPerLine;
+        else breakIdx += 2; // include the ", "
+        lines.push(remaining.substring(0, breakIdx));
+        remaining = remaining.substring(breakIdx);
+      }
       
-      yPos -= 14;
+      for (const line of lines) {
+        page.drawText(line, {
+          x: margin + 10,
+          y: yPos,
+          size: 10,
+          font: helvetica,
+          color: rgb(0.25, 0.25, 0.25)
+        });
+        yPos -= 14;
+      }
     }
     
     yPos -= 20;
