@@ -31,6 +31,169 @@ interface ProviderResult {
   score: number;
 }
 
+const NON_COMPETITOR_ENTITIES = new Set([
+  'google', 'google ads', 'google analytics', 'google business profile', 'google my business', 'google maps',
+  'facebook', 'facebook ads', 'instagram', 'instagram ads', 'linkedin', 'linkedin ads', 'x', 'twitter',
+  'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
+  'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
+  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
+  'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
+  'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
+  'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
+  'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
+  'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
+  'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'mailchimp', 'hubspot', 'salesforce',
+  'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext', 'canva', 'figma', 'slack', 'zoom'
+]);
+
+const GENERIC_COMPETITOR_TERMS = new Set([
+  'agency', 'agencies', 'company', 'companies', 'firm', 'firms', 'service', 'services', 'solutions',
+  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'optimization', 'growth',
+  'consulting', 'tips', 'guide', 'ranked', 'consensus', 'implementation', 'small', 'legal', 'law'
+]);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeEntityName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\[(\d+)\]/g, ' ')
+    .replace(/\.(com|io|net|org|co|app|ai|dev)\b/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function dedupeBrandNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const name of names) {
+    const normalized = normalizeEntityName(name);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(name.trim());
+  }
+
+  return deduped;
+}
+
+function hasBrandLikeShape(name: string): boolean {
+  const trimmed = name.trim();
+  return /\./.test(trimmed) || /[A-Z]/.test(trimmed);
+}
+
+function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
+  const normalized = normalizeEntityName(name);
+  const normalizedBrand = normalizeEntityName(brandName);
+  const normalizedDomain = normalizeEntityName(domain);
+
+  if (!normalized || normalized.length < 3) return false;
+  if (!hasBrandLikeShape(name)) return false;
+  if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
+  if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
+  if (/^\d+$/.test(normalized)) return false;
+  if (normalized.split(' ').length > 4) return false;
+  if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
+
+  return true;
+}
+
+function parseCompetitorCandidatesFromResearch(
+  businessContext: string,
+  brandName: string,
+  domain: string,
+): string[] {
+  if (!businessContext) return [];
+
+  const candidates: string[] = [];
+  const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,260})/i);
+
+  if (!competitorSectionMatch?.[1]) {
+    return [];
+  }
+
+  const competitorSection = competitorSectionMatch[1]
+    .replace(/\[[^\]]+\]/g, ' ')
+    .split(/\n\n|\r\n\r\n/)[0];
+
+  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\|/)) {
+    const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
+    if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
+      candidates.push(cleaned);
+    }
+  }
+
+  return dedupeBrandNames(candidates).slice(0, 8);
+}
+
+async function identifyCompetitorCandidates(
+  domain: string,
+  brandName: string,
+  businessContext: string,
+): Promise<string[]> {
+  const fallbackCandidates = parseCompetitorCandidatesFromResearch(businessContext, brandName, domain);
+
+  if (!OPENAI_API_KEY) {
+    return fallbackCandidates;
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 250,
+        messages: [
+          {
+            role: 'system',
+            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-8 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
+          },
+          {
+            role: 'user',
+            content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness research:\n${businessContext || 'No business research available.'}\n\nReturn only direct competitor brand names for this company as a JSON array of strings.`
+          }
+        ]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI competitor extraction error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content?.trim() || '';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        const aiCandidates = parsed
+          .map((item: unknown) => typeof item === 'string' ? item : '')
+          .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain));
+
+        const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 8);
+        if (cleanedCandidates.length > 0) {
+          return cleanedCandidates;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[AutoReport] Error identifying competitor candidates:', error);
+  }
+
+  return fallbackCandidates;
+}
+
 /**
  * Research the business to understand their industry and offerings
  */
@@ -332,7 +495,7 @@ async function sendFailureNotificationEmail(
 /**
  * Query ChatGPT (OpenAI)
  */
-async function queryChatGPT(prompt: string, brandName: string): Promise<ProviderResult> {
+async function queryChatGPT(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'ChatGPT',
     prompt,
@@ -370,16 +533,10 @@ async function queryChatGPT(prompt: string, brandName: string): Promise<Provider
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    
-    // Check if brand is mentioned
+
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    
-    // Extract competitors (simplified)
-    result.competitors = extractCompetitors(result.response, brandName);
-    
-    // Calculate score
+    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -391,7 +548,7 @@ async function queryChatGPT(prompt: string, brandName: string): Promise<Provider
 /**
  * Query Perplexity
  */
-async function queryPerplexity(prompt: string, brandName: string): Promise<ProviderResult> {
+async function queryPerplexity(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Perplexity',
     prompt,
@@ -428,16 +585,10 @@ async function queryPerplexity(prompt: string, brandName: string): Promise<Provi
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    
-    // Check if brand is mentioned
+
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    
-    // Extract competitors
-    result.competitors = extractCompetitors(result.response, brandName);
-    
-    // Calculate score
+    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -449,7 +600,7 @@ async function queryPerplexity(prompt: string, brandName: string): Promise<Provi
 /**
  * Query Google AI Overview via SerpAPI
  */
-async function queryGoogleAIO(prompt: string, brandName: string): Promise<ProviderResult> {
+async function queryGoogleAIO(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Google AI',
     prompt,
@@ -465,7 +616,6 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
   }
 
   try {
-    // Step 1: Google Search to get page_token
     const googleSearchUrl = new URL('https://serpapi.com/search.json');
     googleSearchUrl.searchParams.set('engine', 'google');
     googleSearchUrl.searchParams.set('q', prompt);
@@ -487,7 +637,6 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
       return result;
     }
 
-    // Step 2: Get AI Overview content
     const aioUrl = new URL('https://serpapi.com/search.json');
     aioUrl.searchParams.set('engine', 'google_ai_overview');
     aioUrl.searchParams.set('page_token', pageToken);
@@ -502,7 +651,6 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
     const aioData = await aioResponse.json();
     const aiOverview = aioData.ai_overview || aioData;
 
-    // Extract summary
     if (aiOverview.text_blocks && Array.isArray(aiOverview.text_blocks)) {
       result.response = aiOverview.text_blocks
         .map((block: any) => block.snippet || block.text || '')
@@ -513,15 +661,9 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
       result.response = aiOverview.snippet || aiOverview.text || '';
     }
 
-    // Check if brand is mentioned
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    
-    // Extract competitors
-    result.competitors = extractCompetitors(result.response, brandName);
-    
-    // Calculate score
+    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -531,119 +673,35 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
 }
 
 /**
- * Extract actual competitor brand names from response text
- * Uses pattern matching focused on real company/brand mentions
+ * Extract only direct competitor brands from response text
+ * Uses a researched company-specific competitor allowlist instead of generic pattern matching
  */
-function extractCompetitors(text: string, brandName: string): string[] {
-  const brandLower = brandName.toLowerCase();
-  
-  // Platforms, channels, and tools that are NOT business competitors
-  // These are marketing tools/channels, not competing businesses
-  const platformsAndChannels = new Set([
-    'google ads', 'facebook ads', 'linkedin ads', 'instagram ads', 'tiktok ads',
-    'google', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok',
-    'youtube', 'pinterest', 'reddit', 'snapchat', 'whatsapp',
-    'google my business', 'google business profile', 'bing places',
-    'apple business connect', 'google maps', 'apple maps',
-    'yelp', 'bbb', 'better business bureau',
-    'social media', 'email marketing', 'content marketing',
-    'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'weebly',
-    'godaddy', 'bigcommerce', 'magento', 'woocommerce',
-    'mailchimp', 'constant contact', 'activecampaign',
-    'google analytics', 'google search console',
-    'zapier', 'canva', 'figma', 'slack', 'zoom', 'microsoft teams',
-    'quickbooks', 'freshbooks', 'xero', 'wave', 'gusto', 'adp', 'paychex',
-    'square', 'stripe', 'paypal', 'venmo',
-    'hubspot', 'salesforce', 'zoho', 'pipedrive', 'monday.com',
-    'asana', 'trello', 'clickup', 'notion',
-    'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext',
-    'hootsuite', 'buffer', 'sprout social',
-    'zendesk', 'freshdesk', 'intercom', 'drift',
-    'g2', 'capterra', 'trustpilot', 'clutch',
-    'glassdoor', 'indeed', 'coursera', 'udemy', 'linkedin learning',
-    'avvo', 'doordash', 'uber eats', 'grubhub', 'opentable',
-    'zillow', 'realtor.com', 'redfin', 'trulia',
-    'nerdwallet', 'bankrate', 'credit karma',
-    'zocdoc', 'healthgrades', 'webmd',
-  ]);
+function extractCompetitors(text: string, brandName: string, competitorCandidates: string[]): string[] {
+  if (!competitorCandidates.length) return [];
 
-  const competitors: string[] = [];
-  const textLower = text.toLowerCase();
+  const normalizedText = ` ${normalizeEntityName(text)} `;
+  const normalizedBrand = normalizeEntityName(brandName);
 
-  // Extract likely competitor businesses using contextual patterns
-  // Look for businesses mentioned as alternatives, recommendations, or in lists
-  const companyPatterns = [
-    // Names ending with common company suffixes
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|LLC|Corp|Co|Group|Solutions|Software|Agency|Media|Digital|Services|Labs|Studio|Platform|Technologies|Consulting)\.?))\b/g,
-    // Domain-like mentions (e.g., "example.com")
-    /\b([a-zA-Z0-9][-a-zA-Z0-9]*\.(?:com|io|co|org|net|app|ai|dev))\b/g,
-    // CamelCase or compound brand names (e.g., "HubSpot", "MailChimp")
-    /\b([A-Z][a-z]+[A-Z][a-zA-Z]+)\b/g,
-    // Multi-word proper nouns that look like company names (2-3 capitalized words)
-    /\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,2})\b/g,
-  ];
+  return dedupeBrandNames(competitorCandidates)
+    .filter((candidate) => {
+      const normalizedCandidate = normalizeEntityName(candidate);
+      if (!normalizedCandidate || normalizedCandidate === normalizedBrand) return false;
+      if (NON_COMPETITOR_ENTITIES.has(normalizedCandidate)) return false;
 
-  // Generic words that should never be treated as competitor names
-  const excludeTerms = new Set([
-    'the', 'and', 'for', 'with', 'from', 'that', 'this', 'what', 'how',
-    'who', 'why', 'when', 'where', 'which', 'your', 'their', 'these',
-    'those', 'here', 'there', 'been', 'being', 'have', 'has', 'had',
-    'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
-    'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'also',
-    'just', 'than', 'then', 'now', 'very', 'much', 'more', 'most',
-    'some', 'such', 'only', 'other', 'into', 'over', 'after', 'before',
-    'about', 'between', 'through', 'during', 'without', 'within',
-    // Common non-brand capitalized words in AI responses
-    'improving', 'marketing', 'digital', 'online', 'local', 'services',
-    'strategies', 'strategy', 'business', 'management', 'advertising',
-    'optimization', 'content', 'social', 'media', 'search', 'engine',
-    'website', 'client', 'clients', 'customer', 'customers', 'lead',
-    'leads', 'generation', 'practice', 'firm', 'firms', 'law', 'legal',
-    'attorney', 'attorneys', 'lawyer', 'lawyers', 'professional',
-    'key', 'best', 'top', 'new', 'first', 'well', 'good', 'great',
-    'important', 'effective', 'essential', 'critical', 'consider',
-    'using', 'creating', 'building', 'developing', 'implementing',
-    'establish', 'focus', 'ensure', 'provide', 'include', 'offer',
-    'however', 'additionally', 'furthermore', 'therefore', 'moreover',
-    'specific', 'particularly', 'especially', 'generally', 'typically',
-    'example', 'examples', 'tips', 'step', 'steps', 'guide', 'way',
-    'ways', 'approach', 'method', 'methods', 'techniques', 'tools',
-    'tool', 'platform', 'platforms', 'system', 'systems', 'solution',
-    'solutions', 'feature', 'features', 'benefit', 'benefits', 'value',
-    'results', 'growth', 'success', 'performance', 'quality', 'industry',
-    'market', 'brand', 'brands', 'company', 'companies', 'agency',
-    'agencies', 'network', 'community', 'audience', 'target', 'reach',
-    'visibility', 'presence', 'reputation', 'authority', 'trust',
-    'engagement', 'conversion', 'traffic', 'ranking', 'rankings',
-    'keywords', 'backlinks', 'citations', 'reviews', 'testimonials',
-    'schema', 'structured', 'data', 'analytics', 'tracking', 'metrics',
-    'report', 'reports', 'blog', 'blogs', 'post', 'posts', 'article',
-    'articles', 'page', 'pages', 'site', 'sites', 'web', 'email',
-    'call', 'action', 'ads', 'pay', 'per', 'click', 'ppc', 'seo',
-    'sem', 'smm', 'crm', 'roi', 'cta', 'url', 'api',
-    // AI provider names to exclude
-    'openai', 'chatgpt', 'google', 'perplexity', 'microsoft', 'gemini',
-    'claude', 'anthropic', 'meta', 'llama', 'copilot', 'bing',
-    brandLower,
-  ]);
+      const aliases = new Set<string>([
+        normalizedCandidate,
+        normalizedCandidate.replace(/\s+/g, ' ').trim(),
+        candidate.toLowerCase().replace(/^www\./, '').replace(/^https?:\/\//, '').trim(),
+      ]);
 
-  for (const pattern of companyPatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const name = match[1].trim();
-      const nameLower = name.toLowerCase();
-      // Must be 3+ chars, not a platform/channel, not excluded, not already found
-      if (name.length >= 3 && 
-          !platformsAndChannels.has(nameLower) &&
-          !excludeTerms.has(nameLower) &&
-          nameLower !== brandLower &&
-          !competitors.some(c => c.toLowerCase() === nameLower)) {
-        competitors.push(name);
-      }
-    }
-  }
-
-  return competitors.slice(0, 8);
+      return Array.from(aliases).some((alias) => {
+        const normalizedAlias = normalizeEntityName(alias);
+        if (!normalizedAlias || normalizedAlias.length < 3) return false;
+        const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(normalizedAlias)}([^a-z0-9]|$)`, 'i');
+        return pattern.test(normalizedText);
+      });
+    })
+    .slice(0, 8);
 }
 
 /**
@@ -1452,6 +1510,8 @@ serve(async (req) => {
     // Step 1: Research the business to understand their industry
     console.log('[AutoReport] Researching business...');
     const businessContext = await researchBusiness(domain);
+    const competitorCandidates = await identifyCompetitorCandidates(domain, brandName, businessContext);
+    console.log('[AutoReport] Competitor candidates:', competitorCandidates);
 
     // Step 2: Generate industry-relevant prompts based on research
     console.log('[AutoReport] Generating prompts...');
@@ -1466,9 +1526,9 @@ serve(async (req) => {
     for (const prompt of prompts) {
       // Query all providers in parallel for this prompt
       const [chatgptResult, perplexityResult, googleResult] = await Promise.all([
-        queryChatGPT(prompt, brandName),
-        queryPerplexity(prompt, brandName),
-        queryGoogleAIO(prompt, brandName)
+        queryChatGPT(prompt, brandName, competitorCandidates),
+        queryPerplexity(prompt, brandName, competitorCandidates),
+        queryGoogleAIO(prompt, brandName, competitorCandidates)
       ]);
 
       allResults.push(chatgptResult, perplexityResult, googleResult);
