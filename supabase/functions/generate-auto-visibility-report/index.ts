@@ -114,7 +114,7 @@ function parseCompetitorCandidatesFromResearch(
   if (!businessContext) return [];
 
   const candidates: string[] = [];
-  const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,260})/i);
+  const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,500})/i);
 
   if (!competitorSectionMatch?.[1]) {
     return [];
@@ -124,14 +124,76 @@ function parseCompetitorCandidatesFromResearch(
     .replace(/\[[^\]]+\]/g, ' ')
     .split(/\n\n|\r\n\r\n/)[0];
 
-  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\|/)) {
+  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\||\s+and\s+/i)) {
     const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
     if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
       candidates.push(cleaned);
     }
   }
 
-  return dedupeBrandNames(candidates).slice(0, 8);
+  return dedupeBrandNames(candidates).slice(0, 15);
+}
+
+function extractBrandLikeCandidatesFromText(
+  text: string,
+  brandName: string,
+  domain: string,
+): string[] {
+  if (!text) return [];
+
+  const candidates: string[] = [];
+
+  const addCandidate = (value: string) => {
+    const cleaned = value
+      .replace(/^[-–—\d.\s]+/, '')
+      .replace(/[\[\](){}]/g, ' ')
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
+      candidates.push(cleaned);
+    }
+  };
+
+  for (const match of text.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev)\b/gi) || []) {
+    addCandidate(match);
+  }
+
+  for (const match of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'.-]*(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,2})/gm)) {
+    addCandidate(match[1]);
+  }
+
+  for (const match of text.matchAll(/(?:include|includes|including|recommend|recommended|options(?:\s+include)?|such as|alternatives?\s+(?:include|are)|platforms?\s+(?:include|like))\s+([^.;:\n]{0,140})/gi)) {
+    for (const rawPart of match[1].split(/,|;|\/|\s+and\s+/i)) {
+      addCandidate(rawPart);
+    }
+  }
+
+  return dedupeBrandNames(candidates);
+}
+
+function extractCompetitorCandidatesFromResults(
+  results: ProviderResult[],
+  brandName: string,
+  domain: string,
+): string[] {
+  const counts = new Map<string, number>();
+
+  for (const result of results) {
+    if (!result.response || result.response.startsWith('Error') || result.response.startsWith('Provider not') || result.response.startsWith('No AI Overview')) {
+      continue;
+    }
+
+    const candidates = extractBrandLikeCandidatesFromText(result.response, brandName, domain);
+    for (const candidate of candidates) {
+      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([candidate]) => candidate);
 }
 
 async function identifyCompetitorCandidates(
@@ -155,11 +217,11 @@ async function identifyCompetitorCandidates(
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0,
-        max_tokens: 250,
+        max_tokens: 350,
         messages: [
           {
             role: 'system',
-            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-8 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
+            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-15 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
           },
           {
             role: 'user',
@@ -184,7 +246,7 @@ async function identifyCompetitorCandidates(
           .map((item: unknown) => typeof item === 'string' ? item : '')
           .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain));
 
-        const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 8);
+        const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 15);
         if (cleanedCandidates.length > 0) {
           return cleanedCandidates;
         }
@@ -195,6 +257,85 @@ async function identifyCompetitorCandidates(
   }
 
   return fallbackCandidates;
+}
+
+async function refineCompetitorCandidatesFromResults(
+  domain: string,
+  brandName: string,
+  businessContext: string,
+  results: ProviderResult[],
+  initialCandidates: string[],
+): Promise<string[]> {
+  const responseCandidates = extractCompetitorCandidatesFromResults(results, brandName, domain);
+  const combinedCandidates = dedupeBrandNames([...responseCandidates, ...initialCandidates]).slice(0, 20);
+
+  if (combinedCandidates.length === 0) {
+    return [];
+  }
+
+  if (!OPENAI_API_KEY || responseCandidates.length === 0) {
+    return combinedCandidates.slice(0, 15);
+  }
+
+  try {
+    const snippets = results
+      .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
+      .slice(0, 12)
+      .map((result, index) => `Snippet ${index + 1} (${result.provider}): ${result.response.replace(/\s+/g, ' ').trim().slice(0, 260)}`)
+      .join('\n');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 400,
+        messages: [
+          {
+            role: 'system',
+            content: 'You validate direct competitor brands for a company based on business context and AI response snippets. Return ONLY a JSON array of brand names that are true direct competitors and explicitly appear in the snippets or the provided candidate list. Exclude generic terms, publishers, directories, platforms, channels, and non-competitor entities.'
+          },
+          {
+            role: 'user',
+            content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness context:\n${businessContext || 'No business context available.'}\n\nInitial researched competitors:\n${initialCandidates.join(', ') || 'None'}\n\nAdditional brand-like names found in AI responses:\n${responseCandidates.join(', ') || 'None'}\n\nAI response snippets:\n${snippets}\n\nReturn only the final direct competitor brands as a JSON array of strings.`
+          }
+        ]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI competitor refinement error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content?.trim() || '';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        const allowed = new Set(combinedCandidates.map((candidate) => normalizeEntityName(candidate)));
+        const refined = dedupeBrandNames(
+          parsed
+            .map((item: unknown) => typeof item === 'string' ? item : '')
+            .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
+            .filter((item: string) => allowed.has(normalizeEntityName(item)))
+        ).slice(0, 15);
+
+        if (refined.length > 0) {
+          return refined;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[AutoReport] Error refining competitor candidates from results:', error);
+  }
+
+  return combinedCandidates.slice(0, 15);
 }
 
 /**
