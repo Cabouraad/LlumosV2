@@ -796,29 +796,46 @@ function detectBrandPosition(response: string, brandName: string): number | null
  * Returns 0-100: how consistently the brand is mentioned across providers for the same prompt
  */
 function calculateProviderConsistency(results: ProviderResult[]): { score: number; label: string; detail: string } {
+  const validResults = results.filter(
+    (result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview')
+  );
+
+  if (validResults.length === 0) {
+    return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+  }
+
+  const totalMentions = validResults.filter((result) => result.brandMentioned).length;
+  if (totalMentions === 0) {
+    return {
+      score: 0,
+      label: 'No Visibility',
+      detail: 'Your brand was not mentioned in any AI response, so consistency is shown as 0 until there is visibility to compare across providers.'
+    };
+  }
+
   const promptGroups = new Map<string, ProviderResult[]>();
-  for (const r of results) {
-    const arr = promptGroups.get(r.prompt) || [];
-    arr.push(r);
-    promptGroups.set(r.prompt, arr);
+  for (const result of validResults) {
+    const arr = promptGroups.get(result.prompt) || [];
+    arr.push(result);
+    promptGroups.set(result.prompt, arr);
   }
 
   let totalPrompts = 0;
   let consistentPrompts = 0;
 
   for (const [, group] of promptGroups) {
-    const valid = group.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    if (valid.length < 2) continue;
+    if (group.length < 2) continue;
     totalPrompts++;
 
-    const mentionedCount = valid.filter(r => r.brandMentioned).length;
-    // Consistent = all mention or all don't mention
-    if (mentionedCount === valid.length || mentionedCount === 0) {
+    const mentionedCount = group.filter((result) => result.brandMentioned).length;
+    if (mentionedCount === group.length || mentionedCount === 0) {
       consistentPrompts++;
     }
   }
 
-  if (totalPrompts === 0) return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+  if (totalPrompts === 0) {
+    return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
+  }
 
   const score = Math.round((consistentPrompts / totalPrompts) * 100);
   let label: string;
@@ -849,31 +866,39 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
   brandRow: Record<string, boolean>;
 } {
   const allCompetitors = new Set<string>();
+  const competitorCounts = new Map<string, number>();
   const promptTexts: string[] = [];
   const promptSet = new Set<string>();
 
-  for (const r of results) {
-    if (!promptSet.has(r.prompt)) {
-      promptSet.add(r.prompt);
-      promptTexts.push(r.prompt);
+  for (const result of results) {
+    if (!promptSet.has(result.prompt)) {
+      promptSet.add(result.prompt);
+      promptTexts.push(result.prompt);
     }
-    for (const c of r.competitors) allCompetitors.add(c);
+
+    for (const competitor of result.competitors) {
+      allCompetitors.add(competitor);
+      competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
+    }
   }
 
-  const competitors = Array.from(allCompetitors);
+  const competitors = Array.from(allCompetitors).sort(
+    (a, b) => (competitorCounts.get(b) || 0) - (competitorCounts.get(a) || 0) || a.localeCompare(b)
+  );
   const matrix: Record<string, Record<string, boolean>> = {};
   const brandRow: Record<string, boolean> = {};
 
   for (const prompt of promptTexts) {
-    const promptResults = results.filter(r => r.prompt === prompt);
-    const validResults = promptResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+    const promptResults = results.filter((result) => result.prompt === prompt);
+    const validResults = promptResults.filter(
+      (result) => !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview')
+    );
 
-    // Brand mentioned in ANY provider for this prompt?
-    brandRow[prompt] = validResults.some(r => r.brandMentioned);
+    brandRow[prompt] = validResults.some((result) => result.brandMentioned);
 
-    for (const comp of competitors) {
-      if (!matrix[comp]) matrix[comp] = {};
-      matrix[comp][prompt] = validResults.some(r => r.competitors.includes(comp));
+    for (const competitor of competitors) {
+      if (!matrix[competitor]) matrix[competitor] = {};
+      matrix[competitor][prompt] = validResults.some((result) => result.competitors.includes(competitor));
     }
   }
 
