@@ -1340,8 +1340,10 @@ async function generatePDF(
   const cardY = y - 5;
   page.drawRectangle({ x: M, y: cardY - 100, width: contentW, height: 100, color: rgb(0.97, 0.97, 0.98), borderColor: faint, borderWidth: 1 });
 
-  page.drawText(`${overallScore}`, { x: M + 20, y: cardY - 55, size: 52, font: helveticaBold, color: scoreColor(overallScore) });
-  page.drawText('/100', { x: M + 85, y: cardY - 55, size: 18, font: helvetica, color: light });
+  const scoreText = `${overallScore}`;
+  const scoreTextWidth = helveticaBold.widthOfTextAtSize(scoreText, 52);
+  page.drawText(scoreText, { x: M + 20, y: cardY - 55, size: 52, font: helveticaBold, color: scoreColor(overallScore) });
+  page.drawText('/100', { x: M + 20 + scoreTextWidth + 4, y: cardY - 55, size: 18, font: helvetica, color: light });
 
   page.drawText(`${scoreLabel(overallScore)} AI Visibility`, { x: M + 20, y: cardY - 80, size: 11, font: helveticaBold, color: scoreColor(overallScore) });
 
