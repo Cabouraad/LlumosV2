@@ -1235,7 +1235,193 @@ async function generatePDF(
     }
   }
 
-  // ====================== PAGE 2+: DETAILED RESULTS ======================
+  // ====================== PAGE 2: BRAND INTELLIGENCE ======================
+  page = newPage();
+  y = H - 50;
+
+  page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+  page.drawText('BRAND INTELLIGENCE ANALYSIS', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+  y = H - 70;
+
+  // --- Brand Sentiment Analysis ---
+  y = drawSection(page, 'Brand Sentiment Analysis', y);
+  page.drawText('How AI platforms perceive your brand when they mention it:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+  y -= 18;
+
+  const sentimentCounts = { positive: 0, neutral: 0, negative: 0, not_mentioned: 0 };
+  for (const r of validResults) {
+    sentimentCounts[r.sentiment]++;
+  }
+
+  const sentimentData = [
+    { label: 'Positive', count: sentimentCounts.positive, color: green, icon: '+' },
+    { label: 'Neutral', count: sentimentCounts.neutral, color: amber, icon: '~' },
+    { label: 'Negative', count: sentimentCounts.negative, color: red, icon: '-' },
+    { label: 'Not Mentioned', count: sentimentCounts.not_mentioned, color: light, icon: 'x' },
+  ];
+
+  const sentBarW = contentW - 20;
+  const sentTotal = validResults.length || 1;
+
+  for (const s of sentimentData) {
+    const pct = Math.round((s.count / sentTotal) * 100);
+    const barPx = Math.max(1, (s.count / sentTotal) * sentBarW * 0.6);
+
+    page.drawText(`${s.icon} ${s.label}`, { x: M + 5, y, size: 9, font: helveticaBold, color: s.color });
+    page.drawText(`${s.count} (${pct}%)`, { x: M + 120, y, size: 9, font: helvetica, color: mid });
+    page.drawRectangle({ x: M + 190, y: y + 1, width: barPx, height: 8, color: s.color });
+    y -= 16;
+  }
+
+  // Sentiment insight
+  y -= 4;
+  const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative ? 'positive'
+    : sentimentCounts.negative > sentimentCounts.positive ? 'negative' : 'neutral';
+  const sentimentInsight = dominantSentiment === 'positive'
+    ? 'AI platforms generally portray your brand favorably — this is a strong trust signal.'
+    : dominantSentiment === 'negative'
+    ? 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.'
+    : 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  y = drawWrappedText(page, sentimentInsight, M + 5, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
+
+  // --- AI Platform Recommendation Strength ---
+  y -= 16;
+  y = drawSection(page, 'AI Platform Recommendation Strength', y);
+  page.drawText('How strongly each AI platform recommends your brand:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+  y -= 18;
+
+  const strengthColors = { strong: green, moderate: amber, weak: red, absent: light };
+  const strengthLabels = { strong: 'STRONG', moderate: 'MODERATE', weak: 'WEAK', absent: 'ABSENT' };
+  const strengthIcons = { strong: '***', moderate: '**', weak: '*', absent: '--' };
+
+  for (const [provider, _data] of Object.entries(providerStats)) {
+    const provResults = validResults.filter(r => r.provider === provider);
+    const strengths = provResults.map(r => r.recommendationStrength);
+
+    // Determine dominant strength for this provider
+    const strengthCount = { strong: 0, moderate: 0, weak: 0, absent: 0 };
+    for (const s of strengths) strengthCount[s]++;
+    const dominant = (Object.entries(strengthCount) as [keyof typeof strengthCount, number][])
+      .sort((a, b) => b[1] - a[1])[0][0];
+
+    page.drawText(provider, { x: M + 5, y, size: 10, font: helveticaBold, color: dark });
+
+    // Draw strength indicator blocks
+    const blockX = M + 120;
+    for (let i = 0; i < provResults.length && i < 5; i++) {
+      const s = provResults[i].recommendationStrength;
+      page.drawRectangle({ x: blockX + i * 22, y: y - 1, width: 18, height: 12, color: strengthColors[s] });
+    }
+
+    page.drawText(strengthLabels[dominant], { x: M + 250, y, size: 8, font: helveticaBold, color: strengthColors[dominant] });
+    
+    // Show position info if available
+    const positions = provResults.map(r => r.brandPosition).filter(p => p !== null) as number[];
+    if (positions.length > 0) {
+      const avgPos = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length * 10) / 10;
+      page.drawText(`Avg Position: #${avgPos}`, { x: M + 340, y, size: 8, font: helvetica, color: mid });
+    }
+
+    y -= 20;
+  }
+
+  // --- Provider Consistency Score ---
+  y -= 10;
+  y = drawSection(page, 'Provider Consistency Score', y);
+
+  const consistency = calculateProviderConsistency(results);
+
+  // Score circle
+  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistency.score >= 80 ? green : consistency.score >= 50 ? amber : red });
+  page.drawText(consistency.label, { x: M + 80, y: y + 2, size: 11, font: helveticaBold, color: dark });
+  y -= 18;
+  y = drawWrappedText(page, consistency.detail, M + 80, y, { size: 9, font: helvetica, color: mid, maxChars: 70, lineSpacing: 13 });
+
+  y -= 10;
+  page.drawText('High consistency = AI platforms agree about your brand = strong visibility signal', { x: M + 5, y, size: 8, font: helveticaOblique, color: light });
+
+  // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
+  const h2h = buildHeadToHeadMatrix(results, domain);
+
+  if (h2h.competitors.length > 0 && h2h.prompts.length > 0) {
+    page = newPage();
+    y = H - 50;
+
+    page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+    page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+    y = H - 70;
+
+    page.drawText('Which brands AI recommends for each query (your brand highlighted):', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    y -= 20;
+
+    // Column headers (prompt numbers)
+    const maxCols = Math.min(h2h.prompts.length, 5);
+    const colStartX = M + 130;
+    const matColW = (contentW - 140) / maxCols;
+
+    for (let i = 0; i < maxCols; i++) {
+      page.drawText(`P${i + 1}`, { x: colStartX + i * matColW + matColW / 2 - 5, y, size: 9, font: helveticaBold, color: accent });
+    }
+    y -= 4;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: faint });
+    y -= 14;
+
+    // Brand row (highlighted)
+    const brandLabel = domain.replace(/\.(com|io|net|org|co|app)$/i, '');
+    page.drawRectangle({ x: M, y: y - 4, width: contentW, height: 16, color: rgb(0.93, 0.95, 0.98) });
+    page.drawText(brandLabel.toUpperCase(), { x: M + 5, y, size: 9, font: helveticaBold, color: accent });
+
+    for (let i = 0; i < maxCols; i++) {
+      const prompt = h2h.prompts[i];
+      const present = h2h.brandRow[prompt];
+      const cx = colStartX + i * matColW + matColW / 2 - 4;
+      if (present) {
+        page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: green });
+        page.drawText('Y', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+      } else {
+        page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: red });
+        page.drawText('N', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+      }
+    }
+    y -= 20;
+
+    // Competitor rows
+    const displayCompetitors = h2h.competitors.slice(0, 10);
+    for (const comp of displayCompetitors) {
+      if (y < 80) break;
+
+      const compLabel = comp.length > 18 ? comp.substring(0, 16) + '..' : comp;
+      page.drawText(compLabel, { x: M + 5, y, size: 9, font: helvetica, color: dark });
+
+      for (let i = 0; i < maxCols; i++) {
+        const prompt = h2h.prompts[i];
+        const present = h2h.matrix[comp]?.[prompt] ?? false;
+        const cx = colStartX + i * matColW + matColW / 2 - 4;
+        if (present) {
+          page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: rgb(0.40, 0.35, 0.60) });
+          page.drawText('Y', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+        } else {
+          page.drawText('-', { x: cx + 2, y, size: 8, font: helvetica, color: faint });
+        }
+      }
+      y -= 16;
+    }
+
+    // Prompt legend
+    y -= 10;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: faint });
+    y -= 14;
+    page.drawText('PROMPT KEY:', { x: M + 5, y, size: 8, font: helveticaBold, color: accent });
+    y -= 14;
+
+    for (let i = 0; i < maxCols; i++) {
+      const truncPrompt = h2h.prompts[i].length > 80 ? h2h.prompts[i].substring(0, 78) + '...' : h2h.prompts[i];
+      y = drawWrappedText(page, `P${i + 1}: ${truncPrompt}`, M + 5, y, { size: 8, font: helvetica, color: mid, maxChars: 95, lineSpacing: 11 });
+      y -= 4;
+    }
+  }
+
+  // ====================== PAGE 4+: DETAILED RESULTS ======================
   page = newPage();
   y = H - 50;
 
@@ -1252,6 +1438,8 @@ async function generatePDF(
     arr.push(r);
     promptGroups.set(r.prompt, arr);
   }
+
+  const brandNameForHighlight = domain.replace(/\.(com|io|net|org|co|app)$/i, '').replace(/[.-]/g, ' ');
 
   let promptIdx = 0;
   for (const [prompt, providerResults] of promptGroups) {
@@ -1275,7 +1463,7 @@ async function generatePDF(
     for (const r of providerResults) {
       if (y < 100) { page = newPage(); y = H - 60; }
 
-      // Provider row
+      // Provider row with enhanced info
       const mentioned = r.brandMentioned;
       const statusColor = mentioned ? green : red;
       const statusText = mentioned ? 'MENTIONED' : 'NOT FOUND';
@@ -1284,18 +1472,108 @@ async function generatePDF(
       page.drawText(statusText, { x: M + 100, y, size: 8, font: helveticaBold, color: statusColor });
       page.drawText(`Score: ${r.score}/100`, { x: M + 180, y, size: 8, font: helvetica, color: light });
 
+      // Sentiment & Strength badges
+      if (r.sentiment !== 'not_mentioned') {
+        const sentColor = r.sentiment === 'positive' ? green : r.sentiment === 'negative' ? red : amber;
+        page.drawText(`Sentiment: ${r.sentiment}`, { x: M + 260, y, size: 7, font: helvetica, color: sentColor });
+      }
+      if (r.recommendationStrength !== 'absent') {
+        const strColor = strengthColors[r.recommendationStrength];
+        page.drawText(`Rec: ${r.recommendationStrength}`, { x: M + 370, y, size: 7, font: helvetica, color: strColor });
+      }
+
       y -= 14;
 
-      // Response excerpt (first 200 chars)
+      // Response excerpt with brand/competitor highlighting via bold segments
       if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const excerpt = r.response.substring(0, 220).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 220 ? '...' : '');
-        y = drawWrappedText(page, excerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
-        y -= 4;
+        const rawExcerpt = r.response.substring(0, 280).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
+        
+        // Split excerpt into segments, highlighting brand and competitor names
+        const highlightTerms = [brandNameForHighlight, ...r.competitors].filter(t => t.length >= 3);
+        const excerptLower = rawExcerpt.toLowerCase();
+        
+        // Find all highlight positions
+        const highlights: { start: number; end: number; isBrand: boolean }[] = [];
+        for (const term of highlightTerms) {
+          const termLower = term.toLowerCase();
+          let searchFrom = 0;
+          while (searchFrom < excerptLower.length) {
+            const idx = excerptLower.indexOf(termLower, searchFrom);
+            if (idx === -1) break;
+            highlights.push({ start: idx, end: idx + term.length, isBrand: term.toLowerCase() === brandNameForHighlight.toLowerCase() });
+            searchFrom = idx + term.length;
+          }
+        }
+        highlights.sort((a, b) => a.start - b.start);
+
+        // Render excerpt with highlights
+        if (highlights.length > 0) {
+          let cursor = 0;
+          let xPos = M + 14;
+          const maxX = W - M - 10;
+
+          for (const hl of highlights) {
+            // Draw normal text before highlight
+            if (cursor < hl.start) {
+              const normalText = rawExcerpt.substring(cursor, hl.start);
+              const normalWidth = helvetica.widthOfTextAtSize(normalText, 8);
+              if (xPos + normalWidth > maxX) {
+                y -= 11;
+                xPos = M + 14;
+                if (y < 60) { page = newPage(); y = H - 60; }
+              }
+              page.drawText(normalText, { x: xPos, y, size: 8, font: helvetica, color: light });
+              xPos += normalWidth;
+            }
+
+            // Draw highlighted text
+            const hlText = rawExcerpt.substring(hl.start, hl.end);
+            const hlWidth = helveticaBold.widthOfTextAtSize(hlText, 8);
+            if (xPos + hlWidth > maxX) {
+              y -= 11;
+              xPos = M + 14;
+              if (y < 60) { page = newPage(); y = H - 60; }
+            }
+            const hlColor = hl.isBrand ? green : accent;
+            page.drawText(hlText, { x: xPos, y, size: 8, font: helveticaBold, color: hlColor });
+            xPos += hlWidth;
+            cursor = hl.end;
+          }
+
+          // Draw remaining text
+          if (cursor < rawExcerpt.length) {
+            const remaining = rawExcerpt.substring(cursor);
+            const lines = wrapText(remaining, 95);
+            for (const line of lines) {
+              const lineWidth = helvetica.widthOfTextAtSize(line, 8);
+              if (xPos + lineWidth > maxX) {
+                y -= 11;
+                xPos = M + 14;
+                if (y < 60) { page = newPage(); y = H - 60; }
+              }
+              page.drawText(line, { x: xPos, y, size: 8, font: helvetica, color: light });
+              xPos = M + 14;
+              y -= 11;
+            }
+          } else {
+            y -= 11;
+          }
+          y -= 4;
+        } else {
+          y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
+          y -= 4;
+        }
       }
 
       // Per-response competitors
       if (r.competitors.length > 0) {
-        page.drawText(`Competitors in response: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helvetica, color: accent });
+        page.drawText(`Competitors: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helveticaBold, color: accent });
+        y -= 12;
+      }
+
+      // Brand position
+      if (r.brandPosition !== null) {
+        page.drawText(`Brand listed at position #${r.brandPosition}`, { x: M + 14, y, size: 8, font: helvetica, color: green });
         y -= 12;
       }
 
