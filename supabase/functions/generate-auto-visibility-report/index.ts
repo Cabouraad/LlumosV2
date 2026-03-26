@@ -537,58 +537,41 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
 function extractCompetitors(text: string, brandName: string): string[] {
   const brandLower = brandName.toLowerCase();
   
-  // Known industry brands/companies that commonly appear in AI responses
-  const knownBrands = [
-    // Marketing & SEO
-    'HubSpot', 'Semrush', 'Ahrefs', 'Moz', 'Mailchimp', 'Constant Contact',
-    'ActiveCampaign', 'Marketo', 'Salesforce', 'Hootsuite', 'Buffer', 'Sprout Social',
-    'SEMrush', 'BrightLocal', 'Yext', 'Birdeye', 'Podium', 'ReviewTrackers',
-    // Legal
-    'LegalZoom', 'Avvo', 'FindLaw', 'Justia', 'Rocket Lawyer', 'Nolo',
-    'Martindale', 'Lawyers.com', 'LawDepot', 'LegalShield',
-    // Web & Tech
-    'WordPress', 'Wix', 'Squarespace', 'Shopify', 'GoDaddy', 'Webflow',
-    'BigCommerce', 'Magento', 'WooCommerce', 'Weebly',
-    // Business Services
-    'QuickBooks', 'FreshBooks', 'Xero', 'Wave', 'ZenBusiness', 'Gusto',
-    'ADP', 'Paychex', 'Square', 'Stripe', 'PayPal',
-    // CRM & Sales
-    'Zoho', 'Pipedrive', 'Monday.com', 'Asana', 'Trello', 'ClickUp',
-    'Zendesk', 'Freshdesk', 'Intercom', 'Drift',
-    // Advertising
-    'Google Ads', 'Facebook Ads', 'LinkedIn Ads', 'Yelp', 'Angi',
-    'HomeAdvisor', 'Thumbtack', 'TaskRabbit',
-    // Healthcare
-    'Zocdoc', 'Healthgrades', 'WebMD', 'Vitals', 'RateMDs',
-    // Real Estate
-    'Zillow', 'Realtor.com', 'Redfin', 'Trulia', 'Compass',
-    // Finance
-    'NerdWallet', 'Bankrate', 'Credit Karma', 'Mint', 'Personal Capital',
-    // Food & Restaurant
-    'DoorDash', 'Uber Eats', 'Grubhub', 'Toast', 'Yelp', 'OpenTable',
-    // Education
-    'Coursera', 'Udemy', 'Skillshare', 'LinkedIn Learning', 'Khan Academy',
-    // General
-    'Google My Business', 'Google Business Profile', 'Bing Places',
-    'Apple Business Connect', 'Facebook', 'Instagram', 'LinkedIn', 'Twitter',
-    'TikTok', 'YouTube', 'Pinterest', 'Reddit', 'Clutch', 'G2', 'Capterra',
-    'TrustPilot', 'BBB', 'Glassdoor', 'Indeed',
-  ];
+  // Platforms, channels, and tools that are NOT business competitors
+  // These are marketing tools/channels, not competing businesses
+  const platformsAndChannels = new Set([
+    'google ads', 'facebook ads', 'linkedin ads', 'instagram ads', 'tiktok ads',
+    'google', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok',
+    'youtube', 'pinterest', 'reddit', 'snapchat', 'whatsapp',
+    'google my business', 'google business profile', 'bing places',
+    'apple business connect', 'google maps', 'apple maps',
+    'yelp', 'bbb', 'better business bureau',
+    'social media', 'email marketing', 'content marketing',
+    'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'weebly',
+    'godaddy', 'bigcommerce', 'magento', 'woocommerce',
+    'mailchimp', 'constant contact', 'activecampaign',
+    'google analytics', 'google search console',
+    'zapier', 'canva', 'figma', 'slack', 'zoom', 'microsoft teams',
+    'quickbooks', 'freshbooks', 'xero', 'wave', 'gusto', 'adp', 'paychex',
+    'square', 'stripe', 'paypal', 'venmo',
+    'hubspot', 'salesforce', 'zoho', 'pipedrive', 'monday.com',
+    'asana', 'trello', 'clickup', 'notion',
+    'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext',
+    'hootsuite', 'buffer', 'sprout social',
+    'zendesk', 'freshdesk', 'intercom', 'drift',
+    'g2', 'capterra', 'trustpilot', 'clutch',
+    'glassdoor', 'indeed', 'coursera', 'udemy', 'linkedin learning',
+    'avvo', 'doordash', 'uber eats', 'grubhub', 'opentable',
+    'zillow', 'realtor.com', 'redfin', 'trulia',
+    'nerdwallet', 'bankrate', 'credit karma',
+    'zocdoc', 'healthgrades', 'webmd',
+  ]);
 
   const competitors: string[] = [];
   const textLower = text.toLowerCase();
 
-  // 1. Match known brands found in the response
-  for (const brand of knownBrands) {
-    if (textLower.includes(brand.toLowerCase()) && 
-        brand.toLowerCase() !== brandLower &&
-        !competitors.includes(brand)) {
-      competitors.push(brand);
-    }
-  }
-
-  // 2. Extract likely brand names using patterns for proper nouns with
-  //    domain-style suffixes or known company indicators
+  // Extract likely competitor businesses using contextual patterns
+  // Look for businesses mentioned as alternatives, recommendations, or in lists
   const companyPatterns = [
     // Names ending with common company suffixes
     /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|LLC|Corp|Co|Group|Solutions|Software|Agency|Media|Digital|Services|Labs|Studio|Platform|Technologies|Consulting)\.?))\b/g,
@@ -596,6 +579,8 @@ function extractCompetitors(text: string, brandName: string): string[] {
     /\b([a-zA-Z0-9][-a-zA-Z0-9]*\.(?:com|io|co|org|net|app|ai|dev))\b/g,
     // CamelCase or compound brand names (e.g., "HubSpot", "MailChimp")
     /\b([A-Z][a-z]+[A-Z][a-zA-Z]+)\b/g,
+    // Multi-word proper nouns that look like company names (2-3 capitalized words)
+    /\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,2})\b/g,
   ];
 
   // Generic words that should never be treated as competitor names
@@ -647,8 +632,9 @@ function extractCompetitors(text: string, brandName: string): string[] {
     while ((match = pattern.exec(text)) !== null) {
       const name = match[1].trim();
       const nameLower = name.toLowerCase();
-      // Must be 3+ chars, not excluded, and not already found
+      // Must be 3+ chars, not a platform/channel, not excluded, not already found
       if (name.length >= 3 && 
+          !platformsAndChannels.has(nameLower) &&
           !excludeTerms.has(nameLower) &&
           nameLower !== brandLower &&
           !competitors.some(c => c.toLowerCase() === nameLower)) {
