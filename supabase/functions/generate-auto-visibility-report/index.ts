@@ -121,7 +121,13 @@ function dedupeBrandNames(names: string[]): string[] {
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
-  return /\./.test(trimmed) || /[A-Z]/.test(trimmed);
+  // Must have a dot (domain-like) OR have at least 2 capital letters (proper noun) OR be multi-word with capitals
+  if (/\./.test(trimmed)) return true;
+  // Single word starting with capital — only brand-like if it has mixed case or is short enough to be an acronym
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
+  // Single word: must have internal caps (like "HubSpot") or be all-caps (like "SAP") or contain digits
+  return /[A-Z].*[A-Z]/.test(trimmed) || /^[A-Z]{2,6}$/.test(trimmed) || /\d/.test(trimmed);
 }
 
 function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
@@ -133,9 +139,12 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   if (!hasBrandLikeShape(name)) return false;
   if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
+  if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
   if (normalized.split(' ').length > 4) return false;
   if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
+  // Reject if all words are common English words
+  if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
 
   return true;
 }
