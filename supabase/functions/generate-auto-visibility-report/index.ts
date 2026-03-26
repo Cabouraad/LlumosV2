@@ -587,7 +587,7 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
     result.response = data.choices[0]?.message?.content || '';
 
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = competitorCandidates.slice(0, 8);
+    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
