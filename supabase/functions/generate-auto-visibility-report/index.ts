@@ -531,38 +531,133 @@ async function queryGoogleAIO(prompt: string, brandName: string): Promise<Provid
 }
 
 /**
- * Extract competitor names from response text
+ * Extract actual competitor brand names from response text
+ * Uses pattern matching focused on real company/brand mentions
  */
 function extractCompetitors(text: string, brandName: string): string[] {
-  const competitors: string[] = [];
+  const brandLower = brandName.toLowerCase();
   
-  // Common patterns for brand mentions
-  const brandPatterns = [
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g,
-    /\b([A-Z][A-Z]+)\b/g
+  // Known industry brands/companies that commonly appear in AI responses
+  const knownBrands = [
+    // Marketing & SEO
+    'HubSpot', 'Semrush', 'Ahrefs', 'Moz', 'Mailchimp', 'Constant Contact',
+    'ActiveCampaign', 'Marketo', 'Salesforce', 'Hootsuite', 'Buffer', 'Sprout Social',
+    'SEMrush', 'BrightLocal', 'Yext', 'Birdeye', 'Podium', 'ReviewTrackers',
+    // Legal
+    'LegalZoom', 'Avvo', 'FindLaw', 'Justia', 'Rocket Lawyer', 'Nolo',
+    'Martindale', 'Lawyers.com', 'LawDepot', 'LegalShield',
+    // Web & Tech
+    'WordPress', 'Wix', 'Squarespace', 'Shopify', 'GoDaddy', 'Webflow',
+    'BigCommerce', 'Magento', 'WooCommerce', 'Weebly',
+    // Business Services
+    'QuickBooks', 'FreshBooks', 'Xero', 'Wave', 'ZenBusiness', 'Gusto',
+    'ADP', 'Paychex', 'Square', 'Stripe', 'PayPal',
+    // CRM & Sales
+    'Zoho', 'Pipedrive', 'Monday.com', 'Asana', 'Trello', 'ClickUp',
+    'Zendesk', 'Freshdesk', 'Intercom', 'Drift',
+    // Advertising
+    'Google Ads', 'Facebook Ads', 'LinkedIn Ads', 'Yelp', 'Angi',
+    'HomeAdvisor', 'Thumbtack', 'TaskRabbit',
+    // Healthcare
+    'Zocdoc', 'Healthgrades', 'WebMD', 'Vitals', 'RateMDs',
+    // Real Estate
+    'Zillow', 'Realtor.com', 'Redfin', 'Trulia', 'Compass',
+    // Finance
+    'NerdWallet', 'Bankrate', 'Credit Karma', 'Mint', 'Personal Capital',
+    // Food & Restaurant
+    'DoorDash', 'Uber Eats', 'Grubhub', 'Toast', 'Yelp', 'OpenTable',
+    // Education
+    'Coursera', 'Udemy', 'Skillshare', 'LinkedIn Learning', 'Khan Academy',
+    // General
+    'Google My Business', 'Google Business Profile', 'Bing Places',
+    'Apple Business Connect', 'Facebook', 'Instagram', 'LinkedIn', 'Twitter',
+    'TikTok', 'YouTube', 'Pinterest', 'Reddit', 'Clutch', 'G2', 'Capterra',
+    'TrustPilot', 'BBB', 'Glassdoor', 'Indeed',
   ];
 
+  const competitors: string[] = [];
+  const textLower = text.toLowerCase();
+
+  // 1. Match known brands found in the response
+  for (const brand of knownBrands) {
+    if (textLower.includes(brand.toLowerCase()) && 
+        brand.toLowerCase() !== brandLower &&
+        !competitors.includes(brand)) {
+      competitors.push(brand);
+    }
+  }
+
+  // 2. Extract likely brand names using patterns for proper nouns with
+  //    domain-style suffixes or known company indicators
+  const companyPatterns = [
+    // Names ending with common company suffixes
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|LLC|Corp|Co|Group|Solutions|Software|Agency|Media|Digital|Services|Labs|Studio|Platform|Technologies|Consulting)\.?))\b/g,
+    // Domain-like mentions (e.g., "example.com")
+    /\b([a-zA-Z0-9][-a-zA-Z0-9]*\.(?:com|io|co|org|net|app|ai|dev))\b/g,
+    // CamelCase or compound brand names (e.g., "HubSpot", "MailChimp")
+    /\b([A-Z][a-z]+[A-Z][a-zA-Z]+)\b/g,
+  ];
+
+  // Generic words that should never be treated as competitor names
   const excludeTerms = new Set([
     'the', 'and', 'for', 'with', 'from', 'that', 'this', 'what', 'how',
-    'openai', 'chatgpt', 'google', 'perplexity', 'ai', 'microsoft',
-    brandName.toLowerCase()
+    'who', 'why', 'when', 'where', 'which', 'your', 'their', 'these',
+    'those', 'here', 'there', 'been', 'being', 'have', 'has', 'had',
+    'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+    'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'also',
+    'just', 'than', 'then', 'now', 'very', 'much', 'more', 'most',
+    'some', 'such', 'only', 'other', 'into', 'over', 'after', 'before',
+    'about', 'between', 'through', 'during', 'without', 'within',
+    // Common non-brand capitalized words in AI responses
+    'improving', 'marketing', 'digital', 'online', 'local', 'services',
+    'strategies', 'strategy', 'business', 'management', 'advertising',
+    'optimization', 'content', 'social', 'media', 'search', 'engine',
+    'website', 'client', 'clients', 'customer', 'customers', 'lead',
+    'leads', 'generation', 'practice', 'firm', 'firms', 'law', 'legal',
+    'attorney', 'attorneys', 'lawyer', 'lawyers', 'professional',
+    'key', 'best', 'top', 'new', 'first', 'well', 'good', 'great',
+    'important', 'effective', 'essential', 'critical', 'consider',
+    'using', 'creating', 'building', 'developing', 'implementing',
+    'establish', 'focus', 'ensure', 'provide', 'include', 'offer',
+    'however', 'additionally', 'furthermore', 'therefore', 'moreover',
+    'specific', 'particularly', 'especially', 'generally', 'typically',
+    'example', 'examples', 'tips', 'step', 'steps', 'guide', 'way',
+    'ways', 'approach', 'method', 'methods', 'techniques', 'tools',
+    'tool', 'platform', 'platforms', 'system', 'systems', 'solution',
+    'solutions', 'feature', 'features', 'benefit', 'benefits', 'value',
+    'results', 'growth', 'success', 'performance', 'quality', 'industry',
+    'market', 'brand', 'brands', 'company', 'companies', 'agency',
+    'agencies', 'network', 'community', 'audience', 'target', 'reach',
+    'visibility', 'presence', 'reputation', 'authority', 'trust',
+    'engagement', 'conversion', 'traffic', 'ranking', 'rankings',
+    'keywords', 'backlinks', 'citations', 'reviews', 'testimonials',
+    'schema', 'structured', 'data', 'analytics', 'tracking', 'metrics',
+    'report', 'reports', 'blog', 'blogs', 'post', 'posts', 'article',
+    'articles', 'page', 'pages', 'site', 'sites', 'web', 'email',
+    'call', 'action', 'ads', 'pay', 'per', 'click', 'ppc', 'seo',
+    'sem', 'smm', 'crm', 'roi', 'cta', 'url', 'api',
+    // AI provider names to exclude
+    'openai', 'chatgpt', 'google', 'perplexity', 'microsoft', 'gemini',
+    'claude', 'anthropic', 'meta', 'llama', 'copilot', 'bing',
+    brandLower,
   ]);
 
-  for (const pattern of brandPatterns) {
-    const matches = text.match(pattern);
-    if (matches) {
-      for (const match of matches) {
-        const normalized = match.trim();
-        if (normalized.length > 2 && 
-            !excludeTerms.has(normalized.toLowerCase()) &&
-            !competitors.includes(normalized)) {
-          competitors.push(normalized);
-        }
+  for (const pattern of companyPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const name = match[1].trim();
+      const nameLower = name.toLowerCase();
+      // Must be 3+ chars, not excluded, and not already found
+      if (name.length >= 3 && 
+          !excludeTerms.has(nameLower) &&
+          nameLower !== brandLower &&
+          !competitors.some(c => c.toLowerCase() === nameLower)) {
+        competitors.push(name);
       }
     }
   }
 
-  return competitors.slice(0, 5);
+  return competitors.slice(0, 8);
 }
 
 /**
