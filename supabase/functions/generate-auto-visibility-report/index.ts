@@ -612,7 +612,10 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!SERPAPI_KEY) {
@@ -629,10 +632,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     googleSearchUrl.searchParams.set('hl', 'en');
 
     const searchResponse = await fetch(googleSearchUrl.toString());
-
-    if (!searchResponse.ok) {
-      throw new Error(`SerpAPI search error: ${searchResponse.status}`);
-    }
+    if (!searchResponse.ok) throw new Error(`SerpAPI search error: ${searchResponse.status}`);
 
     const searchData = await searchResponse.json();
     const pageToken = searchData.ai_overview?.page_token;
@@ -648,10 +648,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     aioUrl.searchParams.set('api_key', SERPAPI_KEY);
 
     const aioResponse = await fetch(aioUrl.toString());
-
-    if (!aioResponse.ok) {
-      throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
-    }
+    if (!aioResponse.ok) throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
 
     const aioData = await aioResponse.json();
     const aiOverview = aioData.ai_overview || aioData;
@@ -669,6 +666,9 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
