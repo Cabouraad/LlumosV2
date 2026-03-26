@@ -55,6 +55,40 @@ const GENERIC_COMPETITOR_TERMS = new Set([
   'consulting', 'tips', 'guide', 'ranked', 'consensus', 'implementation', 'small', 'legal', 'law'
 ]);
 
+// Common English words that get falsely detected as brand names due to capitalization at start of sentences
+const COMMON_ENGLISH_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are',
+  'ensure', 'check', 'use', 'after', 'always', 'confirm', 'navigate', 'review', 'this', 'that', 'these',
+  'those', 'here', 'there', 'when', 'where', 'how', 'what', 'which', 'who', 'why', 'will', 'would',
+  'should', 'could', 'can', 'may', 'might', 'must', 'shall', 'have', 'has', 'had', 'been', 'being',
+  'do', 'does', 'did', 'done', 'make', 'made', 'take', 'took', 'give', 'gave', 'get', 'got',
+  'go', 'went', 'come', 'came', 'see', 'saw', 'know', 'knew', 'think', 'thought', 'find', 'found',
+  'tell', 'told', 'ask', 'asked', 'work', 'worked', 'call', 'called', 'try', 'tried', 'need', 'needed',
+  'keep', 'kept', 'let', 'start', 'started', 'show', 'showed', 'help', 'helped', 'run', 'running',
+  'move', 'moved', 'live', 'believe', 'bring', 'happen', 'write', 'provide', 'sit', 'stand', 'lose',
+  'pay', 'meet', 'include', 'continue', 'set', 'learn', 'change', 'lead', 'understand', 'watch',
+  'follow', 'stop', 'create', 'speak', 'read', 'allow', 'add', 'spend', 'grow', 'open', 'walk',
+  'win', 'offer', 'remember', 'love', 'consider', 'appear', 'buy', 'wait', 'serve', 'die', 'send',
+  'expect', 'build', 'stay', 'fall', 'cut', 'reach', 'kill', 'remain', 'suggest', 'raise', 'pass',
+  'sell', 'require', 'report', 'decide', 'pull', 'develop', 'define', 'manage', 'access', 'enter',
+  'click', 'select', 'apply', 'configure', 'setup', 'install', 'update', 'download', 'upload',
+  'verify', 'enable', 'disable', 'connect', 'disconnect', 'login', 'logout', 'register', 'submit',
+  'process', 'complete', 'finish', 'begin', 'end', 'close', 'save', 'delete', 'remove', 'edit',
+  'view', 'display', 'handle', 'implement', 'integrate', 'test', 'debug', 'deploy', 'launch',
+  'monitor', 'track', 'analyze', 'optimize', 'automate', 'customize', 'export', 'import',
+  'first', 'second', 'third', 'fourth', 'fifth', 'next', 'last', 'new', 'old', 'best', 'top',
+  'most', 'many', 'much', 'some', 'any', 'all', 'each', 'every', 'both', 'few', 'more', 'other',
+  'such', 'only', 'same', 'just', 'also', 'very', 'often', 'however', 'too', 'usually', 'really',
+  'already', 'still', 'even', 'well', 'back', 'then', 'now', 'here', 'there', 'today', 'once',
+  'before', 'while', 'since', 'during', 'about', 'between', 'through', 'against', 'into', 'over',
+  'under', 'above', 'below', 'around', 'among', 'within', 'without', 'along', 'across', 'behind',
+  'beyond', 'toward', 'upon', 'throughout', 'despite', 'unlike', 'regarding',
+  'key', 'step', 'steps', 'note', 'notes', 'example', 'examples', 'important', 'summary',
+  'overview', 'details', 'benefits', 'features', 'options', 'results', 'data', 'information',
+  'accounts payable aging', 'accounts receivable aging', 'balance sheet', 'income statement',
+  'cash flow', 'general ledger', 'trial balance', 'profit and loss',
+]);
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -87,7 +121,13 @@ function dedupeBrandNames(names: string[]): string[] {
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
-  return /\./.test(trimmed) || /[A-Z]/.test(trimmed);
+  // Must have a dot (domain-like) OR have at least 2 capital letters (proper noun) OR be multi-word with capitals
+  if (/\./.test(trimmed)) return true;
+  // Single word starting with capital — only brand-like if it has mixed case or is short enough to be an acronym
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
+  // Single word: must have internal caps (like "HubSpot") or be all-caps (like "SAP") or contain digits
+  return /[A-Z].*[A-Z]/.test(trimmed) || /^[A-Z]{2,6}$/.test(trimmed) || /\d/.test(trimmed);
 }
 
 function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
@@ -99,9 +139,12 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   if (!hasBrandLikeShape(name)) return false;
   if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
+  if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
   if (normalized.split(' ').length > 4) return false;
   if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
+  // Reject if all words are common English words
+  if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
 
   return true;
 }
@@ -1297,8 +1340,10 @@ async function generatePDF(
   const cardY = y - 5;
   page.drawRectangle({ x: M, y: cardY - 100, width: contentW, height: 100, color: rgb(0.97, 0.97, 0.98), borderColor: faint, borderWidth: 1 });
 
-  page.drawText(`${overallScore}`, { x: M + 20, y: cardY - 55, size: 52, font: helveticaBold, color: scoreColor(overallScore) });
-  page.drawText('/100', { x: M + 85, y: cardY - 55, size: 18, font: helvetica, color: light });
+  const scoreText = `${overallScore}`;
+  const scoreTextWidth = helveticaBold.widthOfTextAtSize(scoreText, 52);
+  page.drawText(scoreText, { x: M + 20, y: cardY - 55, size: 52, font: helveticaBold, color: scoreColor(overallScore) });
+  page.drawText('/100', { x: M + 20 + scoreTextWidth + 4, y: cardY - 55, size: 18, font: helvetica, color: light });
 
   page.drawText(`${scoreLabel(overallScore)} AI Visibility`, { x: M + 20, y: cardY - 80, size: 11, font: helveticaBold, color: scoreColor(overallScore) });
 
