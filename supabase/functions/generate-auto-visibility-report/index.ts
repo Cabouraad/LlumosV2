@@ -114,7 +114,7 @@ function parseCompetitorCandidatesFromResearch(
   if (!businessContext) return [];
 
   const candidates: string[] = [];
-  const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,260})/i);
+  const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,500})/i);
 
   if (!competitorSectionMatch?.[1]) {
     return [];
@@ -124,14 +124,76 @@ function parseCompetitorCandidatesFromResearch(
     .replace(/\[[^\]]+\]/g, ' ')
     .split(/\n\n|\r\n\r\n/)[0];
 
-  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\|/)) {
+  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\||\s+and\s+/i)) {
     const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
     if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
       candidates.push(cleaned);
     }
   }
 
-  return dedupeBrandNames(candidates).slice(0, 8);
+  return dedupeBrandNames(candidates).slice(0, 15);
+}
+
+function extractBrandLikeCandidatesFromText(
+  text: string,
+  brandName: string,
+  domain: string,
+): string[] {
+  if (!text) return [];
+
+  const candidates: string[] = [];
+
+  const addCandidate = (value: string) => {
+    const cleaned = value
+      .replace(/^[-–—\d.\s]+/, '')
+      .replace(/[\[\](){}]/g, ' ')
+      .replace(/^["'`]+|["'`]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
+      candidates.push(cleaned);
+    }
+  };
+
+  for (const match of text.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev)\b/gi) || []) {
+    addCandidate(match);
+  }
+
+  for (const match of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'.-]*(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,2})/gm)) {
+    addCandidate(match[1]);
+  }
+
+  for (const match of text.matchAll(/(?:include|includes|including|recommend|recommended|options(?:\s+include)?|such as|alternatives?\s+(?:include|are)|platforms?\s+(?:include|like))\s+([^.;:\n]{0,140})/gi)) {
+    for (const rawPart of match[1].split(/,|;|\/|\s+and\s+/i)) {
+      addCandidate(rawPart);
+    }
+  }
+
+  return dedupeBrandNames(candidates);
+}
+
+function extractCompetitorCandidatesFromResults(
+  results: ProviderResult[],
+  brandName: string,
+  domain: string,
+): string[] {
+  const counts = new Map<string, number>();
+
+  for (const result of results) {
+    if (!result.response || result.response.startsWith('Error') || result.response.startsWith('Provider not') || result.response.startsWith('No AI Overview')) {
+      continue;
+    }
+
+    const candidates = extractBrandLikeCandidatesFromText(result.response, brandName, domain);
+    for (const candidate of candidates) {
+      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([candidate]) => candidate);
 }
 
 async function identifyCompetitorCandidates(
@@ -155,11 +217,11 @@ async function identifyCompetitorCandidates(
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0,
-        max_tokens: 250,
+        max_tokens: 350,
         messages: [
           {
             role: 'system',
-            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-8 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
+            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-15 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
           },
           {
             role: 'user',
@@ -184,7 +246,7 @@ async function identifyCompetitorCandidates(
           .map((item: unknown) => typeof item === 'string' ? item : '')
           .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain));
 
-        const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 8);
+        const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 15);
         if (cleanedCandidates.length > 0) {
           return cleanedCandidates;
         }
@@ -195,6 +257,85 @@ async function identifyCompetitorCandidates(
   }
 
   return fallbackCandidates;
+}
+
+async function refineCompetitorCandidatesFromResults(
+  domain: string,
+  brandName: string,
+  businessContext: string,
+  results: ProviderResult[],
+  initialCandidates: string[],
+): Promise<string[]> {
+  const responseCandidates = extractCompetitorCandidatesFromResults(results, brandName, domain);
+  const combinedCandidates = dedupeBrandNames([...responseCandidates, ...initialCandidates]).slice(0, 20);
+
+  if (combinedCandidates.length === 0) {
+    return [];
+  }
+
+  if (!OPENAI_API_KEY || responseCandidates.length === 0) {
+    return combinedCandidates.slice(0, 15);
+  }
+
+  try {
+    const snippets = results
+      .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
+      .slice(0, 12)
+      .map((result, index) => `Snippet ${index + 1} (${result.provider}): ${result.response.replace(/\s+/g, ' ').trim().slice(0, 260)}`)
+      .join('\n');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        max_tokens: 400,
+        messages: [
+          {
+            role: 'system',
+            content: 'You validate direct competitor brands for a company based on business context and AI response snippets. Return ONLY a JSON array of brand names that are true direct competitors and explicitly appear in the snippets or the provided candidate list. Exclude generic terms, publishers, directories, platforms, channels, and non-competitor entities.'
+          },
+          {
+            role: 'user',
+            content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness context:\n${businessContext || 'No business context available.'}\n\nInitial researched competitors:\n${initialCandidates.join(', ') || 'None'}\n\nAdditional brand-like names found in AI responses:\n${responseCandidates.join(', ') || 'None'}\n\nAI response snippets:\n${snippets}\n\nReturn only the final direct competitor brands as a JSON array of strings.`
+          }
+        ]
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI competitor refinement error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content?.trim() || '';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        const allowed = new Set(combinedCandidates.map((candidate) => normalizeEntityName(candidate)));
+        const refined = dedupeBrandNames(
+          parsed
+            .map((item: unknown) => typeof item === 'string' ? item : '')
+            .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
+            .filter((item: string) => allowed.has(normalizeEntityName(item)))
+        ).slice(0, 15);
+
+        if (refined.length > 0) {
+          return refined;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[AutoReport] Error refining competitor candidates from results:', error);
+  }
+
+  return combinedCandidates.slice(0, 15);
 }
 
 /**
@@ -796,29 +937,46 @@ function detectBrandPosition(response: string, brandName: string): number | null
  * Returns 0-100: how consistently the brand is mentioned across providers for the same prompt
  */
 function calculateProviderConsistency(results: ProviderResult[]): { score: number; label: string; detail: string } {
+  const validResults = results.filter(
+    (result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview')
+  );
+
+  if (validResults.length === 0) {
+    return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+  }
+
+  const totalMentions = validResults.filter((result) => result.brandMentioned).length;
+  if (totalMentions === 0) {
+    return {
+      score: 0,
+      label: 'No Visibility',
+      detail: 'Your brand was not mentioned in any AI response, so consistency is shown as 0 until there is visibility to compare across providers.'
+    };
+  }
+
   const promptGroups = new Map<string, ProviderResult[]>();
-  for (const r of results) {
-    const arr = promptGroups.get(r.prompt) || [];
-    arr.push(r);
-    promptGroups.set(r.prompt, arr);
+  for (const result of validResults) {
+    const arr = promptGroups.get(result.prompt) || [];
+    arr.push(result);
+    promptGroups.set(result.prompt, arr);
   }
 
   let totalPrompts = 0;
   let consistentPrompts = 0;
 
   for (const [, group] of promptGroups) {
-    const valid = group.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    if (valid.length < 2) continue;
+    if (group.length < 2) continue;
     totalPrompts++;
 
-    const mentionedCount = valid.filter(r => r.brandMentioned).length;
-    // Consistent = all mention or all don't mention
-    if (mentionedCount === valid.length || mentionedCount === 0) {
+    const mentionedCount = group.filter((result) => result.brandMentioned).length;
+    if (mentionedCount === group.length || mentionedCount === 0) {
       consistentPrompts++;
     }
   }
 
-  if (totalPrompts === 0) return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+  if (totalPrompts === 0) {
+    return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
+  }
 
   const score = Math.round((consistentPrompts / totalPrompts) * 100);
   let label: string;
@@ -849,31 +1007,39 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
   brandRow: Record<string, boolean>;
 } {
   const allCompetitors = new Set<string>();
+  const competitorCounts = new Map<string, number>();
   const promptTexts: string[] = [];
   const promptSet = new Set<string>();
 
-  for (const r of results) {
-    if (!promptSet.has(r.prompt)) {
-      promptSet.add(r.prompt);
-      promptTexts.push(r.prompt);
+  for (const result of results) {
+    if (!promptSet.has(result.prompt)) {
+      promptSet.add(result.prompt);
+      promptTexts.push(result.prompt);
     }
-    for (const c of r.competitors) allCompetitors.add(c);
+
+    for (const competitor of result.competitors) {
+      allCompetitors.add(competitor);
+      competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
+    }
   }
 
-  const competitors = Array.from(allCompetitors);
+  const competitors = Array.from(allCompetitors).sort(
+    (a, b) => (competitorCounts.get(b) || 0) - (competitorCounts.get(a) || 0) || a.localeCompare(b)
+  );
   const matrix: Record<string, Record<string, boolean>> = {};
   const brandRow: Record<string, boolean> = {};
 
   for (const prompt of promptTexts) {
-    const promptResults = results.filter(r => r.prompt === prompt);
-    const validResults = promptResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+    const promptResults = results.filter((result) => result.prompt === prompt);
+    const validResults = promptResults.filter(
+      (result) => !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview')
+    );
 
-    // Brand mentioned in ANY provider for this prompt?
-    brandRow[prompt] = validResults.some(r => r.brandMentioned);
+    brandRow[prompt] = validResults.some((result) => result.brandMentioned);
 
-    for (const comp of competitors) {
-      if (!matrix[comp]) matrix[comp] = {};
-      matrix[comp][prompt] = validResults.some(r => r.competitors.includes(comp));
+    for (const competitor of competitors) {
+      if (!matrix[competitor]) matrix[competitor] = {};
+      matrix[competitor][prompt] = validResults.some((result) => result.competitors.includes(competitor));
     }
   }
 
@@ -1330,15 +1496,27 @@ async function generatePDF(
   y = drawSection(page, 'Provider Consistency Score', y);
 
   const consistency = calculateProviderConsistency(results);
+  const consistencyColor = consistency.label === 'No Visibility'
+    ? red
+    : consistency.score >= 80
+    ? green
+    : consistency.score >= 50
+    ? amber
+    : red;
 
   // Score circle
-  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistency.score >= 80 ? green : consistency.score >= 50 ? amber : red });
+  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistencyColor });
   page.drawText(consistency.label, { x: M + 80, y: y + 2, size: 11, font: helveticaBold, color: dark });
   y -= 18;
   y = drawWrappedText(page, consistency.detail, M + 80, y, { size: 9, font: helvetica, color: mid, maxChars: 70, lineSpacing: 13 });
 
   y -= 10;
-  page.drawText('High consistency = AI platforms agree about your brand = strong visibility signal', { x: M + 5, y, size: 8, font: helveticaOblique, color: light });
+  page.drawText(
+    consistency.label === 'No Visibility'
+      ? 'Consistency remains 0 when your brand is absent from every AI response.'
+      : 'High consistency = AI platforms agree about your brand = strong visibility signal',
+    { x: M + 5, y, size: 8, font: helveticaOblique, color: light }
+  );
 
   // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
   const h2h = buildHeadToHeadMatrix(results, domain);
@@ -1768,7 +1946,7 @@ serve(async (req) => {
     console.log('[AutoReport] Researching business...');
     const businessContext = await researchBusiness(domain);
     const competitorCandidates = await identifyCompetitorCandidates(domain, brandName, businessContext);
-    console.log('[AutoReport] Competitor candidates:', competitorCandidates);
+    console.log('[AutoReport] Initial competitor candidates:', competitorCandidates);
 
     // Step 2: Generate industry-relevant prompts based on research
     console.log('[AutoReport] Generating prompts...');
@@ -1776,12 +1954,11 @@ serve(async (req) => {
 
     console.log('[AutoReport] Generated prompts:', prompts);
 
-    // Step 2: Query all providers for each prompt
+    // Step 3: Query all providers for each prompt
     console.log('[AutoReport] Querying providers...');
     const allResults: ProviderResult[] = [];
 
     for (const prompt of prompts) {
-      // Query all providers in parallel for this prompt
       const [chatgptResult, perplexityResult, googleResult] = await Promise.all([
         queryChatGPT(prompt, brandName, competitorCandidates),
         queryPerplexity(prompt, brandName, competitorCandidates),
@@ -1789,6 +1966,19 @@ serve(async (req) => {
       ]);
 
       allResults.push(chatgptResult, perplexityResult, googleResult);
+    }
+
+    const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
+      domain,
+      brandName,
+      businessContext,
+      allResults,
+      competitorCandidates,
+    );
+    console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
+
+    for (const result of allResults) {
+      result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
     }
 
     // Step 3: Calculate overall score
