@@ -662,7 +662,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     }
 
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = competitorCandidates.slice(0, 8);
+    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
