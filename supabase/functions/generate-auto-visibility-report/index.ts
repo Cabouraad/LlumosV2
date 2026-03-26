@@ -696,6 +696,189 @@ function extractCompetitors(text: string, brandName: string, competitorCandidate
 }
 
 /**
+ * Analyze sentiment of brand mention in response
+ */
+function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
+
+  const text = response.toLowerCase();
+  const brandIdx = text.indexOf(brandName.toLowerCase());
+  // Look at ~300 chars around the brand mention
+  const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
+
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
+  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'however', 'but', 'although', 'criticism', 'negative', 'disappointing', 'outdated'];
+
+  let positiveScore = 0;
+  let negativeScore = 0;
+
+  for (const term of positiveTerms) {
+    if (context.includes(term)) positiveScore++;
+  }
+  for (const term of negativeTerms) {
+    if (context.includes(term)) negativeScore++;
+  }
+
+  if (positiveScore > negativeScore + 1) return 'positive';
+  if (negativeScore > positiveScore + 1) return 'negative';
+  return 'neutral';
+}
+
+/**
+ * Analyze how strongly the AI platform recommends the brand
+ */
+function analyzeRecommendationStrength(response: string, brandName: string): 'strong' | 'moderate' | 'weak' | 'absent' {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'absent';
+
+  const text = response.toLowerCase();
+  const brandLower = brandName.toLowerCase();
+
+  // Strong: brand is first mentioned, or explicitly recommended
+  const strongPatterns = [
+    new RegExp(`(?:recommend|suggest|top pick|best option|first choice|go with|standout)[^.]{0,60}${escapeRegExp(brandLower)}`),
+    new RegExp(`${escapeRegExp(brandLower)}[^.]{0,60}(?:is the best|is recommended|stands out|is ideal|top choice|leading|#1|number one)`),
+    new RegExp(`^[^.]{0,120}${escapeRegExp(brandLower)}`), // mentioned in first sentence
+    new RegExp(`1[.)\\s]+[^.]*${escapeRegExp(brandLower)}`), // listed as #1
+  ];
+
+  for (const pattern of strongPatterns) {
+    if (pattern.test(text)) return 'strong';
+  }
+
+  // Moderate: brand is mentioned among several options with some positive context
+  const moderatePatterns = [
+    new RegExp(`(?:also|another|consider|option|alternative)[^.]{0,60}${escapeRegExp(brandLower)}`),
+    new RegExp(`${escapeRegExp(brandLower)}[^.]{0,60}(?:also|offers|provides|includes|features)`),
+    new RegExp(`[2-5][.)\\s]+[^.]*${escapeRegExp(brandLower)}`), // listed in positions 2-5
+  ];
+
+  for (const pattern of moderatePatterns) {
+    if (pattern.test(text)) return 'moderate';
+  }
+
+  return 'weak';
+}
+
+/**
+ * Detect brand position in a ranked list (1-based), or null if not in a list
+ */
+function detectBrandPosition(response: string, brandName: string): number | null {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return null;
+
+  const brandLower = brandName.toLowerCase();
+  const lines = response.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase().trim();
+    if (!line.includes(brandLower)) continue;
+
+    // Check for numbered list patterns: "1.", "1)", "#1", "1 -"
+    const numMatch = line.match(/^(?:#?\s*)?(\d+)[.):\-\s]/);
+    if (numMatch) return parseInt(numMatch[1]);
+
+    // Check for bullet lists - count position
+    if (/^[-•*▪▸]/.test(line)) {
+      let pos = 0;
+      for (let j = 0; j <= i; j++) {
+        if (/^[-•*▪▸]/.test(lines[j].trim())) pos++;
+      }
+      return pos;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Calculate provider consistency score
+ * Returns 0-100: how consistently the brand is mentioned across providers for the same prompt
+ */
+function calculateProviderConsistency(results: ProviderResult[]): { score: number; label: string; detail: string } {
+  const promptGroups = new Map<string, ProviderResult[]>();
+  for (const r of results) {
+    const arr = promptGroups.get(r.prompt) || [];
+    arr.push(r);
+    promptGroups.set(r.prompt, arr);
+  }
+
+  let totalPrompts = 0;
+  let consistentPrompts = 0;
+
+  for (const [, group] of promptGroups) {
+    const valid = group.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+    if (valid.length < 2) continue;
+    totalPrompts++;
+
+    const mentionedCount = valid.filter(r => r.brandMentioned).length;
+    // Consistent = all mention or all don't mention
+    if (mentionedCount === valid.length || mentionedCount === 0) {
+      consistentPrompts++;
+    }
+  }
+
+  if (totalPrompts === 0) return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+
+  const score = Math.round((consistentPrompts / totalPrompts) * 100);
+  let label: string;
+  let detail: string;
+
+  if (score >= 80) {
+    label = 'High Consistency';
+    detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
+  } else if (score >= 50) {
+    label = 'Mixed Signals';
+    detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
+  } else {
+    label = 'Inconsistent';
+    detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
+  }
+
+  return { score, label, detail };
+}
+
+/**
+ * Build competitor head-to-head matrix
+ * Returns: { promptText -> { competitorName -> mentioned:boolean } }
+ */
+function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
+  prompts: string[];
+  competitors: string[];
+  matrix: Record<string, Record<string, boolean>>;
+  brandRow: Record<string, boolean>;
+} {
+  const allCompetitors = new Set<string>();
+  const promptTexts: string[] = [];
+  const promptSet = new Set<string>();
+
+  for (const r of results) {
+    if (!promptSet.has(r.prompt)) {
+      promptSet.add(r.prompt);
+      promptTexts.push(r.prompt);
+    }
+    for (const c of r.competitors) allCompetitors.add(c);
+  }
+
+  const competitors = Array.from(allCompetitors);
+  const matrix: Record<string, Record<string, boolean>> = {};
+  const brandRow: Record<string, boolean> = {};
+
+  for (const prompt of promptTexts) {
+    const promptResults = results.filter(r => r.prompt === prompt);
+    const validResults = promptResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+
+    // Brand mentioned in ANY provider for this prompt?
+    brandRow[prompt] = validResults.some(r => r.brandMentioned);
+
+    for (const comp of competitors) {
+      if (!matrix[comp]) matrix[comp] = {};
+      matrix[comp][prompt] = validResults.some(r => r.competitors.includes(comp));
+    }
+  }
+
+  return { prompts: promptTexts, competitors, matrix, brandRow };
+}
+
+/**
  * Calculate visibility score for a provider result
  */
 function calculateProviderScore(result: ProviderResult): number {
