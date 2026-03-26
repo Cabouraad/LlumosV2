@@ -36,6 +36,7 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'facebook', 'facebook ads', 'instagram', 'instagram ads', 'linkedin', 'linkedin ads', 'x', 'twitter',
   'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
   'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
+  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
   'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
   'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
@@ -43,6 +44,12 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
   'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'mailchimp', 'hubspot', 'salesforce',
   'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext', 'canva', 'figma', 'slack', 'zoom'
+]);
+
+const GENERIC_COMPETITOR_TERMS = new Set([
+  'agency', 'agencies', 'company', 'companies', 'firm', 'firms', 'service', 'services', 'solutions',
+  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'optimization', 'growth',
+  'consulting', 'tips', 'guide', 'ranked', 'consensus', 'implementation', 'small', 'legal', 'law'
 ]);
 
 function escapeRegExp(value: string): string {
@@ -75,16 +82,23 @@ function dedupeBrandNames(names: string[]): string[] {
   return deduped;
 }
 
+function hasBrandLikeShape(name: string): boolean {
+  const trimmed = name.trim();
+  return /\./.test(trimmed) || /[A-Z]/.test(trimmed);
+}
+
 function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
   const normalized = normalizeEntityName(name);
   const normalizedBrand = normalizeEntityName(brandName);
   const normalizedDomain = normalizeEntityName(domain);
 
   if (!normalized || normalized.length < 3) return false;
+  if (!hasBrandLikeShape(name)) return false;
   if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
   if (normalized.split(' ').length > 4) return false;
+  if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
 
   return true;
 }
@@ -99,23 +113,18 @@ function parseCompetitorCandidatesFromResearch(
   const candidates: string[] = [];
   const competitorSectionMatch = businessContext.match(/(?:key competitors?|top competitors?|direct competitors?|competitors?)\s*[:\-]\s*([\s\S]{0,260})/i);
 
-  if (competitorSectionMatch?.[1]) {
-    const competitorSection = competitorSectionMatch[1]
-      .replace(/\[[^\]]+\]/g, ' ')
-      .split(/\n\n|\r\n\r\n/)[0];
-
-    for (const rawPart of competitorSection.split(/,|;|\n|•|·|\|/)) {
-      const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
-      if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
-        candidates.push(cleaned);
-      }
-    }
+  if (!competitorSectionMatch?.[1]) {
+    return [];
   }
 
-  const brandLikeMatches = businessContext.match(/\b(?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2}|[a-zA-Z0-9-]+\.(?:com|io|net|org|co|app|ai|dev))\b/g) || [];
-  for (const match of brandLikeMatches) {
-    if (isLikelyCompetitorBrand(match, brandName, domain)) {
-      candidates.push(match);
+  const competitorSection = competitorSectionMatch[1]
+    .replace(/\[[^\]]+\]/g, ' ')
+    .split(/\n\n|\r\n\r\n/)[0];
+
+  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\|/)) {
+    const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
+    if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
+      candidates.push(cleaned);
     }
   }
 
@@ -142,12 +151,12 @@ async function identifyCompetitorCandidates(
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        temperature: 0.1,
+        temperature: 0,
         max_tokens: 250,
         messages: [
           {
             role: 'system',
-            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-8 brand names. Include ONLY direct competitors that sell similar services to similar buyers. Exclude channels, directories, publishers, marketplaces, social networks, generic phrases, software categories, and marketing tactics. If uncertain, return an empty array.`
+            content: `You identify direct competitor brands for a company. Return ONLY a JSON array of 0-8 brand names. Include ONLY companies a buyer would compare directly against this brand for the same budget and problem. Exclude channels, directories, publishers, review sites, marketplaces, software categories, generic phrases, tactics, and broad platforms. If you are not confident a name is a direct competitor brand, leave it out.`
           },
           {
             role: 'user',
