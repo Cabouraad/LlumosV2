@@ -1121,16 +1121,36 @@ async function generatePDF(
 
   // ====================== FINAL PAGE: CTA ======================
   page = newPage();
-  
-  // Footer
-  page.drawText('© Llumos.app - AI Visibility Intelligence', {
-    x: margin,
-    y: 50,
-    size: 10,
-    font: helvetica,
-    color: rgb(0.5, 0.5, 0.5)
-  });
-  
+  y = H - 100;
+
+  page.drawRectangle({ x: M - 10, y: y - 180, width: contentW + 20, height: 200, color: rgb(0.97, 0.97, 0.98), borderColor: accent, borderWidth: 1 });
+
+  page.drawText('WHAT COMES NEXT?', { x: M + 15, y: y - 10, size: 18, font: helveticaBold, color: accent });
+  y -= 40;
+
+  page.drawText('This report is a snapshot. With Llumos, you can:', { x: M + 15, y, size: 11, font: helvetica, color: mid });
+  y -= 24;
+
+  const benefits = [
+    'Track AI visibility changes week over week',
+    'See exactly which competitors AI recommends instead of you',
+    'Get actionable optimization recommendations',
+    'Monitor citations and source authority across platforms',
+    'Receive automated weekly visibility reports',
+  ];
+
+  for (const b of benefits) {
+    page.drawText(`  ${b}`, { x: M + 20, y, size: 10, font: helvetica, color: dark });
+    y -= 18;
+  }
+
+  y -= 30;
+  page.drawRectangle({ x: M + 120, y: y - 5, width: 280, height: 36, color: accent });
+  page.drawText('Schedule a Demo   llumos.app', { x: M + 140, y: y + 5, size: 13, font: helveticaBold, color: white });
+
+  y -= 60;
+  page.drawText('Questions? Reach us at hello@llumos.app', { x: M + 140, y, size: 9, font: helvetica, color: light });
+
   return await pdfDoc.save();
 }
 
