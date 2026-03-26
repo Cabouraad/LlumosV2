@@ -29,6 +29,9 @@ interface ProviderResult {
   brandMentioned: boolean;
   competitors: string[];
   score: number;
+  sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
+  recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
+  brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
 }
 
 const NON_COMPETITOR_ENTITIES = new Set([
