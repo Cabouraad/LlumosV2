@@ -1805,7 +1805,7 @@ serve(async (req) => {
     console.log('[AutoReport] Researching business...');
     const businessContext = await researchBusiness(domain);
     const competitorCandidates = await identifyCompetitorCandidates(domain, brandName, businessContext);
-    console.log('[AutoReport] Competitor candidates:', competitorCandidates);
+    console.log('[AutoReport] Initial competitor candidates:', competitorCandidates);
 
     // Step 2: Generate industry-relevant prompts based on research
     console.log('[AutoReport] Generating prompts...');
@@ -1813,12 +1813,11 @@ serve(async (req) => {
 
     console.log('[AutoReport] Generated prompts:', prompts);
 
-    // Step 2: Query all providers for each prompt
+    // Step 3: Query all providers for each prompt
     console.log('[AutoReport] Querying providers...');
     const allResults: ProviderResult[] = [];
 
     for (const prompt of prompts) {
-      // Query all providers in parallel for this prompt
       const [chatgptResult, perplexityResult, googleResult] = await Promise.all([
         queryChatGPT(prompt, brandName, competitorCandidates),
         queryPerplexity(prompt, brandName, competitorCandidates),
@@ -1826,6 +1825,19 @@ serve(async (req) => {
       ]);
 
       allResults.push(chatgptResult, perplexityResult, googleResult);
+    }
+
+    const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
+      domain,
+      brandName,
+      businessContext,
+      allResults,
+      competitorCandidates,
+    );
+    console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
+
+    for (const result of allResults) {
+      result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
     }
 
     // Step 3: Calculate overall score
