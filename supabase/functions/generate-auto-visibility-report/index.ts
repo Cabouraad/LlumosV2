@@ -677,31 +677,19 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
  * Uses a researched company-specific competitor allowlist instead of generic pattern matching
  */
 function extractCompetitors(text: string, brandName: string, competitorCandidates: string[]): string[] {
-  if (!competitorCandidates.length) return [];
+  if (!competitorCandidates.length || !text) return [];
 
-  const normalizedText = ` ${normalizeEntityName(text)} `;
-  const normalizedBrand = normalizeEntityName(brandName);
+  const textLower = text.toLowerCase();
+  const brandLower = brandName.toLowerCase();
 
-  return dedupeBrandNames(competitorCandidates)
-    .filter((candidate) => {
-      const normalizedCandidate = normalizeEntityName(candidate);
-      if (!normalizedCandidate || normalizedCandidate === normalizedBrand) return false;
-      if (NON_COMPETITOR_ENTITIES.has(normalizedCandidate)) return false;
+  return competitorCandidates.filter((candidate) => {
+    const candidateLower = candidate.toLowerCase().trim();
+    if (!candidateLower || candidateLower.length < 3) return false;
+    if (candidateLower === brandLower) return false;
 
-      const aliases = new Set<string>([
-        normalizedCandidate,
-        normalizedCandidate.replace(/\s+/g, ' ').trim(),
-        candidate.toLowerCase().replace(/^www\./, '').replace(/^https?:\/\//, '').trim(),
-      ]);
-
-      return Array.from(aliases).some((alias) => {
-        const normalizedAlias = normalizeEntityName(alias);
-        if (!normalizedAlias || normalizedAlias.length < 3) return false;
-        const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(normalizedAlias)}([^a-z0-9]|$)`, 'i');
-        return pattern.test(normalizedText);
-      });
-    })
-    .slice(0, 8);
+    // Simple case-insensitive substring check
+    return textLower.includes(candidateLower);
+  });
 }
 
 /**
