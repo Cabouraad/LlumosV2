@@ -29,6 +29,9 @@ interface ProviderResult {
   brandMentioned: boolean;
   competitors: string[];
   score: number;
+  sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
+  recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
+  brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
 }
 
 const NON_COMPETITOR_ENTITIES = new Set([
@@ -502,7 +505,10 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!OPENAI_API_KEY) {
@@ -519,24 +525,22 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 800
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenAI error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -555,7 +559,10 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!PERPLEXITY_API_KEY) {
@@ -572,23 +579,21 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
       },
       body: JSON.stringify({
         model: 'sonar',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
+        messages: [{ role: 'user', content: prompt }],
         return_citations: true
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Perplexity error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Perplexity error: ${response.status}`);
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -607,7 +612,10 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     response: '',
     brandMentioned: false,
     competitors: [],
-    score: 0
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
   };
 
   if (!SERPAPI_KEY) {
@@ -624,10 +632,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     googleSearchUrl.searchParams.set('hl', 'en');
 
     const searchResponse = await fetch(googleSearchUrl.toString());
-
-    if (!searchResponse.ok) {
-      throw new Error(`SerpAPI search error: ${searchResponse.status}`);
-    }
+    if (!searchResponse.ok) throw new Error(`SerpAPI search error: ${searchResponse.status}`);
 
     const searchData = await searchResponse.json();
     const pageToken = searchData.ai_overview?.page_token;
@@ -643,10 +648,7 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     aioUrl.searchParams.set('api_key', SERPAPI_KEY);
 
     const aioResponse = await fetch(aioUrl.toString());
-
-    if (!aioResponse.ok) {
-      throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
-    }
+    if (!aioResponse.ok) throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
 
     const aioData = await aioResponse.json();
     const aiOverview = aioData.ai_overview || aioData;
@@ -664,6 +666,9 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
     result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
     result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
     result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
+    result.brandPosition = detectBrandPosition(result.response, brandName);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -690,6 +695,189 @@ function extractCompetitors(text: string, brandName: string, competitorCandidate
     // Simple case-insensitive substring check
     return textLower.includes(candidateLower);
   });
+}
+
+/**
+ * Analyze sentiment of brand mention in response
+ */
+function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
+
+  const text = response.toLowerCase();
+  const brandIdx = text.indexOf(brandName.toLowerCase());
+  // Look at ~300 chars around the brand mention
+  const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
+
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
+  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'however', 'but', 'although', 'criticism', 'negative', 'disappointing', 'outdated'];
+
+  let positiveScore = 0;
+  let negativeScore = 0;
+
+  for (const term of positiveTerms) {
+    if (context.includes(term)) positiveScore++;
+  }
+  for (const term of negativeTerms) {
+    if (context.includes(term)) negativeScore++;
+  }
+
+  if (positiveScore > negativeScore + 1) return 'positive';
+  if (negativeScore > positiveScore + 1) return 'negative';
+  return 'neutral';
+}
+
+/**
+ * Analyze how strongly the AI platform recommends the brand
+ */
+function analyzeRecommendationStrength(response: string, brandName: string): 'strong' | 'moderate' | 'weak' | 'absent' {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'absent';
+
+  const text = response.toLowerCase();
+  const brandLower = brandName.toLowerCase();
+
+  // Strong: brand is first mentioned, or explicitly recommended
+  const strongPatterns = [
+    new RegExp(`(?:recommend|suggest|top pick|best option|first choice|go with|standout)[^.]{0,60}${escapeRegExp(brandLower)}`),
+    new RegExp(`${escapeRegExp(brandLower)}[^.]{0,60}(?:is the best|is recommended|stands out|is ideal|top choice|leading|#1|number one)`),
+    new RegExp(`^[^.]{0,120}${escapeRegExp(brandLower)}`), // mentioned in first sentence
+    new RegExp(`1[.)\\s]+[^.]*${escapeRegExp(brandLower)}`), // listed as #1
+  ];
+
+  for (const pattern of strongPatterns) {
+    if (pattern.test(text)) return 'strong';
+  }
+
+  // Moderate: brand is mentioned among several options with some positive context
+  const moderatePatterns = [
+    new RegExp(`(?:also|another|consider|option|alternative)[^.]{0,60}${escapeRegExp(brandLower)}`),
+    new RegExp(`${escapeRegExp(brandLower)}[^.]{0,60}(?:also|offers|provides|includes|features)`),
+    new RegExp(`[2-5][.)\\s]+[^.]*${escapeRegExp(brandLower)}`), // listed in positions 2-5
+  ];
+
+  for (const pattern of moderatePatterns) {
+    if (pattern.test(text)) return 'moderate';
+  }
+
+  return 'weak';
+}
+
+/**
+ * Detect brand position in a ranked list (1-based), or null if not in a list
+ */
+function detectBrandPosition(response: string, brandName: string): number | null {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return null;
+
+  const brandLower = brandName.toLowerCase();
+  const lines = response.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase().trim();
+    if (!line.includes(brandLower)) continue;
+
+    // Check for numbered list patterns: "1.", "1)", "#1", "1 -"
+    const numMatch = line.match(/^(?:#?\s*)?(\d+)[.):\-\s]/);
+    if (numMatch) return parseInt(numMatch[1]);
+
+    // Check for bullet lists - count position
+    if (/^[-•*▪▸]/.test(line)) {
+      let pos = 0;
+      for (let j = 0; j <= i; j++) {
+        if (/^[-•*▪▸]/.test(lines[j].trim())) pos++;
+      }
+      return pos;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Calculate provider consistency score
+ * Returns 0-100: how consistently the brand is mentioned across providers for the same prompt
+ */
+function calculateProviderConsistency(results: ProviderResult[]): { score: number; label: string; detail: string } {
+  const promptGroups = new Map<string, ProviderResult[]>();
+  for (const r of results) {
+    const arr = promptGroups.get(r.prompt) || [];
+    arr.push(r);
+    promptGroups.set(r.prompt, arr);
+  }
+
+  let totalPrompts = 0;
+  let consistentPrompts = 0;
+
+  for (const [, group] of promptGroups) {
+    const valid = group.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+    if (valid.length < 2) continue;
+    totalPrompts++;
+
+    const mentionedCount = valid.filter(r => r.brandMentioned).length;
+    // Consistent = all mention or all don't mention
+    if (mentionedCount === valid.length || mentionedCount === 0) {
+      consistentPrompts++;
+    }
+  }
+
+  if (totalPrompts === 0) return { score: 0, label: 'Insufficient Data', detail: 'Not enough valid responses to measure consistency.' };
+
+  const score = Math.round((consistentPrompts / totalPrompts) * 100);
+  let label: string;
+  let detail: string;
+
+  if (score >= 80) {
+    label = 'High Consistency';
+    detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
+  } else if (score >= 50) {
+    label = 'Mixed Signals';
+    detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
+  } else {
+    label = 'Inconsistent';
+    detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
+  }
+
+  return { score, label, detail };
+}
+
+/**
+ * Build competitor head-to-head matrix
+ * Returns: { promptText -> { competitorName -> mentioned:boolean } }
+ */
+function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
+  prompts: string[];
+  competitors: string[];
+  matrix: Record<string, Record<string, boolean>>;
+  brandRow: Record<string, boolean>;
+} {
+  const allCompetitors = new Set<string>();
+  const promptTexts: string[] = [];
+  const promptSet = new Set<string>();
+
+  for (const r of results) {
+    if (!promptSet.has(r.prompt)) {
+      promptSet.add(r.prompt);
+      promptTexts.push(r.prompt);
+    }
+    for (const c of r.competitors) allCompetitors.add(c);
+  }
+
+  const competitors = Array.from(allCompetitors);
+  const matrix: Record<string, Record<string, boolean>> = {};
+  const brandRow: Record<string, boolean> = {};
+
+  for (const prompt of promptTexts) {
+    const promptResults = results.filter(r => r.prompt === prompt);
+    const validResults = promptResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+
+    // Brand mentioned in ANY provider for this prompt?
+    brandRow[prompt] = validResults.some(r => r.brandMentioned);
+
+    for (const comp of competitors) {
+      if (!matrix[comp]) matrix[comp] = {};
+      matrix[comp][prompt] = validResults.some(r => r.competitors.includes(comp));
+    }
+  }
+
+  return { prompts: promptTexts, competitors, matrix, brandRow };
 }
 
 /**
@@ -1047,7 +1235,193 @@ async function generatePDF(
     }
   }
 
-  // ====================== PAGE 2+: DETAILED RESULTS ======================
+  // ====================== PAGE 2: BRAND INTELLIGENCE ======================
+  page = newPage();
+  y = H - 50;
+
+  page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+  page.drawText('BRAND INTELLIGENCE ANALYSIS', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+  y = H - 70;
+
+  // --- Brand Sentiment Analysis ---
+  y = drawSection(page, 'Brand Sentiment Analysis', y);
+  page.drawText('How AI platforms perceive your brand when they mention it:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+  y -= 18;
+
+  const sentimentCounts = { positive: 0, neutral: 0, negative: 0, not_mentioned: 0 };
+  for (const r of validResults) {
+    sentimentCounts[r.sentiment]++;
+  }
+
+  const sentimentData = [
+    { label: 'Positive', count: sentimentCounts.positive, color: green, icon: '+' },
+    { label: 'Neutral', count: sentimentCounts.neutral, color: amber, icon: '~' },
+    { label: 'Negative', count: sentimentCounts.negative, color: red, icon: '-' },
+    { label: 'Not Mentioned', count: sentimentCounts.not_mentioned, color: light, icon: 'x' },
+  ];
+
+  const sentBarW = contentW - 20;
+  const sentTotal = validResults.length || 1;
+
+  for (const s of sentimentData) {
+    const pct = Math.round((s.count / sentTotal) * 100);
+    const barPx = Math.max(1, (s.count / sentTotal) * sentBarW * 0.6);
+
+    page.drawText(`${s.icon} ${s.label}`, { x: M + 5, y, size: 9, font: helveticaBold, color: s.color });
+    page.drawText(`${s.count} (${pct}%)`, { x: M + 120, y, size: 9, font: helvetica, color: mid });
+    page.drawRectangle({ x: M + 190, y: y + 1, width: barPx, height: 8, color: s.color });
+    y -= 16;
+  }
+
+  // Sentiment insight
+  y -= 4;
+  const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative ? 'positive'
+    : sentimentCounts.negative > sentimentCounts.positive ? 'negative' : 'neutral';
+  const sentimentInsight = dominantSentiment === 'positive'
+    ? 'AI platforms generally portray your brand favorably — this is a strong trust signal.'
+    : dominantSentiment === 'negative'
+    ? 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.'
+    : 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  y = drawWrappedText(page, sentimentInsight, M + 5, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
+
+  // --- AI Platform Recommendation Strength ---
+  y -= 16;
+  y = drawSection(page, 'AI Platform Recommendation Strength', y);
+  page.drawText('How strongly each AI platform recommends your brand:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+  y -= 18;
+
+  const strengthColors = { strong: green, moderate: amber, weak: red, absent: light };
+  const strengthLabels = { strong: 'STRONG', moderate: 'MODERATE', weak: 'WEAK', absent: 'ABSENT' };
+  const strengthIcons = { strong: '***', moderate: '**', weak: '*', absent: '--' };
+
+  for (const [provider, _data] of Object.entries(providerStats)) {
+    const provResults = validResults.filter(r => r.provider === provider);
+    const strengths = provResults.map(r => r.recommendationStrength);
+
+    // Determine dominant strength for this provider
+    const strengthCount = { strong: 0, moderate: 0, weak: 0, absent: 0 };
+    for (const s of strengths) strengthCount[s]++;
+    const dominant = (Object.entries(strengthCount) as [keyof typeof strengthCount, number][])
+      .sort((a, b) => b[1] - a[1])[0][0];
+
+    page.drawText(provider, { x: M + 5, y, size: 10, font: helveticaBold, color: dark });
+
+    // Draw strength indicator blocks
+    const blockX = M + 120;
+    for (let i = 0; i < provResults.length && i < 5; i++) {
+      const s = provResults[i].recommendationStrength;
+      page.drawRectangle({ x: blockX + i * 22, y: y - 1, width: 18, height: 12, color: strengthColors[s] });
+    }
+
+    page.drawText(strengthLabels[dominant], { x: M + 250, y, size: 8, font: helveticaBold, color: strengthColors[dominant] });
+    
+    // Show position info if available
+    const positions = provResults.map(r => r.brandPosition).filter(p => p !== null) as number[];
+    if (positions.length > 0) {
+      const avgPos = Math.round(positions.reduce((a, b) => a + b, 0) / positions.length * 10) / 10;
+      page.drawText(`Avg Position: #${avgPos}`, { x: M + 340, y, size: 8, font: helvetica, color: mid });
+    }
+
+    y -= 20;
+  }
+
+  // --- Provider Consistency Score ---
+  y -= 10;
+  y = drawSection(page, 'Provider Consistency Score', y);
+
+  const consistency = calculateProviderConsistency(results);
+
+  // Score circle
+  page.drawText(`${consistency.score}%`, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistency.score >= 80 ? green : consistency.score >= 50 ? amber : red });
+  page.drawText(consistency.label, { x: M + 80, y: y + 2, size: 11, font: helveticaBold, color: dark });
+  y -= 18;
+  y = drawWrappedText(page, consistency.detail, M + 80, y, { size: 9, font: helvetica, color: mid, maxChars: 70, lineSpacing: 13 });
+
+  y -= 10;
+  page.drawText('High consistency = AI platforms agree about your brand = strong visibility signal', { x: M + 5, y, size: 8, font: helveticaOblique, color: light });
+
+  // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
+  const h2h = buildHeadToHeadMatrix(results, domain);
+
+  if (h2h.competitors.length > 0 && h2h.prompts.length > 0) {
+    page = newPage();
+    y = H - 50;
+
+    page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+    page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+    y = H - 70;
+
+    page.drawText('Which brands AI recommends for each query (your brand highlighted):', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    y -= 20;
+
+    // Column headers (prompt numbers)
+    const maxCols = Math.min(h2h.prompts.length, 5);
+    const colStartX = M + 130;
+    const matColW = (contentW - 140) / maxCols;
+
+    for (let i = 0; i < maxCols; i++) {
+      page.drawText(`P${i + 1}`, { x: colStartX + i * matColW + matColW / 2 - 5, y, size: 9, font: helveticaBold, color: accent });
+    }
+    y -= 4;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: faint });
+    y -= 14;
+
+    // Brand row (highlighted)
+    const brandLabel = domain.replace(/\.(com|io|net|org|co|app)$/i, '');
+    page.drawRectangle({ x: M, y: y - 4, width: contentW, height: 16, color: rgb(0.93, 0.95, 0.98) });
+    page.drawText(brandLabel.toUpperCase(), { x: M + 5, y, size: 9, font: helveticaBold, color: accent });
+
+    for (let i = 0; i < maxCols; i++) {
+      const prompt = h2h.prompts[i];
+      const present = h2h.brandRow[prompt];
+      const cx = colStartX + i * matColW + matColW / 2 - 4;
+      if (present) {
+        page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: green });
+        page.drawText('Y', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+      } else {
+        page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: red });
+        page.drawText('N', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+      }
+    }
+    y -= 20;
+
+    // Competitor rows
+    const displayCompetitors = h2h.competitors.slice(0, 10);
+    for (const comp of displayCompetitors) {
+      if (y < 80) break;
+
+      const compLabel = comp.length > 18 ? comp.substring(0, 16) + '..' : comp;
+      page.drawText(compLabel, { x: M + 5, y, size: 9, font: helvetica, color: dark });
+
+      for (let i = 0; i < maxCols; i++) {
+        const prompt = h2h.prompts[i];
+        const present = h2h.matrix[comp]?.[prompt] ?? false;
+        const cx = colStartX + i * matColW + matColW / 2 - 4;
+        if (present) {
+          page.drawRectangle({ x: cx - 2, y: y - 2, width: 14, height: 12, color: rgb(0.40, 0.35, 0.60) });
+          page.drawText('Y', { x: cx + 1, y, size: 8, font: helveticaBold, color: white });
+        } else {
+          page.drawText('-', { x: cx + 2, y, size: 8, font: helvetica, color: faint });
+        }
+      }
+      y -= 16;
+    }
+
+    // Prompt legend
+    y -= 10;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: faint });
+    y -= 14;
+    page.drawText('PROMPT KEY:', { x: M + 5, y, size: 8, font: helveticaBold, color: accent });
+    y -= 14;
+
+    for (let i = 0; i < maxCols; i++) {
+      const truncPrompt = h2h.prompts[i].length > 80 ? h2h.prompts[i].substring(0, 78) + '...' : h2h.prompts[i];
+      y = drawWrappedText(page, `P${i + 1}: ${truncPrompt}`, M + 5, y, { size: 8, font: helvetica, color: mid, maxChars: 95, lineSpacing: 11 });
+      y -= 4;
+    }
+  }
+
+  // ====================== PAGE 4+: DETAILED RESULTS ======================
   page = newPage();
   y = H - 50;
 
@@ -1064,6 +1438,8 @@ async function generatePDF(
     arr.push(r);
     promptGroups.set(r.prompt, arr);
   }
+
+  const brandNameForHighlight = domain.replace(/\.(com|io|net|org|co|app)$/i, '').replace(/[.-]/g, ' ');
 
   let promptIdx = 0;
   for (const [prompt, providerResults] of promptGroups) {
@@ -1087,7 +1463,7 @@ async function generatePDF(
     for (const r of providerResults) {
       if (y < 100) { page = newPage(); y = H - 60; }
 
-      // Provider row
+      // Provider row with enhanced info
       const mentioned = r.brandMentioned;
       const statusColor = mentioned ? green : red;
       const statusText = mentioned ? 'MENTIONED' : 'NOT FOUND';
@@ -1096,18 +1472,108 @@ async function generatePDF(
       page.drawText(statusText, { x: M + 100, y, size: 8, font: helveticaBold, color: statusColor });
       page.drawText(`Score: ${r.score}/100`, { x: M + 180, y, size: 8, font: helvetica, color: light });
 
+      // Sentiment & Strength badges
+      if (r.sentiment !== 'not_mentioned') {
+        const sentColor = r.sentiment === 'positive' ? green : r.sentiment === 'negative' ? red : amber;
+        page.drawText(`Sentiment: ${r.sentiment}`, { x: M + 260, y, size: 7, font: helvetica, color: sentColor });
+      }
+      if (r.recommendationStrength !== 'absent') {
+        const strColor = strengthColors[r.recommendationStrength];
+        page.drawText(`Rec: ${r.recommendationStrength}`, { x: M + 370, y, size: 7, font: helvetica, color: strColor });
+      }
+
       y -= 14;
 
-      // Response excerpt (first 200 chars)
+      // Response excerpt with brand/competitor highlighting via bold segments
       if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const excerpt = r.response.substring(0, 220).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 220 ? '...' : '');
-        y = drawWrappedText(page, excerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
-        y -= 4;
+        const rawExcerpt = r.response.substring(0, 280).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
+        
+        // Split excerpt into segments, highlighting brand and competitor names
+        const highlightTerms = [brandNameForHighlight, ...r.competitors].filter(t => t.length >= 3);
+        const excerptLower = rawExcerpt.toLowerCase();
+        
+        // Find all highlight positions
+        const highlights: { start: number; end: number; isBrand: boolean }[] = [];
+        for (const term of highlightTerms) {
+          const termLower = term.toLowerCase();
+          let searchFrom = 0;
+          while (searchFrom < excerptLower.length) {
+            const idx = excerptLower.indexOf(termLower, searchFrom);
+            if (idx === -1) break;
+            highlights.push({ start: idx, end: idx + term.length, isBrand: term.toLowerCase() === brandNameForHighlight.toLowerCase() });
+            searchFrom = idx + term.length;
+          }
+        }
+        highlights.sort((a, b) => a.start - b.start);
+
+        // Render excerpt with highlights
+        if (highlights.length > 0) {
+          let cursor = 0;
+          let xPos = M + 14;
+          const maxX = W - M - 10;
+
+          for (const hl of highlights) {
+            // Draw normal text before highlight
+            if (cursor < hl.start) {
+              const normalText = rawExcerpt.substring(cursor, hl.start);
+              const normalWidth = helvetica.widthOfTextAtSize(normalText, 8);
+              if (xPos + normalWidth > maxX) {
+                y -= 11;
+                xPos = M + 14;
+                if (y < 60) { page = newPage(); y = H - 60; }
+              }
+              page.drawText(normalText, { x: xPos, y, size: 8, font: helvetica, color: light });
+              xPos += normalWidth;
+            }
+
+            // Draw highlighted text
+            const hlText = rawExcerpt.substring(hl.start, hl.end);
+            const hlWidth = helveticaBold.widthOfTextAtSize(hlText, 8);
+            if (xPos + hlWidth > maxX) {
+              y -= 11;
+              xPos = M + 14;
+              if (y < 60) { page = newPage(); y = H - 60; }
+            }
+            const hlColor = hl.isBrand ? green : accent;
+            page.drawText(hlText, { x: xPos, y, size: 8, font: helveticaBold, color: hlColor });
+            xPos += hlWidth;
+            cursor = hl.end;
+          }
+
+          // Draw remaining text
+          if (cursor < rawExcerpt.length) {
+            const remaining = rawExcerpt.substring(cursor);
+            const lines = wrapText(remaining, 95);
+            for (const line of lines) {
+              const lineWidth = helvetica.widthOfTextAtSize(line, 8);
+              if (xPos + lineWidth > maxX) {
+                y -= 11;
+                xPos = M + 14;
+                if (y < 60) { page = newPage(); y = H - 60; }
+              }
+              page.drawText(line, { x: xPos, y, size: 8, font: helvetica, color: light });
+              xPos = M + 14;
+              y -= 11;
+            }
+          } else {
+            y -= 11;
+          }
+          y -= 4;
+        } else {
+          y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
+          y -= 4;
+        }
       }
 
       // Per-response competitors
       if (r.competitors.length > 0) {
-        page.drawText(`Competitors in response: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helvetica, color: accent });
+        page.drawText(`Competitors: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helveticaBold, color: accent });
+        y -= 12;
+      }
+
+      // Brand position
+      if (r.brandPosition !== null) {
+        page.drawText(`Brand listed at position #${r.brandPosition}`, { x: M + 14, y, size: 8, font: helvetica, color: green });
         y -= 12;
       }
 
