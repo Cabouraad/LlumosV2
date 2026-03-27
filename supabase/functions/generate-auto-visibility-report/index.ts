@@ -1194,11 +1194,13 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
   }
 
   const totalMentions = validResults.filter((result) => result.brandMentioned).length;
+  const mentionRate = totalMentions / validResults.length;
+
   if (totalMentions === 0) {
     return {
       score: 0,
       label: 'No Visibility',
-      detail: 'Your brand was not mentioned in any AI response, so consistency is shown as 0 until there is visibility to compare across providers.'
+      detail: 'Your brand was not mentioned in any AI response, so consistency cannot be measured.'
     };
   }
 
@@ -1217,8 +1219,14 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     totalPrompts++;
 
     const mentionedCount = group.filter((result) => result.brandMentioned).length;
-    if (mentionedCount === group.length || mentionedCount === 0) {
+    // Only count as "consistent" if brand IS mentioned across all providers for that prompt
+    // Unanimous absence is NOT consistency — it's invisibility
+    if (mentionedCount === group.length) {
       consistentPrompts++;
+    } else if (mentionedCount > 0 && mentionedCount < group.length) {
+      // Partial mention — inconsistent
+    } else {
+      // All absent — count as neutral (not consistent, not inconsistent)
     }
   }
 
@@ -1226,16 +1234,21 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
   }
 
-  const score = Math.round((consistentPrompts / totalPrompts) * 100);
+  // Weight by mention rate — can't have high consistency with low visibility
+  const rawConsistency = consistentPrompts / totalPrompts;
+  const score = Math.round(rawConsistency * mentionRate * 100);
   let label: string;
   let detail: string;
 
-  if (score >= 80) {
+  if (score >= 60) {
     label = 'High Consistency';
     detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
-  } else if (score >= 50) {
+  } else if (score >= 30) {
     label = 'Mixed Signals';
     detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
+  } else if (totalMentions > 0) {
+    label = 'Low Consistency';
+    detail = `Your brand appeared in only ${totalMentions} of ${validResults.length} checks. Most AI platforms don't yet reference your brand consistently.`;
   } else {
     label = 'Inconsistent';
     detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
@@ -1332,6 +1345,12 @@ function blurText(text: string): string {
  * Industry benchmark data (average scores by industry category)
  */
 const INDUSTRY_BENCHMARKS: Record<string, number> = {
+  'legal': 30,
+  'law firm': 30,
+  'attorney': 30,
+  'consulting': 33,
+  'marketing agency': 35,
+  'digital marketing': 35,
   'technology': 45,
   'software': 42,
   'saas': 40,
@@ -1344,22 +1363,38 @@ const INDUSTRY_BENCHMARKS: Record<string, number> = {
   'automotive': 34,
   '3d printing': 30,
   'consumer electronics': 38,
+  'real estate': 32,
+  'insurance': 35,
+  'professional services': 33,
   'default': 35
 };
 
 /**
  * Get industry benchmark score based on business context
+ * Uses weighted keyword matching to find the most relevant industry
  */
 function getIndustryBenchmark(businessContext: string): { industry: string; benchmark: number } {
   const contextLower = businessContext.toLowerCase();
   
+  // Score each industry by how many times its keyword appears
+  let bestIndustry = 'all industries';
+  let bestScore = 0;
+  let bestBenchmark = INDUSTRY_BENCHMARKS.default;
+  
   for (const [industry, benchmark] of Object.entries(INDUSTRY_BENCHMARKS)) {
-    if (contextLower.includes(industry)) {
-      return { industry, benchmark };
+    if (industry === 'default') continue;
+    // Count occurrences for better matching
+    const regex = new RegExp(industry.replace(/\s+/g, '\\s+'), 'gi');
+    const matches = contextLower.match(regex);
+    const score = matches ? matches.length : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndustry = industry;
+      bestBenchmark = benchmark;
     }
   }
   
-  return { industry: 'all industries', benchmark: INDUSTRY_BENCHMARKS.default };
+  return { industry: bestIndustry, benchmark: bestBenchmark };
 }
 
 /**
@@ -1687,18 +1722,23 @@ async function generatePDF(
     y -= 16;
   }
 
-  // Sentiment insight
+  // Sentiment insight — contextualize based on mention rate
   y -= 4;
   const totalSentimentMentions = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative;
-  const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative ? 'positive'
-    : sentimentCounts.negative > sentimentCounts.positive ? 'negative' : 'neutral';
-  const sentimentInsight = totalSentimentMentions === 0
-    ? 'No sentiment signal is available yet because your brand was not mentioned in any AI response.'
-    : dominantSentiment === 'positive'
-    ? 'AI platforms generally portray your brand favorably — this is a strong trust signal.'
-    : dominantSentiment === 'negative'
-    ? 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.'
-    : 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  const notMentionedPct = Math.round((sentimentCounts.not_mentioned / sentTotal) * 100);
+  let sentimentInsight: string;
+  if (totalSentimentMentions === 0) {
+    sentimentInsight = 'No sentiment signal is available because your brand was not mentioned in any AI response. Building authoritative content is the first step.';
+  } else if (notMentionedPct >= 70) {
+    // Low visibility — don't claim "favorable" based on 1-2 mentions
+    sentimentInsight = `Your brand was absent from ${notMentionedPct}% of AI responses. The ${totalSentimentMentions} mention${totalSentimentMentions > 1 ? 's' : ''} detected ${sentimentCounts.positive > 0 ? 'leaned positive' : 'were neutral'}, but the primary opportunity is increasing overall visibility.`;
+  } else if (sentimentCounts.positive > sentimentCounts.negative + 1) {
+    sentimentInsight = 'AI platforms generally portray your brand favorably — this is a strong trust signal.';
+  } else if (sentimentCounts.negative > sentimentCounts.positive) {
+    sentimentInsight = 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.';
+  } else {
+    sentimentInsight = 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  }
   y = drawWrappedText(page, sentimentInsight, M + 5, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
 
   // --- AI Platform Recommendation Strength ---
@@ -1715,11 +1755,14 @@ async function generatePDF(
     const provResults = validResults.filter(r => r.provider === provider);
     const strengths = provResults.map(r => r.recommendationStrength);
 
-    // Determine dominant strength for this provider
+    // Determine best (strongest) non-absent strength for this provider
     const strengthCount = { strong: 0, moderate: 0, weak: 0, absent: 0 };
     for (const s of strengths) strengthCount[s]++;
-    const dominant = (Object.entries(strengthCount) as [keyof typeof strengthCount, number][])
-      .sort((a, b) => b[1] - a[1])[0][0];
+    // Pick the best strength level that has at least one occurrence
+    const dominant: keyof typeof strengthCount = strengthCount.strong > 0 ? 'strong'
+      : strengthCount.moderate > 0 ? 'moderate'
+      : strengthCount.weak > 0 ? 'weak'
+      : 'absent';
 
     page.drawText(provider, { x: M + 5, y, size: 10, font: helveticaBold, color: dark });
 
@@ -1769,24 +1812,30 @@ async function generatePDF(
     { x: M + 5, y, size: 8, font: helveticaOblique, color: light }
   );
 
-  // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
+  // ====================== COMPETITOR HEAD-TO-HEAD (continues on same page if space, else new page) ======================
   const h2h = buildHeadToHeadMatrix(results, domain);
 
   if (h2h.competitors.length > 0 && h2h.prompts.length > 0) {
-    page = newPage();
-    y = H - 50;
-
-    page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
-    page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
-    y = H - 70;
+    // Need ~250px for matrix + legend
+    const neededSpace = 80 + (h2h.competitors.length + 1) * 16 + h2h.prompts.length * 14 + 40;
+    if (y < neededSpace + 60) {
+      page = newPage();
+      y = H - 50;
+      page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+      page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+      y = H - 70;
+    } else {
+      y -= 10;
+      y = drawSection(page, 'Competitor Head-to-Head Matrix', y);
+    }
 
     page.drawText('Which brands AI recommends for each query (your brand highlighted):', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
     y -= 20;
 
-    // Column headers (prompt numbers)
+    // Column headers (prompt numbers) — wider name column
     const maxCols = Math.min(h2h.prompts.length, 5);
-    const colStartX = M + 130;
-    const matColW = (contentW - 140) / maxCols;
+    const colStartX = M + 170; // wider name column (was 130)
+    const matColW = (contentW - 180) / maxCols;
 
     for (let i = 0; i < maxCols; i++) {
       page.drawText(`P${i + 1}`, { x: colStartX + i * matColW + matColW / 2 - 5, y, size: 9, font: helveticaBold, color: accent });
@@ -1819,7 +1868,7 @@ async function generatePDF(
     for (const comp of displayCompetitors) {
       if (y < 80) break;
 
-      const compLabel = comp.length > 18 ? comp.substring(0, 16) + '..' : comp;
+      const compLabel = comp.length > 24 ? comp.substring(0, 22) + '..' : comp;
       page.drawText(compLabel, { x: M + 5, y, size: 9, font: helvetica, color: dark });
 
       for (let i = 0; i < maxCols; i++) {
@@ -1874,8 +1923,8 @@ async function generatePDF(
   for (const [prompt, providerResults] of promptGroups) {
     promptIdx++;
 
-    // Check space for new prompt block (need ~180px minimum)
-    if (y < 200) {
+    // Check space for new prompt block (need ~140px minimum)
+    if (y < 160) {
       page = newPage();
       y = H - 60;
     }
@@ -1915,7 +1964,7 @@ async function generatePDF(
 
       // Response excerpt with brand/competitor highlighting via bold segments
       if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const rawExcerpt = r.response.substring(0, 280).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
+        const rawExcerpt = r.response.substring(0, 280).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
         
         // Split excerpt into segments, highlighting brand and competitor names
         const highlightTerms = [brandNameForHighlight, ...r.competitors].filter(t => t.length >= 3);
