@@ -22,6 +22,16 @@ interface ReportRequest {
   score: number;
 }
 
+interface BrandProfile {
+  primaryName: string;
+  aliases: string[];
+}
+
+interface HomepageSignals {
+  context: string;
+  brandCandidates: string[];
+}
+
 interface ProviderResult {
   provider: string;
   prompt: string;
@@ -103,6 +113,190 @@ function normalizeEntityName(value: string): string {
     .replace(/[^a-z0-9\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function prettifyDomainLabel(domain: string): string {
+  const base = domain
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\.(com|io|net|org|co|app|ai|dev)$/i, '')
+    .split('.')[0]
+    .toLowerCase();
+
+  let label = base.replace(/[-_]+/g, ' ');
+  const suffixes = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio'];
+  const matchingSuffix = suffixes.find((suffix) => label.endsWith(suffix) && label.length > suffix.length + 2 && !label.includes(' '));
+
+  if (matchingSuffix) {
+    label = `${label.slice(0, -matchingSuffix.length)} ${matchingSuffix}`;
+  }
+
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => {
+      const uppercaseTokens = new Set(['ai', 'seo', 'ppc', 'cfo', 'crm', 'smb']);
+      return uppercaseTokens.has(part)
+        ? part.toUpperCase()
+        : `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+    })
+    .join(' ')
+    .trim();
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&ndash;/g, '–')
+    .replace(/&mdash;/g, '—')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™');
+}
+
+function cleanTextSnippet(text: string): string {
+  return decodeHtmlEntities(text)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractBrandCandidatesFromContext(context: string): string[] {
+  if (!context) return [];
+
+  const candidates: string[] = [];
+  const patterns = [
+    /^([A-Z][A-Za-z0-9&'.\- ]{1,50}?)\s+(?:is|helps|offers|provides|serves|specializes)/m,
+    /^([A-Z][A-Za-z0-9&'.\- ]{1,50}?)\s*\|/m,
+  ];
+
+  for (const pattern of patterns) {
+    const match = context.match(pattern);
+    if (match?.[1]) {
+      candidates.push(match[1].trim());
+    }
+  }
+
+  return dedupeBrandNames(candidates);
+}
+
+async function fetchHomepageSignals(domain: string): Promise<HomepageSignals> {
+  for (const url of [`https://${domain}`, `http://${domain}`]) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; LlumosBot/1.0; +https://llumos.app)',
+        },
+      });
+
+      if (!response.ok) continue;
+
+      const html = await response.text();
+      if (!html) continue;
+
+      const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const ogSiteNameMatch = html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i);
+      const headingMatches = Array.from(html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi))
+        .map((match) => cleanTextSnippet(match[1]))
+        .filter(Boolean)
+        .slice(0, 8);
+      const paragraphMatches = Array.from(html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi))
+        .map((match) => cleanTextSnippet(match[1]))
+        .filter((text) => text.length > 40)
+        .slice(0, 6);
+
+      const title = cleanTextSnippet(titleMatch?.[1] || '');
+      const firstTitleSegment = title.split(/\||–|—|-/)[0]?.trim() || '';
+      const ogSiteName = cleanTextSnippet(ogSiteNameMatch?.[1] || '');
+      const brandCandidates = dedupeBrandNames([
+        firstTitleSegment,
+        ogSiteName,
+        ...headingMatches.filter((heading) => heading.split(/\s+/).length <= 5),
+      ].filter(Boolean));
+
+      return {
+        context: [title, ...headingMatches, ...paragraphMatches].filter(Boolean).join('\n').slice(0, 3000),
+        brandCandidates,
+      };
+    } catch (_error) {
+      continue;
+    }
+  }
+
+  return { context: '', brandCandidates: [] };
+}
+
+function buildBrandProfile(domain: string, businessContext: string, homepageSignals: HomepageSignals): BrandProfile {
+  const fallbackName = prettifyDomainLabel(domain);
+  const domainStem = domain
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\.(com|io|net|org|co|app|ai|dev)$/i, '')
+    .split('.')[0];
+  const normalizedStem = normalizeEntityName(domainStem);
+
+  const candidates = dedupeBrandNames([
+    ...homepageSignals.brandCandidates,
+    ...extractBrandCandidatesFromContext(businessContext),
+    fallbackName,
+  ]).filter(Boolean);
+
+  const primaryName = candidates
+    .sort((a, b) => {
+      const aNorm = normalizeEntityName(a);
+      const bNorm = normalizeEntityName(b);
+      const aScore = (aNorm === normalizedStem ? 20 : 0) + (aNorm.includes(normalizedStem) || normalizedStem.includes(aNorm) ? 10 : 0) + (a.split(/\s+/).length <= 3 ? 2 : 0);
+      const bScore = (bNorm === normalizedStem ? 20 : 0) + (bNorm.includes(normalizedStem) || normalizedStem.includes(bNorm) ? 10 : 0) + (b.split(/\s+/).length <= 3 ? 2 : 0);
+      return bScore - aScore || a.length - b.length;
+    })[0] || fallbackName;
+
+  return {
+    primaryName,
+    aliases: dedupeBrandNames([
+      primaryName,
+      fallbackName,
+      domainStem,
+      primaryName.replace(/\s+/g, ''),
+      primaryName.replace(/\s+/g, '-'),
+    ]).filter((alias) => normalizeEntityName(alias).length >= 3),
+  };
+}
+
+function aliasToRegexSource(alias: string): string | null {
+  const cleaned = alias
+    .replace(/[()\[\]{}]/g, ' ')
+    .replace(/[^A-Za-z0-9\s.&'\-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return null;
+  return cleaned.split(/\s+/).filter(Boolean).map((token) => escapeRegExp(token)).join('[\\s\\-._&]*');
+}
+
+function findBrandMention(text: string, brandProfile: BrandProfile): { index: number; alias: string } | null {
+  let bestMatch: { index: number; alias: string } | null = null;
+
+  for (const alias of brandProfile.aliases) {
+    const source = aliasToRegexSource(alias);
+    if (!source) continue;
+
+    const regex = new RegExp(`(^|[^a-z0-9])(${source})(?=[^a-z0-9]|$)`, 'i');
+    const match = regex.exec(text);
+    if (!match) continue;
+
+    const index = match.index + (match[1]?.length || 0);
+    if (!bestMatch || index < bestMatch.index) {
+      bestMatch = { index, alias };
+    }
+  }
+
+  return bestMatch;
+}
+
+function brandMentionedInText(text: string, brandProfile: BrandProfile): boolean {
+  return findBrandMention(text, brandProfile) !== null;
 }
 
 function dedupeBrandNames(names: string[]): string[] {
