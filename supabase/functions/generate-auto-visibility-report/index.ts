@@ -1812,24 +1812,30 @@ async function generatePDF(
     { x: M + 5, y, size: 8, font: helveticaOblique, color: light }
   );
 
-  // ====================== PAGE 3: COMPETITOR HEAD-TO-HEAD ======================
+  // ====================== COMPETITOR HEAD-TO-HEAD (continues on same page if space, else new page) ======================
   const h2h = buildHeadToHeadMatrix(results, domain);
 
   if (h2h.competitors.length > 0 && h2h.prompts.length > 0) {
-    page = newPage();
-    y = H - 50;
-
-    page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
-    page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
-    y = H - 70;
+    // Need ~250px for matrix + legend
+    const neededSpace = 80 + (h2h.competitors.length + 1) * 16 + h2h.prompts.length * 14 + 40;
+    if (y < neededSpace + 60) {
+      page = newPage();
+      y = H - 50;
+      page.drawRectangle({ x: 0, y: H - 45, width: W, height: 45, color: accent });
+      page.drawText('COMPETITOR HEAD-TO-HEAD MATRIX', { x: M, y: H - 33, size: 16, font: helveticaBold, color: white });
+      y = H - 70;
+    } else {
+      y -= 10;
+      y = drawSection(page, 'Competitor Head-to-Head Matrix', y);
+    }
 
     page.drawText('Which brands AI recommends for each query (your brand highlighted):', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
     y -= 20;
 
-    // Column headers (prompt numbers)
+    // Column headers (prompt numbers) — wider name column
     const maxCols = Math.min(h2h.prompts.length, 5);
-    const colStartX = M + 130;
-    const matColW = (contentW - 140) / maxCols;
+    const colStartX = M + 170; // wider name column (was 130)
+    const matColW = (contentW - 180) / maxCols;
 
     for (let i = 0; i < maxCols; i++) {
       page.drawText(`P${i + 1}`, { x: colStartX + i * matColW + matColW / 2 - 5, y, size: 9, font: helveticaBold, color: accent });
