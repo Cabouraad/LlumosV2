@@ -1755,11 +1755,14 @@ async function generatePDF(
     const provResults = validResults.filter(r => r.provider === provider);
     const strengths = provResults.map(r => r.recommendationStrength);
 
-    // Determine dominant strength for this provider
+    // Determine best (strongest) non-absent strength for this provider
     const strengthCount = { strong: 0, moderate: 0, weak: 0, absent: 0 };
     for (const s of strengths) strengthCount[s]++;
-    const dominant = (Object.entries(strengthCount) as [keyof typeof strengthCount, number][])
-      .sort((a, b) => b[1] - a[1])[0][0];
+    // Pick the best strength level that has at least one occurrence
+    const dominant: keyof typeof strengthCount = strengthCount.strong > 0 ? 'strong'
+      : strengthCount.moderate > 0 ? 'moderate'
+      : strengthCount.weak > 0 ? 'weak'
+      : 'absent';
 
     page.drawText(provider, { x: M + 5, y, size: 10, font: helveticaBold, color: dark });
 
