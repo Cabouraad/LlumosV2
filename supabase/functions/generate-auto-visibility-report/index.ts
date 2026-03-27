@@ -44,19 +44,25 @@ interface ProviderResult {
   brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
 }
 
+// Only exclude platforms/channels/directories/AI models that are NEVER competitors
+// Do NOT exclude software products here — they may be real competitors for many businesses
 const NON_COMPETITOR_ENTITIES = new Set([
+  // Social media platforms & ad channels (these are distribution channels, not competitors)
   'google', 'google ads', 'google analytics', 'google business profile', 'google my business', 'google maps',
   'facebook', 'facebook ads', 'instagram', 'instagram ads', 'linkedin', 'linkedin ads', 'x', 'twitter',
   'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
+  // Review sites and directories (these are listing platforms, not competitors)
   'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
   'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
+  // Generic marketing terms (not brand names)
   'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
   'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
+  // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
-  'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'mailchimp', 'hubspot', 'salesforce',
-  'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext', 'canva', 'figma', 'slack', 'zoom'
+  // Generic infrastructure (only exclude WordPress as a CMS platform, not as a competitor)
+  'wordpress',
 ]);
 
 const GENERIC_COMPETITOR_TERMS = new Set([
