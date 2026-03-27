@@ -1958,7 +1958,7 @@ async function generatePDF(
 
       // Response excerpt with brand/competitor highlighting via bold segments
       if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const rawExcerpt = r.response.substring(0, 280).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
+        const rawExcerpt = r.response.substring(0, 280).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
         
         // Split excerpt into segments, highlighting brand and competitor names
         const highlightTerms = [brandNameForHighlight, ...r.competitors].filter(t => t.length >= 3);
