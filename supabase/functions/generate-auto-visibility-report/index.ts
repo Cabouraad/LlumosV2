@@ -1923,8 +1923,8 @@ async function generatePDF(
   for (const [prompt, providerResults] of promptGroups) {
     promptIdx++;
 
-    // Check space for new prompt block (need ~180px minimum)
-    if (y < 200) {
+    // Check space for new prompt block (need ~140px minimum)
+    if (y < 160) {
       page = newPage();
       y = H - 60;
     }
