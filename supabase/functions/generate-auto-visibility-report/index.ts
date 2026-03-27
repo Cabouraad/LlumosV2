@@ -643,13 +643,15 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts. Generate exactly 5 UNBRANDED prompts that a potential customer might ask an AI assistant when looking for products/services in this specific industry. 
+            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 5 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
-- Prompts should be generic industry/category searches that are HIGHLY SPECIFIC to what this business offers
-- Focus on what problems customers want to solve or what they're looking for
-- Think about how someone would search BEFORE they know about this brand
+- Prompts should be highly specific to what this business offers
+- Prioritize buyer-intent and vendor-comparison phrasing over educational how-to phrasing
+- At least 3 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
+- Avoid broad informational prompts unless they clearly imply provider selection
+- Think about how someone would search before they know the brand but while they are choosing a solution
 - Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
           },
           {
@@ -663,6 +665,8 @@ Generate prompts that potential customers of THIS SPECIFIC business would search
 - For a running shoe company: "What are the best running shoes for marathon training?"
 - For a CRM software: "How do I choose a CRM for my small business?"
 - For a pizza restaurant: "Best pizza places near me with outdoor seating"
+
+If the company sells services, prefer prompts asking for the best firms, agencies, providers, programs, or consultants in that niche.
 
 Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
 ["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
@@ -1356,25 +1360,19 @@ function getIndustryBenchmark(businessContext: string): { industry: string; benc
  */
 function analyzeContentGaps(results: ProviderResult[], brandName: string): string[] {
   const gaps: string[] = [];
-  
-  // Find prompts where brand wasn't mentioned
-  const missedPrompts = results.filter(r => !r.brandMentioned && !r.response.startsWith('Error'));
-  
-  // Extract topics from missed prompts
-  const topicKeywords = ['best', 'top', 'recommend', 'features', 'compare', 'how to', 'what is'];
-  
-  for (const missed of missedPrompts.slice(0, 3)) {
-    const prompt = missed.prompt.toLowerCase();
-    for (const keyword of topicKeywords) {
-      if (prompt.includes(keyword)) {
-        // Extract the topic area
-        const topic = prompt.replace(/\?/g, '').trim();
-        if (topic.length > 10 && topic.length < 100) {
-          gaps.push(topic);
-          break;
-        }
-      }
+  const seen = new Set<string>();
+
+  for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
+    const normalizedPrompt = missed.prompt.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (seen.has(normalizedPrompt)) continue;
+    seen.add(normalizedPrompt);
+
+    const topic = missed.prompt.replace(/\?/g, '').trim();
+    if (topic.length > 10 && topic.length < 140) {
+      gaps.push(topic);
     }
+
+    if (gaps.length >= 3) break;
   }
   
   // Add generic gaps if we don't have enough
@@ -1416,8 +1414,8 @@ function generateExecutiveSummary(
   }
   
   // Provider insights
-  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
-  const mentionRate = validResults.filter(r => r.brandMentioned).length / validResults.length;
+  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+  const mentionRate = validResults.length > 0 ? validResults.filter(r => r.brandMentioned).length / validResults.length : 0;
   
   if (mentionRate >= 0.7) {
     summary.push(`AI models mention your brand in ${Math.round(mentionRate * 100)}% of relevant queries.`);
@@ -1481,7 +1479,7 @@ async function generatePDF(
 
   // Provider aggregate stats
   const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
-  for (const r of results) {
+  for (const r of validResults) {
     if (!providerStats[r.provider]) providerStats[r.provider] = { total: 0, count: 0, mentioned: 0 };
     providerStats[r.provider].total += r.score;
     providerStats[r.provider].count++;
@@ -1626,6 +1624,10 @@ async function generatePDF(
       y -= 16;
       if (y < 80) break;
     }
+  } else {
+    y -= 5;
+    y = drawSection(page, 'Competitor Landscape', y);
+    y = drawWrappedText(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', M + 5, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
   }
 
   // Content Gaps
@@ -1680,9 +1682,12 @@ async function generatePDF(
 
   // Sentiment insight
   y -= 4;
+  const totalSentimentMentions = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative;
   const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative ? 'positive'
     : sentimentCounts.negative > sentimentCounts.positive ? 'negative' : 'neutral';
-  const sentimentInsight = dominantSentiment === 'positive'
+  const sentimentInsight = totalSentimentMentions === 0
+    ? 'No sentiment signal is available yet because your brand was not mentioned in any AI response.'
+    : dominantSentiment === 'positive'
     ? 'AI platforms generally portray your brand favorably — this is a strong trust signal.'
     : dominantSentiment === 'negative'
     ? 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.'
@@ -1784,7 +1789,7 @@ async function generatePDF(
     y -= 14;
 
     // Brand row (highlighted)
-    const brandLabel = domain.replace(/\.(com|io|net|org|co|app)$/i, '');
+    const brandLabel = prettifyDomainLabel(domain);
     page.drawRectangle({ x: M, y: y - 4, width: contentW, height: 16, color: rgb(0.93, 0.95, 0.98) });
     page.drawText(brandLabel.toUpperCase(), { x: M + 5, y, size: 9, font: helveticaBold, color: accent });
 
@@ -1856,7 +1861,7 @@ async function generatePDF(
     promptGroups.set(r.prompt, arr);
   }
 
-  const brandNameForHighlight = domain.replace(/\.(com|io|net|org|co|app)$/i, '').replace(/[.-]/g, ' ');
+  const brandNameForHighlight = prettifyDomainLabel(domain);
 
   let promptIdx = 0;
   for (const [prompt, providerResults] of promptGroups) {
@@ -2006,7 +2011,7 @@ async function generatePDF(
   page = newPage();
   y = H - 100;
 
-  page.drawRectangle({ x: M - 10, y: y - 180, width: contentW + 20, height: 200, color: rgb(0.97, 0.97, 0.98), borderColor: accent, borderWidth: 1 });
+  page.drawRectangle({ x: M - 10, y: y - 210, width: contentW + 20, height: 230, color: rgb(0.97, 0.97, 0.98), borderColor: accent, borderWidth: 1 });
 
   page.drawText('WHAT COMES NEXT?', { x: M + 15, y: y - 10, size: 18, font: helveticaBold, color: accent });
   y -= 40;
@@ -2031,8 +2036,21 @@ async function generatePDF(
   page.drawRectangle({ x: M + 120, y: y - 5, width: 280, height: 36, color: accent });
   page.drawText('Schedule a Demo   llumos.app', { x: M + 140, y: y + 5, size: 13, font: helveticaBold, color: white });
 
-  y -= 60;
+  y -= 50;
   page.drawText('Questions? Reach us at hello@llumos.app', { x: M + 140, y, size: 9, font: helvetica, color: light });
+
+  y -= 36;
+  page.drawText('Methodology Snapshot', { x: M + 15, y, size: 11, font: helveticaBold, color: accent });
+  y -= 18;
+  for (const bullet of [
+    `${new Set(validResults.map((r) => r.prompt)).size} prompts × ${new Set(validResults.map((r) => r.provider)).size} AI providers = ${validResults.length} total checks`,
+    'Competitors shown are only brands explicitly named in AI responses',
+    'Scores reflect presence, recommendation strength, and competitive crowding',
+    'A 0 visibility score means no verified brand mention was found in the audited responses',
+  ]) {
+    y = drawWrappedText(page, `• ${bullet}`, M + 15, y, { size: 8.5, font: helvetica, color: mid, maxChars: 84, lineSpacing: 12 });
+    y -= 2;
+  }
 
   return await pdfDoc.save();
 }
