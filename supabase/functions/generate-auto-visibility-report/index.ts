@@ -328,13 +328,21 @@ function dedupeBrandNames(names: string[]): string[] {
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
-  // Must have a dot (domain-like) OR have at least 2 capital letters (proper noun) OR be multi-word with capitals
+  if (!trimmed || trimmed.length < 2) return false;
+  // Domain-like patterns (contains a dot)
   if (/\./.test(trimmed)) return true;
-  // Single word starting with capital — only brand-like if it has mixed case or is short enough to be an acronym
   const words = trimmed.split(/\s+/);
+  // Multi-word: at least one word starts with a capital letter
   if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
-  // Single word: must have internal caps (like "HubSpot") or be all-caps (like "SAP") or contain digits
-  return /[A-Z].*[A-Z]/.test(trimmed) || /^[A-Z]{2,6}$/.test(trimmed) || /\d/.test(trimmed);
+  // Single word: accept if it starts with a capital and is 4+ chars (e.g., "Salesforce", "Marketo")
+  // OR has internal caps (e.g., "HubSpot")
+  // OR is a short all-caps acronym (e.g., "SAP", "IBM")
+  // OR contains digits (e.g., "G2", "360i")
+  if (/^[A-Z][a-z]{3,}/.test(trimmed)) return true; // Capitalized word 4+ chars (brand-like)
+  if (/[A-Z].*[A-Z]/.test(trimmed)) return true; // Internal caps
+  if (/^[A-Z]{2,6}$/.test(trimmed)) return true; // Short acronym
+  if (/\d/.test(trimmed)) return true; // Contains digits
+  return false;
 }
 
 function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
