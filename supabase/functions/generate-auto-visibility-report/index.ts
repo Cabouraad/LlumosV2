@@ -166,16 +166,23 @@ function cleanTextSnippet(text: string): string {
 function extractBrandCandidatesFromContext(context: string): string[] {
   if (!context) return [];
 
+  // Strip markdown bold markers before matching
+  const clean = context.replace(/\*\*/g, '');
   const candidates: string[] = [];
   const patterns = [
     /^([A-Z][A-Za-z0-9&'.\- ]{1,50}?)\s+(?:is|helps|offers|provides|serves|specializes)/m,
     /^([A-Z][A-Za-z0-9&'.\- ]{1,50}?)\s*\|/m,
+    /^([A-Z][A-Za-z0-9&'.\- ]{2,50}?)\s*\(/m, // "SMB Team (smbteam.com)"
   ];
 
   for (const pattern of patterns) {
-    const match = context.match(pattern);
+    const match = clean.match(pattern);
     if (match?.[1]) {
-      candidates.push(match[1].trim());
+      const trimmed = match[1].trim();
+      // Filter out numeric-only, single-char, or very short noise
+      if (trimmed.length >= 2 && !/^\d+$/.test(trimmed)) {
+        candidates.push(trimmed);
+      }
     }
   }
 
@@ -241,7 +248,7 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
     fallbackName,
-  ]).filter(Boolean);
+  ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
   const primaryName = candidates
     .sort((a, b) => {
