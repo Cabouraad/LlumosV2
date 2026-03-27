@@ -1953,9 +1953,9 @@ async function generatePDF(
     y -= 8;
 
     for (const r of providerResults) {
-      if (y < 100) { page = newPage(); y = H - 60; }
+      if (y < 120) { page = newPage(); y = H - 60; }
 
-      // Provider row with enhanced info
+      // Provider row header
       const mentioned = r.brandMentioned;
       const statusColor = mentioned ? green : red;
       const statusText = mentioned ? 'MENTIONED' : 'NOT FOUND';
@@ -1964,7 +1964,7 @@ async function generatePDF(
       page.drawText(statusText, { x: M + 100, y, size: 8, font: helveticaBold, color: statusColor });
       page.drawText(`Score: ${r.score}/100`, { x: M + 180, y, size: 8, font: helvetica, color: light });
 
-      // Sentiment & Strength badges
+      // Sentiment & Recommendation on same line
       if (r.sentiment !== 'not_mentioned') {
         const sentColor = r.sentiment === 'positive' ? green : r.sentiment === 'negative' ? red : amber;
         page.drawText(`Sentiment: ${r.sentiment}`, { x: M + 260, y, size: 7, font: helvetica, color: sentColor });
@@ -1974,102 +1974,31 @@ async function generatePDF(
         page.drawText(`Rec: ${r.recommendationStrength}`, { x: M + 370, y, size: 7, font: helvetica, color: strColor });
       }
 
-      y -= 14;
+      y -= 16;
 
-      // Response excerpt with brand/competitor highlighting via bold segments
+      // Response excerpt — simple wrapped text (no inline highlighting to avoid overlap)
       if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const rawExcerpt = r.response.substring(0, 280).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 280 ? '...' : '');
-        
-        // Split excerpt into segments, highlighting brand and competitor names
-        const highlightTerms = [brandNameForHighlight, ...r.competitors].filter(t => t.length >= 3);
-        const excerptLower = rawExcerpt.toLowerCase();
-        
-        // Find all highlight positions
-        const highlights: { start: number; end: number; isBrand: boolean }[] = [];
-        for (const term of highlightTerms) {
-          const termLower = term.toLowerCase();
-          let searchFrom = 0;
-          while (searchFrom < excerptLower.length) {
-            const idx = excerptLower.indexOf(termLower, searchFrom);
-            if (idx === -1) break;
-            highlights.push({ start: idx, end: idx + term.length, isBrand: term.toLowerCase() === brandNameForHighlight.toLowerCase() });
-            searchFrom = idx + term.length;
-          }
-        }
-        highlights.sort((a, b) => a.start - b.start);
-
-        // Render excerpt with highlights
-        if (highlights.length > 0) {
-          let cursor = 0;
-          let xPos = M + 14;
-          const maxX = W - M - 10;
-
-          for (const hl of highlights) {
-            // Draw normal text before highlight
-            if (cursor < hl.start) {
-              const normalText = rawExcerpt.substring(cursor, hl.start);
-              const normalWidth = helvetica.widthOfTextAtSize(normalText, 8);
-              if (xPos + normalWidth > maxX) {
-                y -= 11;
-                xPos = M + 14;
-                if (y < 60) { page = newPage(); y = H - 60; }
-              }
-              page.drawText(normalText, { x: xPos, y, size: 8, font: helvetica, color: light });
-              xPos += normalWidth;
-            }
-
-            // Draw highlighted text
-            const hlText = rawExcerpt.substring(hl.start, hl.end);
-            const hlWidth = helveticaBold.widthOfTextAtSize(hlText, 8);
-            if (xPos + hlWidth > maxX) {
-              y -= 11;
-              xPos = M + 14;
-              if (y < 60) { page = newPage(); y = H - 60; }
-            }
-            const hlColor = hl.isBrand ? green : accent;
-            page.drawText(hlText, { x: xPos, y, size: 8, font: helveticaBold, color: hlColor });
-            xPos += hlWidth;
-            cursor = hl.end;
-          }
-
-          // Draw remaining text
-          if (cursor < rawExcerpt.length) {
-            const remaining = rawExcerpt.substring(cursor);
-            const lines = wrapText(remaining, 95);
-            for (const line of lines) {
-              const lineWidth = helvetica.widthOfTextAtSize(line, 8);
-              if (xPos + lineWidth > maxX) {
-                y -= 11;
-                xPos = M + 14;
-                if (y < 60) { page = newPage(); y = H - 60; }
-              }
-              page.drawText(line, { x: xPos, y, size: 8, font: helvetica, color: light });
-              xPos = M + 14;
-              y -= 11;
-            }
-          } else {
-            y -= 11;
-          }
-          y -= 4;
-        } else {
-          y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: light, maxChars: 95, lineSpacing: 11 });
-          y -= 4;
-        }
+        const rawExcerpt = r.response.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 300 ? '...' : '');
+        y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: mid, maxChars: 90, lineSpacing: 11 });
+        y -= 4;
       }
 
       // Per-response competitors
       if (r.competitors.length > 0) {
-        page.drawText(`Competitors: ${r.competitors.join(', ')}`, { x: M + 14, y, size: 8, font: helveticaBold, color: accent });
-        y -= 12;
+        if (y < 60) { page = newPage(); y = H - 60; }
+        const compText = `Competitors: ${r.competitors.join(', ')}`;
+        y = drawWrappedText(page, compText, M + 14, y, { size: 8, font: helveticaBold, color: accent, maxChars: 90, lineSpacing: 11 });
+        y -= 4;
       }
 
       // Brand position
       if (r.brandPosition !== null) {
+        if (y < 60) { page = newPage(); y = H - 60; }
         page.drawText(`Brand listed at position #${r.brandPosition}`, { x: M + 14, y, size: 8, font: helvetica, color: green });
         y -= 12;
       }
 
-      y -= 6;
+      y -= 8;
     }
 
     // Divider
