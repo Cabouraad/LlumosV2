@@ -1590,8 +1590,12 @@ async function generatePDF(
 
    // Benchmark marker on bar
    const bmkX = barX + (industryBenchmark.benchmark / 100) * barW;
-   page.drawLine({ start: { x: bmkX, y: barY - 3 }, end: { x: bmkX, y: barY + 15 }, thickness: 2, color: dark });
-   page.drawText(`Industry avg: ${industryBenchmark.benchmark}`, { x: bmkX - 25, y: barY - 14, size: 8, font: helvetica, color: light });
+   page.drawLine({ start: { x: bmkX, y: barY - 3 }, end: { x: bmkX, y: barY + 18 }, thickness: 2, color: dark });
+   // Position label to the right of the marker, or left if near the right edge
+   const bmkLabel = `Industry avg: ${industryBenchmark.benchmark}`;
+   const bmkLabelW = helvetica.widthOfTextAtSize(bmkLabel, 8);
+   const bmkLabelX = (bmkX + bmkLabelW + 10 > barX + barW) ? bmkX - bmkLabelW - 5 : bmkX + 5;
+   page.drawText(bmkLabel, { x: bmkLabelX, y: barY + 20, size: 8, font: helvetica, color: dark });
 
    // Key metrics row — clean card-style boxes
    const mentionCount = validResults.filter(r => r.brandMentioned).length;
