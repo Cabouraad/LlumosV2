@@ -1868,7 +1868,7 @@ async function generatePDF(
     for (const comp of displayCompetitors) {
       if (y < 80) break;
 
-      const compLabel = comp.length > 18 ? comp.substring(0, 16) + '..' : comp;
+      const compLabel = comp.length > 24 ? comp.substring(0, 22) + '..' : comp;
       page.drawText(compLabel, { x: M + 5, y, size: 9, font: helvetica, color: dark });
 
       for (let i = 0; i < maxCols; i++) {
