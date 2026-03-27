@@ -1332,6 +1332,12 @@ function blurText(text: string): string {
  * Industry benchmark data (average scores by industry category)
  */
 const INDUSTRY_BENCHMARKS: Record<string, number> = {
+  'legal': 30,
+  'law firm': 30,
+  'attorney': 30,
+  'consulting': 33,
+  'marketing agency': 35,
+  'digital marketing': 35,
   'technology': 45,
   'software': 42,
   'saas': 40,
@@ -1344,22 +1350,38 @@ const INDUSTRY_BENCHMARKS: Record<string, number> = {
   'automotive': 34,
   '3d printing': 30,
   'consumer electronics': 38,
+  'real estate': 32,
+  'insurance': 35,
+  'professional services': 33,
   'default': 35
 };
 
 /**
  * Get industry benchmark score based on business context
+ * Uses weighted keyword matching to find the most relevant industry
  */
 function getIndustryBenchmark(businessContext: string): { industry: string; benchmark: number } {
   const contextLower = businessContext.toLowerCase();
   
+  // Score each industry by how many times its keyword appears
+  let bestIndustry = 'all industries';
+  let bestScore = 0;
+  let bestBenchmark = INDUSTRY_BENCHMARKS.default;
+  
   for (const [industry, benchmark] of Object.entries(INDUSTRY_BENCHMARKS)) {
-    if (contextLower.includes(industry)) {
-      return { industry, benchmark };
+    if (industry === 'default') continue;
+    // Count occurrences for better matching
+    const regex = new RegExp(industry.replace(/\s+/g, '\\s+'), 'gi');
+    const matches = contextLower.match(regex);
+    const score = matches ? matches.length : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndustry = industry;
+      bestBenchmark = benchmark;
     }
   }
   
-  return { industry: 'all industries', benchmark: INDUSTRY_BENCHMARKS.default };
+  return { industry: bestIndustry, benchmark: bestBenchmark };
 }
 
 /**
