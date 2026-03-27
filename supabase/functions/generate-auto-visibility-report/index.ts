@@ -1194,11 +1194,13 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
   }
 
   const totalMentions = validResults.filter((result) => result.brandMentioned).length;
+  const mentionRate = totalMentions / validResults.length;
+
   if (totalMentions === 0) {
     return {
       score: 0,
       label: 'No Visibility',
-      detail: 'Your brand was not mentioned in any AI response, so consistency is shown as 0 until there is visibility to compare across providers.'
+      detail: 'Your brand was not mentioned in any AI response, so consistency cannot be measured.'
     };
   }
 
@@ -1217,8 +1219,14 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     totalPrompts++;
 
     const mentionedCount = group.filter((result) => result.brandMentioned).length;
-    if (mentionedCount === group.length || mentionedCount === 0) {
+    // Only count as "consistent" if brand IS mentioned across all providers for that prompt
+    // Unanimous absence is NOT consistency — it's invisibility
+    if (mentionedCount === group.length) {
       consistentPrompts++;
+    } else if (mentionedCount > 0 && mentionedCount < group.length) {
+      // Partial mention — inconsistent
+    } else {
+      // All absent — count as neutral (not consistent, not inconsistent)
     }
   }
 
@@ -1226,16 +1234,21 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
   }
 
-  const score = Math.round((consistentPrompts / totalPrompts) * 100);
+  // Weight by mention rate — can't have high consistency with low visibility
+  const rawConsistency = consistentPrompts / totalPrompts;
+  const score = Math.round(rawConsistency * mentionRate * 100);
   let label: string;
   let detail: string;
 
-  if (score >= 80) {
+  if (score >= 60) {
     label = 'High Consistency';
     detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
-  } else if (score >= 50) {
+  } else if (score >= 30) {
     label = 'Mixed Signals';
     detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
+  } else if (totalMentions > 0) {
+    label = 'Low Consistency';
+    detail = `Your brand appeared in only ${totalMentions} of ${validResults.length} checks. Most AI platforms don't yet reference your brand consistently.`;
   } else {
     label = 'Inconsistent';
     detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
