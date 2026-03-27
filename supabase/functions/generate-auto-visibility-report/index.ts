@@ -987,7 +987,7 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
 /**
  * Query Google AI Overview via SerpAPI
  */
-async function queryGoogleAIO(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
+async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Google AI',
     prompt,
@@ -1045,12 +1045,12 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
       result.response = aiOverview.snippet || aiOverview.text || '';
     }
 
-    result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandName);
-    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
-    result.brandPosition = detectBrandPosition(result.response, brandName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
