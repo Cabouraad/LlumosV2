@@ -44,19 +44,25 @@ interface ProviderResult {
   brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
 }
 
+// Only exclude platforms/channels/directories/AI models that are NEVER competitors
+// Do NOT exclude software products here — they may be real competitors for many businesses
 const NON_COMPETITOR_ENTITIES = new Set([
+  // Social media platforms & ad channels (these are distribution channels, not competitors)
   'google', 'google ads', 'google analytics', 'google business profile', 'google my business', 'google maps',
   'facebook', 'facebook ads', 'instagram', 'instagram ads', 'linkedin', 'linkedin ads', 'x', 'twitter',
   'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
+  // Review sites and directories (these are listing platforms, not competitors)
   'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
   'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
+  // Generic marketing terms (not brand names)
   'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
   'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
+  // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
-  'wordpress', 'wix', 'squarespace', 'shopify', 'webflow', 'mailchimp', 'hubspot', 'salesforce',
-  'semrush', 'ahrefs', 'moz', 'brightlocal', 'yext', 'canva', 'figma', 'slack', 'zoom'
+  // Generic infrastructure (only exclude WordPress as a CMS platform, not as a competitor)
+  'wordpress',
 ]);
 
 const GENERIC_COMPETITOR_TERMS = new Set([
@@ -322,13 +328,21 @@ function dedupeBrandNames(names: string[]): string[] {
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
-  // Must have a dot (domain-like) OR have at least 2 capital letters (proper noun) OR be multi-word with capitals
+  if (!trimmed || trimmed.length < 2) return false;
+  // Domain-like patterns (contains a dot)
   if (/\./.test(trimmed)) return true;
-  // Single word starting with capital — only brand-like if it has mixed case or is short enough to be an acronym
   const words = trimmed.split(/\s+/);
+  // Multi-word: at least one word starts with a capital letter
   if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
-  // Single word: must have internal caps (like "HubSpot") or be all-caps (like "SAP") or contain digits
-  return /[A-Z].*[A-Z]/.test(trimmed) || /^[A-Z]{2,6}$/.test(trimmed) || /\d/.test(trimmed);
+  // Single word: accept if it starts with a capital and is 4+ chars (e.g., "Salesforce", "Marketo")
+  // OR has internal caps (e.g., "HubSpot")
+  // OR is a short all-caps acronym (e.g., "SAP", "IBM")
+  // OR contains digits (e.g., "G2", "360i")
+  if (/^[A-Z][a-z]{3,}/.test(trimmed)) return true; // Capitalized word 4+ chars (brand-like)
+  if (/[A-Z].*[A-Z]/.test(trimmed)) return true; // Internal caps
+  if (/^[A-Z]{2,6}$/.test(trimmed)) return true; // Short acronym
+  if (/\d/.test(trimmed)) return true; // Contains digits
+  return false;
 }
 
 function isLikelyCompetitorBrand(name: string, brandName: string, domain: string): boolean {
@@ -1078,11 +1092,22 @@ function extractCompetitors(text: string, brandName: string, competitorCandidate
 
   return competitorCandidates.filter((candidate) => {
     const candidateLower = candidate.toLowerCase().trim();
-    if (!candidateLower || candidateLower.length < 3) return false;
+    if (!candidateLower || candidateLower.length < 2) return false;
     if (candidateLower === brandLower) return false;
 
-    // Simple case-insensitive substring check
-    return textLower.includes(candidateLower);
+    // Use word-boundary matching to prevent false positives
+    // For short names (< 4 chars), require exact word boundaries
+    // For longer names, use a looser boundary that allows possessives and punctuation
+    try {
+      const escaped = escapeRegExp(candidateLower);
+      const pattern = candidateLower.length < 4
+        ? new RegExp(`\\b${escaped}\\b`, 'i')
+        : new RegExp(`(?:^|[\\s,;:(/"'\\[])${escaped}(?=[\\s,;:)/"'\\].'!?]|$)`, 'i');
+      return pattern.test(text);
+    } catch {
+      // Fallback to includes if regex fails
+      return textLower.includes(candidateLower);
+    }
   });
 }
 
