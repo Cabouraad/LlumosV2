@@ -1581,38 +1581,45 @@ async function generatePDF(
 
   page.drawText(`${scoreLabel(overallScore)} AI Visibility`, { x: M + 20, y: cardY - 80, size: 11, font: helveticaBold, color: scoreColor(overallScore) });
 
-  // Mini bar
-  const barX = M + 170;
-  const barW = contentW - 190;
-  page.drawRectangle({ x: barX, y: cardY - 50, width: barW, height: 10, color: faint });
-  page.drawRectangle({ x: barX, y: cardY - 50, width: Math.max(1, (overallScore / 100) * barW), height: 10, color: scoreColor(overallScore) });
+  // Score progress bar (full width below score)
+   const barY = cardY - 95;
+   const barX = M + 20;
+   const barW = contentW - 40;
+   page.drawRectangle({ x: barX, y: barY, width: barW, height: 12, color: faint, borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5 });
+   page.drawRectangle({ x: barX, y: barY, width: Math.max(1, (overallScore / 100) * barW), height: 12, color: scoreColor(overallScore) });
 
-  // Benchmark marker
-  const bmkX = barX + (industryBenchmark.benchmark / 100) * barW;
-  page.drawLine({ start: { x: bmkX, y: cardY - 54 }, end: { x: bmkX, y: cardY - 38 }, thickness: 2, color: dark });
-  page.drawText(`Ind. avg: ${industryBenchmark.benchmark}`, { x: barX, y: cardY - 67, size: 8, font: helvetica, color: light });
+   // Benchmark marker on bar
+   const bmkX = barX + (industryBenchmark.benchmark / 100) * barW;
+   page.drawLine({ start: { x: bmkX, y: barY - 3 }, end: { x: bmkX, y: barY + 15 }, thickness: 2, color: dark });
+   page.drawText(`Industry avg: ${industryBenchmark.benchmark}`, { x: bmkX - 25, y: barY - 14, size: 8, font: helvetica, color: light });
 
-  // Key metrics row
-  const mentionCount = validResults.filter(r => r.brandMentioned).length;
-  const mentionRate = validResults.length > 0 ? Math.round((mentionCount / validResults.length) * 100) : 0;
-  const promptsTested = new Set(results.map(r => r.prompt)).size;
-  const providersUsed = Object.keys(providerStats).length;
+   // Key metrics row — clean card-style boxes
+   const mentionCount = validResults.filter(r => r.brandMentioned).length;
+   const mentionRate = validResults.length > 0 ? Math.round((mentionCount / validResults.length) * 100) : 0;
+   const promptsTested = new Set(results.map(r => r.prompt)).size;
+   const providersUsed = Object.keys(providerStats).length;
 
-  const metricsY = cardY - 30;
-  const metricCols = [
-    { label: 'Prompts Tested', value: `${promptsTested}` },
-    { label: 'AI Platforms', value: `${providersUsed}` },
-    { label: 'Brand Mention Rate', value: `${mentionRate}%` },
-    { label: 'Total Checks', value: `${validResults.length}` },
-  ];
-  const colW = (contentW - 170) / metricCols.length;
-  for (let i = 0; i < metricCols.length; i++) {
-    const mx = barX + i * colW;
-    page.drawText(metricCols[i].value, { x: mx, y: metricsY - 10, size: 16, font: helveticaBold, color: dark });
-    page.drawText(metricCols[i].label, { x: mx, y: metricsY - 24, size: 7, font: helvetica, color: light });
-  }
+   const metricCols = [
+     { label: 'Prompts Tested', value: `${promptsTested}` },
+     { label: 'AI Platforms', value: `${providersUsed}` },
+     { label: 'Mention Rate', value: `${mentionRate}%` },
+     { label: 'Total Checks', value: `${validResults.length}` },
+   ];
+   const metricsRowY = barY - 30;
+   const metricBoxW = (contentW - 20) / metricCols.length - 8;
+   for (let i = 0; i < metricCols.length; i++) {
+     const mx = M + 10 + i * (metricBoxW + 8);
+     // Draw metric card background
+     page.drawRectangle({ x: mx, y: metricsRowY - 30, width: metricBoxW, height: 48, color: rgb(0.96, 0.96, 0.98), borderColor: rgb(0.88, 0.88, 0.92), borderWidth: 0.5 });
+     // Value centered
+     const valW = helveticaBold.widthOfTextAtSize(metricCols[i].value, 20);
+     page.drawText(metricCols[i].value, { x: mx + (metricBoxW - valW) / 2, y: metricsRowY - 6, size: 20, font: helveticaBold, color: dark });
+     // Label centered
+     const lblW = helvetica.widthOfTextAtSize(metricCols[i].label, 8);
+     page.drawText(metricCols[i].label, { x: mx + (metricBoxW - lblW) / 2, y: metricsRowY - 22, size: 8, font: helvetica, color: light });
+   }
 
-  y = cardY - 120;
+   y = metricsRowY - 50;
 
   // Executive Summary
   y = drawSection(page, 'Executive Summary', y);
