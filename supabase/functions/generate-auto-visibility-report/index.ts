@@ -241,7 +241,7 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
     fallbackName,
-  ]).filter(Boolean);
+  ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
   const primaryName = candidates
     .sort((a, b) => {
