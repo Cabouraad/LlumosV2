@@ -789,7 +789,7 @@ async function sendFailureNotificationEmail(
     
     await resend.emails.send({
       from: "Llumos AI <reports@llumos.app>",
-      to: [email],
+      to: email,
       subject: `Your AI Visibility Report Could Not Be Generated`,
       html: `
         <!DOCTYPE html>
@@ -2162,7 +2162,7 @@ async function sendReportEmail(
     
     const { data, error: emailError } = await resend.emails.send({
       from: "Llumos Reports <reports@llumos.app>",
-      to: [email],
+      to: email,
       subject: `Your AI Visibility Report for ${domain}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
