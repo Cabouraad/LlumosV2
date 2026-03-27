@@ -1722,18 +1722,23 @@ async function generatePDF(
     y -= 16;
   }
 
-  // Sentiment insight
+  // Sentiment insight — contextualize based on mention rate
   y -= 4;
   const totalSentimentMentions = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative;
-  const dominantSentiment = sentimentCounts.positive >= sentimentCounts.neutral && sentimentCounts.positive >= sentimentCounts.negative ? 'positive'
-    : sentimentCounts.negative > sentimentCounts.positive ? 'negative' : 'neutral';
-  const sentimentInsight = totalSentimentMentions === 0
-    ? 'No sentiment signal is available yet because your brand was not mentioned in any AI response.'
-    : dominantSentiment === 'positive'
-    ? 'AI platforms generally portray your brand favorably — this is a strong trust signal.'
-    : dominantSentiment === 'negative'
-    ? 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.'
-    : 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  const notMentionedPct = Math.round((sentimentCounts.not_mentioned / sentTotal) * 100);
+  let sentimentInsight: string;
+  if (totalSentimentMentions === 0) {
+    sentimentInsight = 'No sentiment signal is available because your brand was not mentioned in any AI response. Building authoritative content is the first step.';
+  } else if (notMentionedPct >= 70) {
+    // Low visibility — don't claim "favorable" based on 1-2 mentions
+    sentimentInsight = `Your brand was absent from ${notMentionedPct}% of AI responses. The ${totalSentimentMentions} mention${totalSentimentMentions > 1 ? 's' : ''} detected ${sentimentCounts.positive > 0 ? 'leaned positive' : 'were neutral'}, but the primary opportunity is increasing overall visibility.`;
+  } else if (sentimentCounts.positive > sentimentCounts.negative + 1) {
+    sentimentInsight = 'AI platforms generally portray your brand favorably — this is a strong trust signal.';
+  } else if (sentimentCounts.negative > sentimentCounts.positive) {
+    sentimentInsight = 'Warning: AI platforms are associating negative sentiment with your brand. Content strategy review needed.';
+  } else {
+    sentimentInsight = 'AI mentions are mostly neutral. Creating more distinctive, authoritative content could improve sentiment.';
+  }
   y = drawWrappedText(page, sentimentInsight, M + 5, y, { size: 9, font: helveticaOblique, color: mid, maxChars: 88, lineSpacing: 13 });
 
   // --- AI Platform Recommendation Strength ---
