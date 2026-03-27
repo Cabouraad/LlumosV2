@@ -1092,11 +1092,22 @@ function extractCompetitors(text: string, brandName: string, competitorCandidate
 
   return competitorCandidates.filter((candidate) => {
     const candidateLower = candidate.toLowerCase().trim();
-    if (!candidateLower || candidateLower.length < 3) return false;
+    if (!candidateLower || candidateLower.length < 2) return false;
     if (candidateLower === brandLower) return false;
 
-    // Simple case-insensitive substring check
-    return textLower.includes(candidateLower);
+    // Use word-boundary matching to prevent false positives
+    // For short names (< 4 chars), require exact word boundaries
+    // For longer names, use a looser boundary that allows possessives and punctuation
+    try {
+      const escaped = escapeRegExp(candidateLower);
+      const pattern = candidateLower.length < 4
+        ? new RegExp(`\\b${escaped}\\b`, 'i')
+        : new RegExp(`(?:^|[\\s,;:(/"'\\[])${escaped}(?=[\\s,;:)/"'\\].'!?]|$)`, 'i');
+      return pattern.test(text);
+    } catch {
+      // Fallback to includes if regex fails
+      return textLower.includes(candidateLower);
+    }
   });
 }
 
