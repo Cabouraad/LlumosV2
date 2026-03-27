@@ -934,7 +934,7 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
 /**
  * Query Perplexity
  */
-async function queryPerplexity(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
+async function queryPerplexity(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Perplexity',
     prompt,
@@ -970,12 +970,12 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandName);
-    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
-    result.brandPosition = detectBrandPosition(result.response, brandName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
