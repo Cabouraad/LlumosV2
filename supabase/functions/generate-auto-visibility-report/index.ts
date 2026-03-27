@@ -880,7 +880,7 @@ async function sendFailureNotificationEmail(
 /**
  * Query ChatGPT (OpenAI)
  */
-async function queryChatGPT(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
+async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'ChatGPT',
     prompt,
@@ -917,12 +917,12 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandName);
-    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
-    result.brandPosition = detectBrandPosition(result.response, brandName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -934,7 +934,7 @@ async function queryChatGPT(prompt: string, brandName: string, competitorCandida
 /**
  * Query Perplexity
  */
-async function queryPerplexity(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
+async function queryPerplexity(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Perplexity',
     prompt,
@@ -970,12 +970,12 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandName);
-    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
-    result.brandPosition = detectBrandPosition(result.response, brandName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -987,7 +987,7 @@ async function queryPerplexity(prompt: string, brandName: string, competitorCand
 /**
  * Query Google AI Overview via SerpAPI
  */
-async function queryGoogleAIO(prompt: string, brandName: string, competitorCandidates: string[]): Promise<ProviderResult> {
+async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
   const result: ProviderResult = {
     provider: 'Google AI',
     prompt,
@@ -1045,12 +1045,12 @@ async function queryGoogleAIO(prompt: string, brandName: string, competitorCandi
       result.response = aiOverview.snippet || aiOverview.text || '';
     }
 
-    result.brandMentioned = result.response.toLowerCase().includes(brandName.toLowerCase());
-    result.competitors = extractCompetitors(result.response, brandName, competitorCandidates);
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
     result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandName);
-    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandName);
-    result.brandPosition = detectBrandPosition(result.response, brandName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -2196,35 +2196,42 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Starting report generation for ${domain}`);
 
-    // Extract brand name from domain
-    const brandName = domain.replace(/\.(com|io|net|org|co|app)$/i, '').replace(/[.-]/g, ' ');
+    // Step 1: Build brand profile from homepage + research
+    console.log('[AutoReport] Building brand profile...');
+    const [businessContext, homepageSignals] = await Promise.all([
+      researchBusiness(domain),
+      fetchHomepageSignals(domain),
+    ]);
 
-    // Step 1: Research the business to understand their industry
-    console.log('[AutoReport] Researching business...');
-    const businessContext = await researchBusiness(domain);
+    const brandProfile = buildBrandProfile(domain, businessContext, homepageSignals);
+    const brandName = brandProfile.primaryName;
+    console.log('[AutoReport] Brand profile:', { primaryName: brandProfile.primaryName, aliases: brandProfile.aliases });
+
+    // Step 2: Identify competitor candidates
+    console.log('[AutoReport] Identifying competitors...');
     const competitorCandidates = await identifyCompetitorCandidates(domain, brandName, businessContext);
     console.log('[AutoReport] Initial competitor candidates:', competitorCandidates);
 
-    // Step 2: Generate industry-relevant prompts based on research
+    // Step 3: Generate industry-relevant prompts based on research
     console.log('[AutoReport] Generating prompts...');
     const prompts = await generateIndustryPrompts(domain, businessContext);
-
     console.log('[AutoReport] Generated prompts:', prompts);
 
-    // Step 3: Query all providers for each prompt
+    // Step 4: Query all providers for each prompt
     console.log('[AutoReport] Querying providers...');
     const allResults: ProviderResult[] = [];
 
     for (const prompt of prompts) {
       const [chatgptResult, perplexityResult, googleResult] = await Promise.all([
-        queryChatGPT(prompt, brandName, competitorCandidates),
-        queryPerplexity(prompt, brandName, competitorCandidates),
-        queryGoogleAIO(prompt, brandName, competitorCandidates)
+        queryChatGPT(prompt, brandProfile, competitorCandidates),
+        queryPerplexity(prompt, brandProfile, competitorCandidates),
+        queryGoogleAIO(prompt, brandProfile, competitorCandidates)
       ]);
 
       allResults.push(chatgptResult, perplexityResult, googleResult);
     }
 
+    // Step 5: Refine competitors using actual AI response text
     const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
       domain,
       brandName,
@@ -2234,8 +2241,10 @@ serve(async (req) => {
     );
     console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
 
+    // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
       result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
+      result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
     // Step 3: Calculate overall score
