@@ -18,6 +18,7 @@ export type CompetitorFilters = {
   limit?: number;
   offset?: number;
   brandId?: string | null;
+  orgId?: string | null; // Pre-resolved org ID to skip redundant auth lookup
 };
 
 /**
@@ -27,8 +28,8 @@ export type CompetitorFilters = {
 export async function fetchCompetitorsV2(filters: CompetitorFilters = {}): Promise<CompetitorSummaryRow[]> {
   const sb = getSupabaseBrowserClient();
   
-  // Use cached org ID - avoids redundant auth.getSession call
-  const orgId = await getOrgIdSafe();
+  // Use pre-resolved org ID if available, otherwise fall back to getOrgIdSafe
+  const orgId = filters.orgId || await getOrgIdSafe();
 
   // Always default to 30 days for rolling history
   const { data, error } = await sb.rpc('get_org_competitor_summary_v2', {
