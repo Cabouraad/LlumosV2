@@ -31,7 +31,7 @@ export interface UnifiedDashboardResponse {
 /**
  * Fetch all dashboard data in a single optimized RPC call
  */
-export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promise<UnifiedDashboardResponse> {
+export async function getUnifiedDashboardDataRPC(brandId?: string | null, preResolvedOrgId?: string | null): Promise<UnifiedDashboardResponse> {
   const startTime = Date.now();
   
   try {
@@ -40,18 +40,23 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promi
       metadata: { brandId }
     });
     
-    // Try to get org_id from localStorage cache first to avoid auth call
-    const cachedOrgId = localStorage.getItem('sb_last_org_id');
-    const cacheTimestamp = localStorage.getItem('sb_org_cache_timestamp');
-    const isValidCache = cachedOrgId && 
-      cachedOrgId !== 'undefined' && 
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cachedOrgId) &&
-      cacheTimestamp &&
-      (Date.now() - parseInt(cacheTimestamp)) < 30 * 60 * 1000; // 30 min cache
+    // Use pre-resolved org ID if available (from context), avoiding redundant auth calls
+    let orgId: string | null = preResolvedOrgId || null;
     
-    let orgId: string | null = isValidCache ? cachedOrgId : null;
+    if (!orgId) {
+      // Try to get org_id from localStorage cache first to avoid auth call
+      const cachedOrgId = localStorage.getItem('sb_last_org_id');
+      const cacheTimestamp = localStorage.getItem('sb_org_cache_timestamp');
+      const isValidCache = cachedOrgId && 
+        cachedOrgId !== 'undefined' && 
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cachedOrgId) &&
+        cacheTimestamp &&
+        (Date.now() - parseInt(cacheTimestamp)) < 30 * 60 * 1000;
+      
+      orgId = isValidCache ? cachedOrgId : null;
+    }
     
-    // Only fetch from DB if cache miss
+    // Only fetch from DB if no org ID available
     if (!orgId) {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -83,7 +88,6 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null): Promi
         .eq('id', user.id)
         .maybeSingle();
       
-      // If no user record or no org_id, return structured "no org" response
       if (userError || !userData || !userData.org_id) {
         logger.info('User has no organization - needs onboarding', { 
           component: 'unified-rpc-fetcher',
@@ -274,6 +278,14 @@ export class RealTimeDashboardFetcher {
   private readonly CACHE_DURATION = 120000; // 2 minutes - increased to reduce API calls
   private refreshCallbacks: ((data: UnifiedDashboardResponse) => void)[] = [];
   private currentBrandId: string | null = null;
+  private currentOrgId: string | null = null;
+
+  /**
+   * Set the org ID from context to avoid redundant auth lookups
+   */
+  setOrgId(orgId: string | null): void {
+    this.currentOrgId = orgId;
+  }
 
   /**
    * Set the current brand ID for filtering
@@ -304,7 +316,7 @@ export class RealTimeDashboardFetcher {
     }
 
     // Fetch fresh data with brand filtering
-    const data = await getUnifiedDashboardDataRPC(this.currentBrandId);
+    const data = await getUnifiedDashboardDataRPC(this.currentBrandId, this.currentOrgId);
     
     // On timeout, return stale cached data if available (better than showing error)
     if (data.isTimeout && this.cache && this.cache.success) {

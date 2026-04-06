@@ -8,6 +8,7 @@ import { dashboardFetcher, UnifiedDashboardResponse } from '@/lib/data/unified-r
 import { useToast } from '@/hooks/use-toast';
 import { AdaptivePoller } from '@/lib/polling/adaptive-poller';
 import { useBrand } from '@/contexts/BrandContext';
+import { useOrgId } from '@/contexts/UnifiedAuthProvider';
 
 const debug = (...args: any[]) => {
   if (import.meta.env.DEV) {
@@ -47,8 +48,13 @@ export function useRealTimeDashboard(
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { toast } = useToast();
   const { selectedBrand } = useBrand();
+  const orgId = useOrgId();
 
-  // Update fetcher with current brand ID whenever it changes
+  // Update fetcher with current org ID and brand ID whenever they change
+  useEffect(() => {
+    dashboardFetcher.setOrgId(orgId);
+  }, [orgId]);
+
   useEffect(() => {
     dashboardFetcher.setBrandId(selectedBrand?.id || null);
   }, [selectedBrand?.id]);
