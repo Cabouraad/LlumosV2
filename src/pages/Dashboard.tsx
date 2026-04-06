@@ -102,35 +102,42 @@ export default function Dashboard() {
     }
   }, [user, orgData, dashboardData, navigate]);
 
-  // Auto-trigger weekly report generation once
+  // Auto-trigger weekly report generation once - deferred to avoid blocking initial load
   useEffect(() => {
     const hasTriggeredReports = localStorage.getItem('weekly-reports-triggered');
     if (!hasTriggeredReports && user && orgData?.organizations?.id) {
-      const triggerReports = async () => {
-        try {
-          if (import.meta.env.DEV) {
-            console.log('[Dashboard] Auto-triggering weekly report generation...');
-          }
-          const { data, error } = await supabase.functions.invoke("generate-weekly-report", {
-            body: {}
-          });
+      const triggerReports = () => {
+        const run = async () => {
+          try {
+            if (import.meta.env.DEV) {
+              console.log('[Dashboard] Auto-triggering weekly report generation...');
+            }
+            const { data, error } = await supabase.functions.invoke("generate-weekly-report", {
+              body: {}
+            });
 
-          if (error) {
-            console.error('[Dashboard] Error auto-triggering reports:', error);
-          } else if (import.meta.env.DEV) {
-            console.log('[Dashboard] Weekly reports triggered successfully:', data);
-          }
+            if (error) {
+              console.error('[Dashboard] Error auto-triggering reports:', error);
+            } else if (import.meta.env.DEV) {
+              console.log('[Dashboard] Weekly reports triggered successfully:', data);
+            }
 
-          // Mark as triggered so we don't run again
-          localStorage.setItem('weekly-reports-triggered', 'true');
-        } catch (error) {
-          console.error('[Dashboard] Failed to trigger reports:', error);
-        }
+            localStorage.setItem('weekly-reports-triggered', 'true');
+          } catch (error) {
+            console.error('[Dashboard] Failed to trigger reports:', error);
+          }
+        };
+        run();
       };
 
-      // Trigger after a short delay to ensure everything is loaded
-      const timeoutId = setTimeout(triggerReports, 2000);
-      return () => clearTimeout(timeoutId);
+      // Use requestIdleCallback to defer until browser is idle, with 15s timeout fallback
+      if ('requestIdleCallback' in window) {
+        const idleId = requestIdleCallback(triggerReports, { timeout: 15000 });
+        return () => cancelIdleCallback(idleId);
+      } else {
+        const timeoutId = setTimeout(triggerReports, 10000);
+        return () => clearTimeout(timeoutId);
+      }
     }
   }, [user, orgData, toast]);
 
