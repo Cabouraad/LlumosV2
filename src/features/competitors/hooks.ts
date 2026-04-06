@@ -1,28 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchCompetitorsV2, CompetitorFilters, CompetitorSummaryRow } from './api';
+import { useOrgId } from '@/contexts/UnifiedAuthProvider';
 
 /**
  * React Query hook for fetching competitor data with caching
- * Provides loading states, error handling, and automatic refetch management
- */
-/**
- * React Query hook for fetching competitor data with caching
- * Defaults to 30 days of rolling history
+ * Automatically injects org ID from context to avoid redundant auth lookups
  */
 export function useCompetitors(filters: CompetitorFilters = {}) {
-  // Ensure 30-day default for rolling history
+  const orgId = useOrgId();
+  
+  // Inject org ID from context and ensure 30-day default
   const filtersWithDefaults = {
     days: 30,
-    ...filters
+    ...filters,
+    orgId: filters.orgId || orgId,
   };
   
   return useQuery<CompetitorSummaryRow[]>({
     queryKey: ['competitors_v2', filtersWithDefaults],
     queryFn: () => fetchCompetitorsV2(filtersWithDefaults),
-    staleTime: 5 * 60_000, // 5 minute cache - competitor data doesn't change frequently
-    gcTime: 30 * 60_000, // Keep in cache for 30 minutes
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Use cached data if available
-    retry: 1
+    refetchOnMount: false,
+    retry: 1,
+    enabled: !!filtersWithDefaults.orgId, // Don't fetch until org ID is available
   });
 }
