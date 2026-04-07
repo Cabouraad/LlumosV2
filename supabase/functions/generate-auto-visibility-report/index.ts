@@ -1510,6 +1510,19 @@ async function generatePDF(
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const helveticaOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
+  // Embed SMB Team logo
+  let smbTeamLogo: any = null;
+  try {
+    const smbLogoUrl = 'https://lumos-ai-optimize.lovable.app/images/smbteam-logo.png';
+    const logoRes = await fetch(smbLogoUrl);
+    if (logoRes.ok) {
+      const logoBytes = new Uint8Array(await logoRes.arrayBuffer());
+      smbTeamLogo = await pdfDoc.embedPng(logoBytes);
+    }
+  } catch (e) {
+    console.warn('Could not load SMB Team logo:', e);
+  }
+
   const W = 612;
   const H = 792;
   const M = 50; // margin
