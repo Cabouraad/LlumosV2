@@ -61,7 +61,7 @@ serve(async (req) => {
     const { error: insertError } = await supabase
       .from("visibility_report_requests")
       .insert({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         domain: domain.trim(),
         score,
         status: "pending",
@@ -114,8 +114,21 @@ serve(async (req) => {
 
     console.log(`Visibility report requested for ${domain} by ${firstName} (${email}) - Score: ${score}`);
 
+    // Mark the record as "processing" immediately so process-pending-reports cron
+    // won't pick it up and generate a duplicate report
+    await supabase
+      .from("visibility_report_requests")
+      .update({ 
+        status: "processing",
+        metadata: { firstName: firstName.trim(), backgroundTriggeredAt: new Date().toISOString() }
+      })
+      .eq("email", email.trim())
+      .eq("domain", domain.trim())
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
     // Trigger automatic report generation as a background task
-    // This runs after we've sent the response to the user
     const generateReportInBackground = async () => {
       try {
         console.log(`[Background] Starting auto report generation for ${domain}`);
@@ -153,7 +166,6 @@ serve(async (req) => {
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
       EdgeRuntime.waitUntil(generateReportInBackground());
     } else {
-      // Fire and forget - don't await
       generateReportInBackground();
     }
 
