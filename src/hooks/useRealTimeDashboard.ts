@@ -42,10 +42,12 @@ export function useRealTimeDashboard(
     onError
   } = options;
 
-  const [data, setData] = useState<UnifiedDashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize with cached data for instant render (stale-while-revalidate)
+  const cachedData = dashboardFetcher.getCachedData();
+  const [data, setData] = useState<UnifiedDashboardResponse | null>(cachedData);
+  const [loading, setLoading] = useState(!cachedData); // Skip loading spinner if we have cached data
   const [error, setError] = useState<Error | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(cachedData ? new Date() : null);
   const { toast } = useToast();
   const { selectedBrand } = useBrand();
   const orgId = useOrgId();
