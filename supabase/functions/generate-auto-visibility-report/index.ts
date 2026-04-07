@@ -2162,7 +2162,7 @@ async function sendReportEmail(
     const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
     
     const { data, error: emailError } = await resend.emails.send({
-      from: "Llumos Reports <reports@llumos.app>",
+      from: "Llumos × SMBTeam Reports <reports@llumos.app>",
       to: email,
       subject: `Your AI Visibility Report for ${domain}`,
       html: `
@@ -2211,7 +2211,7 @@ async function sendReportEmail(
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
           
           <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-            © Llumos.app - AI Visibility Intelligence
+            © Llumos.app × SMBTeam - AI Visibility Intelligence
           </p>
         </div>
       `,
