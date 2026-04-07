@@ -53,15 +53,17 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
   // Review sites and directories (these are listing platforms, not competitors)
   'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
-  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
+  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo', 'martindale-nolo',
+  'martindale nolo', 'super lawyers', 'thumbtack', 'angi', 'angies list', 'homeadvisor',
   // Generic marketing terms (not brand names)
   'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
   'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
+  'forward push', 'law firm growth program',
   // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
-  // Generic infrastructure (only exclude WordPress as a CMS platform, not as a competitor)
+  // Generic infrastructure
   'wordpress',
 ]);
 
