@@ -105,6 +105,12 @@ const COMMON_ENGLISH_WORDS = new Set([
   'overview', 'details', 'benefits', 'features', 'options', 'results', 'data', 'information',
   'accounts payable aging', 'accounts receivable aging', 'balance sheet', 'income statement',
   'cash flow', 'general ledger', 'trial balance', 'profit and loss',
+  // Additional sentence-start words commonly capitalized
+  'several', 'forward', 'various', 'another', 'overall', 'whether', 'certain', 'specific',
+  'popular', 'notable', 'common', 'additional', 'effective', 'comprehensive', 'recommended',
+  'particular', 'relevant', 'similar', 'typical', 'general', 'primary', 'major', 'minor',
+  'focus', 'focused', 'focusing', 'based', 'known', 'dedicated', 'specialized', 'experienced',
+  'established', 'integrated', 'combined', 'tailored', 'customized', 'designed', 'aimed',
 ]);
 
 function escapeRegExp(value: string): string {
