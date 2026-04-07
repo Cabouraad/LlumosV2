@@ -36,6 +36,7 @@ export function isPublicRoute(pathname: string): boolean {
   if (pathname.startsWith('/plans/')) return true;
   if (pathname.startsWith('/solutions/')) return true;
   if (pathname.startsWith('/compare/')) return true;
+  if (pathname.startsWith('/lp/')) return true;
   
   return false;
 }
