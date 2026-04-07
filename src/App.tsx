@@ -208,6 +208,7 @@ const App = () => {
         <Route path="/lp/ai-visibility/results/:token" element={<AIVisibilityResults />} />
         <Route path="/lp/local-ai-search" element={<LocalAISearchLanding />} />
         <Route path="/lp/win-google-and-ai-search" element={<LandingWinBothSearches />} />
+        <Route path="/lp/law-firm-ai-visibility" element={<LawFirmAIVisibility />} />
         <Route path="/audit" element={<WebsiteAudit />} />
         {/* ============================================ */}
         {/* LAZY LOADED - Dynamic & Protected Routes */}
