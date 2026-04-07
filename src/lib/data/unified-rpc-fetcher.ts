@@ -269,16 +269,71 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null, preRes
   }
 }
 
+const DASHBOARD_STORAGE_KEY = 'llumos_dashboard_cache';
+const DASHBOARD_BRAND_KEY = 'llumos_dashboard_brand';
+
 /**
- * Real-time data fetcher with caching and refresh capabilities
+ * Real-time data fetcher with caching, localStorage persistence,
+ * and stale-while-revalidate for instant dashboard loads.
  */
 export class RealTimeDashboardFetcher {
   private cache: UnifiedDashboardResponse | null = null;
   private lastFetch: number = 0;
-  private readonly CACHE_DURATION = 120000; // 2 minutes - increased to reduce API calls
+  private readonly CACHE_DURATION = 120000; // 2 minutes
   private refreshCallbacks: ((data: UnifiedDashboardResponse) => void)[] = [];
   private currentBrandId: string | null = null;
   private currentOrgId: string | null = null;
+
+  constructor() {
+    // Hydrate from localStorage on creation for instant first render
+    this.hydrateFromStorage();
+  }
+
+  /**
+   * Hydrate memory cache from localStorage (stale-while-revalidate)
+   */
+  private hydrateFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(DASHBOARD_STORAGE_KEY);
+      const storedBrand = localStorage.getItem(DASHBOARD_BRAND_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { data: UnifiedDashboardResponse; timestamp: number; brandId: string | null };
+        // Only use if less than 10 minutes old
+        if (parsed.timestamp && (Date.now() - parsed.timestamp) < 600000) {
+          this.cache = parsed.data;
+          this.lastFetch = parsed.timestamp;
+          this.currentBrandId = parsed.brandId ?? null;
+          logger.info('Hydrated dashboard from localStorage', {
+            component: 'unified-rpc-fetcher',
+            metadata: { age: Date.now() - parsed.timestamp, prompts: parsed.data.prompts?.length || 0 }
+          });
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  /**
+   * Persist current cache to localStorage
+   */
+  private persistToStorage(): void {
+    if (!this.cache || !this.cache.success) return;
+    try {
+      const payload = JSON.stringify({
+        data: this.cache,
+        timestamp: this.lastFetch,
+        brandId: this.currentBrandId
+      });
+      // Only persist if reasonably sized (< 500KB)
+      if (payload.length < 500000) {
+        localStorage.setItem(DASHBOARD_STORAGE_KEY, payload);
+        localStorage.setItem(DASHBOARD_BRAND_KEY, this.currentBrandId || '');
+      }
+    } catch {
+      // Ignore quota errors
+    }
+  }
 
   /**
    * Set the org ID from context to avoid redundant auth lookups
@@ -298,7 +353,7 @@ export class RealTimeDashboardFetcher {
   }
 
   /**
-   * Get dashboard data with caching
+   * Get dashboard data with caching + stale-while-revalidate
    */
   async getData(forceRefresh: boolean = false): Promise<UnifiedDashboardResponse> {
     const now = Date.now();
@@ -327,13 +382,14 @@ export class RealTimeDashboardFetcher {
           prompts: this.cache.prompts?.length || 0
         }
       });
-      return this.cache; // Return stale cache instead of error
+      return this.cache;
     }
     
     // Only update cache if successful
     if (data.success) {
       this.cache = data;
       this.lastFetch = now;
+      this.persistToStorage();
     }
 
     // Notify subscribers only of successful data
@@ -353,12 +409,18 @@ export class RealTimeDashboardFetcher {
   }
 
   /**
+   * Get stale cached data synchronously (for instant first render)
+   */
+  getCachedData(): UnifiedDashboardResponse | null {
+    return this.cache;
+  }
+
+  /**
    * Subscribe to data refresh events
    */
   onRefresh(callback: (data: UnifiedDashboardResponse) => void): () => void {
     this.refreshCallbacks.push(callback);
     
-    // Return unsubscribe function
     return () => {
       const index = this.refreshCallbacks.indexOf(callback);
       if (index > -1) {
@@ -380,6 +442,12 @@ export class RealTimeDashboardFetcher {
   clearCache(): void {
     this.cache = null;
     this.lastFetch = 0;
+    try {
+      localStorage.removeItem(DASHBOARD_STORAGE_KEY);
+      localStorage.removeItem(DASHBOARD_BRAND_KEY);
+    } catch {
+      // Ignore
+    }
   }
 }
 
