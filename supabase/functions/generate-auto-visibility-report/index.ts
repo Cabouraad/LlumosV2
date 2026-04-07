@@ -712,8 +712,9 @@ Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
 ["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
           }
         ],
-        temperature: 0.7,
-        max_tokens: 500
+        temperature: 0.3,
+        max_tokens: 500,
+        seed: 42
       }),
     });
 
@@ -1142,7 +1143,8 @@ function analyzeSentiment(response: string, brandName: string): 'positive' | 'ne
   const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
 
   const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
-  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'however', 'but', 'although', 'criticism', 'negative', 'disappointing', 'outdated'];
+  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated'];
+  // Note: 'however', 'but', 'although' removed - these are common transition words, not sentiment indicators
 
   let positiveScore = 0;
   let negativeScore = 0;
