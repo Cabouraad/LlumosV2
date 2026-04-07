@@ -1600,13 +1600,40 @@ async function generatePDF(
   let page = newPage();
   let y = H - 50;
 
-  // Header bar
-  page.drawRectangle({ x: 0, y: H - 90, width: W, height: 90, color: accent });
-  page.drawText('AI VISIBILITY REPORT', { x: M, y: H - 48, size: 22, font: helveticaBold, color: white });
-  page.drawText(`${domain}`, { x: M, y: H - 70, size: 13, font: helvetica, color: rgb(0.82, 0.78, 0.95) });
-  page.drawText(`Prepared for ${firstName}  |  ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { x: M, y: H - 85, size: 9, font: helvetica, color: rgb(0.72, 0.68, 0.85) });
+  // Header bar with co-branding
+  const headerH = 100;
+  page.drawRectangle({ x: 0, y: H - headerH, width: W, height: headerH, color: accent });
 
-  y = H - 120;
+  // Co-branding: Llumos logo (text) + "×" + SMB Team logo
+  const logoY = H - 30;
+  
+  // Llumos brand text
+  page.drawText('LLUMOS', { x: M, y: logoY, size: 16, font: helveticaBold, color: white });
+  const llumosW = helveticaBold.widthOfTextAtSize('LLUMOS', 16);
+  page.drawText('AI', { x: M + llumosW + 4, y: logoY, size: 10, font: helvetica, color: rgb(0.82, 0.78, 0.95) });
+  const aiW = helvetica.widthOfTextAtSize('AI', 10);
+  
+  // Separator
+  const sepX = M + llumosW + 4 + aiW + 12;
+  page.drawText('×', { x: sepX, y: logoY, size: 14, font: helvetica, color: rgb(0.72, 0.68, 0.85) });
+  
+  // SMB Team logo image (if loaded) or text fallback
+  const smbX = sepX + 20;
+  if (smbTeamLogo) {
+    const logoDims = smbTeamLogo.scale(1);
+    const logoH = 22;
+    const logoW2 = (logoDims.width / logoDims.height) * logoH;
+    page.drawImage(smbTeamLogo, { x: smbX, y: logoY - 4, width: logoW2, height: logoH });
+  } else {
+    page.drawText('SMBTeam', { x: smbX, y: logoY, size: 16, font: helveticaBold, color: white });
+  }
+
+  // Report title & details
+  page.drawText('AI VISIBILITY REPORT', { x: M, y: H - 55, size: 22, font: helveticaBold, color: white });
+  page.drawText(`${domain}`, { x: M, y: H - 77, size: 13, font: helvetica, color: rgb(0.82, 0.78, 0.95) });
+  page.drawText(`Prepared for ${firstName}  |  ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { x: M, y: H - 95, size: 9, font: helvetica, color: rgb(0.72, 0.68, 0.85) });
+
+  y = H - 130;
 
   // Score card
   const cardY = y - 5;
