@@ -67,6 +67,7 @@ import AIVisibilityResults from "./pages/AIVisibilityResults";
 import LocalAISearchLanding from "./pages/LocalAISearchLanding";
 import WebsiteAudit from "./pages/WebsiteAudit";
 import LandingWinBothSearches from "./pages/LandingWinBothSearches";
+import LawFirmAIVisibility from "./pages/LawFirmAIVisibility";
 // ============================================
 // LAZY LOADED - Auth Routes
 // ============================================
