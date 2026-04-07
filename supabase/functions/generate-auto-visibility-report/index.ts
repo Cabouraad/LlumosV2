@@ -53,15 +53,17 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'youtube', 'tiktok', 'tiktok ads', 'pinterest', 'reddit', 'snapchat', 'bing', 'apple maps',
   // Review sites and directories (these are listing platforms, not competitors)
   'yelp', 'bbb', 'better business bureau', 'g2', 'capterra', 'clutch', 'trustpilot', 'glassdoor', 'indeed',
-  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo',
+  'avvo', 'findlaw', 'justia', 'lawyers com', 'lawyers.com', 'martindale', 'nolo', 'martindale-nolo',
+  'martindale nolo', 'super lawyers', 'thumbtack', 'angi', 'angies list', 'homeadvisor',
   // Generic marketing terms (not brand names)
   'social media', 'email marketing', 'content marketing', 'seo', 'ppc', 'crm', 'analytics',
   'marketing', 'digital marketing', 'website optimization', 'small firms', 'implementation tips',
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
+  'forward push', 'law firm growth program',
   // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
-  // Generic infrastructure (only exclude WordPress as a CMS platform, not as a competitor)
+  // Generic infrastructure
   'wordpress',
 ]);
 
@@ -103,6 +105,12 @@ const COMMON_ENGLISH_WORDS = new Set([
   'overview', 'details', 'benefits', 'features', 'options', 'results', 'data', 'information',
   'accounts payable aging', 'accounts receivable aging', 'balance sheet', 'income statement',
   'cash flow', 'general ledger', 'trial balance', 'profit and loss',
+  // Additional sentence-start words commonly capitalized
+  'several', 'forward', 'various', 'another', 'overall', 'whether', 'certain', 'specific',
+  'popular', 'notable', 'common', 'additional', 'effective', 'comprehensive', 'recommended',
+  'particular', 'relevant', 'similar', 'typical', 'general', 'primary', 'major', 'minor',
+  'focus', 'focused', 'focusing', 'based', 'known', 'dedicated', 'specialized', 'experienced',
+  'established', 'integrated', 'combined', 'tailored', 'customized', 'designed', 'aimed',
 ]);
 
 function escapeRegExp(value: string): string {
@@ -332,16 +340,25 @@ function hasBrandLikeShape(name: string): boolean {
   // Domain-like patterns (contains a dot)
   if (/\./.test(trimmed)) return true;
   const words = trimmed.split(/\s+/);
-  // Multi-word: at least one word starts with a capital letter
-  if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
-  // Single word: accept if it starts with a capital and is 4+ chars (e.g., "Salesforce", "Marketo")
-  // OR has internal caps (e.g., "HubSpot")
-  // OR is a short all-caps acronym (e.g., "SAP", "IBM")
-  // OR contains digits (e.g., "G2", "360i")
-  if (/^[A-Z][a-z]{3,}/.test(trimmed)) return true; // Capitalized word 4+ chars (brand-like)
-  if (/[A-Z].*[A-Z]/.test(trimmed)) return true; // Internal caps
-  if (/^[A-Z]{2,6}$/.test(trimmed)) return true; // Short acronym
-  if (/\d/.test(trimmed)) return true; // Contains digits
+  // Multi-word: at least one word starts with a capital letter AND not all words are common English
+  if (words.length >= 2) {
+    const hasCapital = words.some(w => /^[A-Z]/.test(w));
+    const allCommon = words.every(w => COMMON_ENGLISH_WORDS.has(w.toLowerCase()));
+    return hasCapital && !allCommon;
+  }
+  // Single word rules — much stricter to avoid sentence-start false positives
+  // Reject if it's a common English word
+  if (COMMON_ENGLISH_WORDS.has(trimmed.toLowerCase())) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(trimmed.toLowerCase())) return false;
+  // Internal caps (e.g., "HubSpot", "LawRank")
+  if (/[a-z][A-Z]/.test(trimmed)) return true;
+  // Short all-caps acronym (e.g., "SAP", "IBM")
+  if (/^[A-Z]{2,6}$/.test(trimmed)) return true;
+  // Contains digits mixed with letters (e.g., "G2", "360i")
+  if (/\d/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) return true;
+  // Capitalized word 5+ chars — only if it looks "brand-like" (not a common word)
+  // We already filtered common words above, so remaining 5+ char capitalized words are likely brands
+  if (/^[A-Z][a-z]{4,}/.test(trimmed)) return true;
   return false;
 }
 
@@ -354,11 +371,13 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   if (!hasBrandLikeShape(name)) return false;
   if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
+  // Also check with hyphens replaced by spaces and vice versa
+  if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/-/g, ' '))) return false;
+  if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/\s+/g, '-'))) return false;
   if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
   if (normalized.split(' ').length > 4) return false;
   if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
-  // Reject if all words are common English words
   if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
 
   return true;
@@ -693,8 +712,9 @@ Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
 ["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
           }
         ],
-        temperature: 0.7,
-        max_tokens: 500
+        temperature: 0.3,
+        max_tokens: 500,
+        seed: 42
       }),
     });
 
@@ -1123,7 +1143,8 @@ function analyzeSentiment(response: string, brandName: string): 'positive' | 'ne
   const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
 
   const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
-  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'however', 'but', 'although', 'criticism', 'negative', 'disappointing', 'outdated'];
+  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated'];
+  // Note: 'however', 'but', 'although' removed - these are common transition words, not sentiment indicators
 
   let positiveScore = 0;
   let negativeScore = 0;
@@ -1341,8 +1362,13 @@ function calculateProviderScore(result: ProviderResult): number {
   if (result.brandMentioned) {
     score += 50; // Base score for being mentioned
     
-    // Bonus for early mention
-    const firstMentionIndex = result.response.toLowerCase().indexOf(result.prompt.toLowerCase().split(' ')[0]);
+    // Bonus for brand appearing early in the response (first 300 chars = prominent placement)
+    // Use brandPosition if detected, otherwise check text position
+    if (result.brandPosition !== null && result.brandPosition <= 3) {
+      score += 25;
+    } else if (result.brandPosition !== null && result.brandPosition <= 5) {
+      score += 15;
+    }
     if (firstMentionIndex >= 0 && firstMentionIndex < 200) {
       score += 25;
     }
@@ -2312,7 +2338,7 @@ serve(async (req) => {
     }
 
     // Step 3: Calculate overall score
-    const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+    const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
     const overallScore = validResults.length > 0 
       ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
       : 0;
