@@ -340,16 +340,25 @@ function hasBrandLikeShape(name: string): boolean {
   // Domain-like patterns (contains a dot)
   if (/\./.test(trimmed)) return true;
   const words = trimmed.split(/\s+/);
-  // Multi-word: at least one word starts with a capital letter
-  if (words.length >= 2) return words.some(w => /^[A-Z]/.test(w));
-  // Single word: accept if it starts with a capital and is 4+ chars (e.g., "Salesforce", "Marketo")
-  // OR has internal caps (e.g., "HubSpot")
-  // OR is a short all-caps acronym (e.g., "SAP", "IBM")
-  // OR contains digits (e.g., "G2", "360i")
-  if (/^[A-Z][a-z]{3,}/.test(trimmed)) return true; // Capitalized word 4+ chars (brand-like)
-  if (/[A-Z].*[A-Z]/.test(trimmed)) return true; // Internal caps
-  if (/^[A-Z]{2,6}$/.test(trimmed)) return true; // Short acronym
-  if (/\d/.test(trimmed)) return true; // Contains digits
+  // Multi-word: at least one word starts with a capital letter AND not all words are common English
+  if (words.length >= 2) {
+    const hasCapital = words.some(w => /^[A-Z]/.test(w));
+    const allCommon = words.every(w => COMMON_ENGLISH_WORDS.has(w.toLowerCase()));
+    return hasCapital && !allCommon;
+  }
+  // Single word rules — much stricter to avoid sentence-start false positives
+  // Reject if it's a common English word
+  if (COMMON_ENGLISH_WORDS.has(trimmed.toLowerCase())) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(trimmed.toLowerCase())) return false;
+  // Internal caps (e.g., "HubSpot", "LawRank")
+  if (/[a-z][A-Z]/.test(trimmed)) return true;
+  // Short all-caps acronym (e.g., "SAP", "IBM")
+  if (/^[A-Z]{2,6}$/.test(trimmed)) return true;
+  // Contains digits mixed with letters (e.g., "G2", "360i")
+  if (/\d/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) return true;
+  // Capitalized word 5+ chars — only if it looks "brand-like" (not a common word)
+  // We already filtered common words above, so remaining 5+ char capitalized words are likely brands
+  if (/^[A-Z][a-z]{4,}/.test(trimmed)) return true;
   return false;
 }
 
