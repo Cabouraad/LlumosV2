@@ -1360,8 +1360,13 @@ function calculateProviderScore(result: ProviderResult): number {
   if (result.brandMentioned) {
     score += 50; // Base score for being mentioned
     
-    // Bonus for early mention
-    const firstMentionIndex = result.response.toLowerCase().indexOf(result.prompt.toLowerCase().split(' ')[0]);
+    // Bonus for brand appearing early in the response (first 300 chars = prominent placement)
+    // Use brandPosition if detected, otherwise check text position
+    if (result.brandPosition !== null && result.brandPosition <= 3) {
+      score += 25;
+    } else if (result.brandPosition !== null && result.brandPosition <= 5) {
+      score += 15;
+    }
     if (firstMentionIndex >= 0 && firstMentionIndex < 200) {
       score += 25;
     }
