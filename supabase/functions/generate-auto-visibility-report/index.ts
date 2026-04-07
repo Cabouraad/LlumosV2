@@ -1569,7 +1569,7 @@ async function generatePDF(
   // ---- helpers ----
   function drawFooter(pg: any) {
     pg.drawLine({ start: { x: M, y: 40 }, end: { x: W - M, y: 40 }, thickness: 0.5, color: faint });
-    pg.drawText('llumos.app', { x: M, y: 26, size: 8, font: helvetica, color: light });
+    pg.drawText('llumos.app × SMBTeam', { x: M, y: 26, size: 8, font: helvetica, color: light });
     pg.drawText('AI Visibility Intelligence', { x: W - M - 120, y: 26, size: 8, font: helvetica, color: light });
   }
 
