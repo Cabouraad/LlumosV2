@@ -42,7 +42,7 @@ export default function LawFirmAIVisibility() {
                 <img
                   src={smbTeamLogo}
                   alt="SMB Team"
-                  className="h-8 w-auto"
+                  className="h-10 w-auto brightness-150 contrast-125"
                 />
               </div>
 
@@ -524,7 +524,7 @@ export default function LawFirmAIVisibility() {
                   <span className="text-sm font-semibold">Llumos</span>
                 </div>
                 <span className="text-muted-foreground text-sm">×</span>
-                <img src={smbTeamLogo} alt="SMB Team" className="h-5 w-auto" />
+                <img src={smbTeamLogo} alt="SMB Team" className="h-6 w-auto brightness-150 contrast-125" />
               </div>
               <p className="text-sm text-muted-foreground">
                 © {new Date().getFullYear()} Llumos × SMB Team. All rights reserved.
