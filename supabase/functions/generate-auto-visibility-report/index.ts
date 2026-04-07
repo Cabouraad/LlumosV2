@@ -2336,7 +2336,7 @@ serve(async (req) => {
     }
 
     // Step 3: Calculate overall score
-    const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not'));
+    const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
     const overallScore = validResults.length > 0 
       ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
       : 0;
