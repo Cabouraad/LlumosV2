@@ -61,7 +61,7 @@ serve(async (req) => {
     const { error: insertError } = await supabase
       .from("visibility_report_requests")
       .insert({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         domain: domain.trim(),
         score,
         status: "pending",
