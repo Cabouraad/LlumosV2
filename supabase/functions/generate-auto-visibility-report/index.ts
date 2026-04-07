@@ -371,11 +371,13 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   if (!hasBrandLikeShape(name)) return false;
   if (normalized === normalizedBrand || normalized === normalizedDomain) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized)) return false;
+  // Also check with hyphens replaced by spaces and vice versa
+  if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/-/g, ' '))) return false;
+  if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/\s+/g, '-'))) return false;
   if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
   if (normalized.split(' ').length > 4) return false;
   if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
-  // Reject if all words are common English words
   if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
 
   return true;
