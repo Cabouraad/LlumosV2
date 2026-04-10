@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrgIdSafe } from '@/lib/org-id';
+import { useOrgId } from '@/contexts/UnifiedAuthProvider';
 
 export interface LlumosSubmetrics {
   pr: number; // Presence Rate
@@ -44,13 +45,17 @@ export interface LlumosScoreResponse {
 export function useLlumosScore(promptId?: string, brandId?: string | null) {
   const scope = promptId ? 'prompt' : 'org';
   const queryClient = useQueryClient();
+  const contextOrgId = useOrgId();
 
   // Resolve org id to avoid cross-org cache pollution
-  const { data: orgId } = useQuery({
+  const { data: fallbackOrgId } = useQuery({
     queryKey: ['org-id'],
     queryFn: getOrgIdSafe,
     staleTime: 5 * 60 * 1000,
+    enabled: !contextOrgId,
   });
+
+  const orgId = contextOrgId ?? fallbackOrgId;
 
   // NOTE: Realtime subscription removed - it caused performance issues with 
   // unnecessary WebSocket connections. Scores are cached server-side for 24h 
