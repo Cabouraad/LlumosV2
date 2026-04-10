@@ -2,6 +2,27 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { clearOrgIdCache, updateOrgIdCache } from '@/lib/org-id';
+import { dashboardFetcher } from '@/lib/data/unified-rpc-fetcher';
+
+const SELECTED_BRAND_STORAGE_KEY = 'llumos_selected_brand';
+
+function getStoredSelectedBrandId(orgId: string | null): string | null {
+  if (!orgId) return null;
+
+  try {
+    const stored = localStorage.getItem(SELECTED_BRAND_STORAGE_KEY);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as { id?: string; org_id?: string } | null;
+    if (!parsed?.id || parsed.org_id !== orgId) {
+      return null;
+    }
+
+    return parsed.id;
+  } catch {
+    return null;
+  }
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -195,32 +216,34 @@ export function UnifiedAuthProvider({ children }: UnifiedAuthProviderProps) {
         ? supabase.functions.invoke('ensure-user-record')
         : Promise.resolve({ error: null } as { error: any });
 
+      const userDataPromise = supabase
+        .from('users')
+        .select(`
+          id,
+          email,
+          role,
+          org_id,
+          created_at,
+          tour_completions,
+          organizations (
+            id,
+            name,
+            domain,
+            plan_tier
+          )
+        `)
+        .eq('id', user.id)
+        .single();
+
+      const subscriptionPromise = supabase.rpc('get_user_subscription_status');
+
       // OPTIMIZATION: Make ONE batched API call instead of three sequential calls
       const [
         { error: ensureError },
-        { data: userDataResult, error: userDataError },
-        { data: subscriptionResult, error: subscriptionRpcError }
+        { data: userDataResult, error: userDataError }
       ] = await Promise.all([
         ensurePromise,
-        supabase
-          .from('users')
-          .select(`
-            id,
-            email,
-            role,
-            org_id,
-            created_at,
-            tour_completions,
-            organizations (
-              id,
-              name,
-              domain,
-              plan_tier
-            )
-          `)
-          .eq('id', user.id)
-          .single(),
-        supabase.rpc('get_user_subscription_status')
+        userDataPromise,
       ]);
 
       if (!ensureError && shouldEnsure) {
@@ -250,9 +273,32 @@ export function UnifiedAuthProvider({ children }: UnifiedAuthProviderProps) {
       if (fetchedUserData.org_id) {
         setOrgId(fetchedUserData.org_id);
         updateOrgIdCache(fetchedUserData.org_id);
+
+        const storedBrandId = getStoredSelectedBrandId(fetchedUserData.org_id);
+        dashboardFetcher.setOrgId(fetchedUserData.org_id);
+        dashboardFetcher.setBrandId(storedBrandId);
+
+        void dashboardFetcher.getData(false).catch((prefetchError) => {
+          console.warn('[UnifiedAuthProvider] Dashboard prefetch failed:', prefetchError);
+        });
+
+        void supabase.functions.invoke('compute-llumos-score', {
+          body: {
+            scope: 'org',
+            brandId: storedBrandId || undefined,
+            force: false,
+          },
+        }).catch((prefetchError) => {
+          console.warn('[UnifiedAuthProvider] Llumos score prefetch failed:', prefetchError);
+        });
       } else {
         setOrgId(null);
       }
+
+      setUserLoading(false);
+      setUserReady(true);
+
+      const { data: subscriptionResult, error: subscriptionRpcError } = await subscriptionPromise;
 
       // Process subscription data
       const subscriberData = subscriptionResult as {
