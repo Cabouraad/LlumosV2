@@ -49,7 +49,7 @@ export function useRealTimeDashboard(
   const [error, setError] = useState<Error | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(cachedData ? new Date() : null);
   const { toast } = useToast();
-  const { selectedBrand } = useBrand();
+  const { selectedBrand, isValidated: isBrandValidated } = useBrand();
   const orgId = useOrgId();
 
   // Update fetcher with current org ID and brand ID whenever they change
@@ -58,8 +58,12 @@ export function useRealTimeDashboard(
   }, [orgId]);
 
   useEffect(() => {
+    if (!isBrandValidated && !selectedBrand) {
+      return;
+    }
+
     dashboardFetcher.setBrandId(selectedBrand?.id || null);
-  }, [selectedBrand?.id]);
+  }, [isBrandValidated, selectedBrand?.id, selectedBrand]);
 
   // Refs to prevent excessive fetching
   const fetchInProgressRef = useRef(false);
@@ -150,8 +154,13 @@ export function useRealTimeDashboard(
 
   // Initial data fetch and refetch when brand changes
   useEffect(() => {
-    fetchData(false);
-  }, [fetchData, selectedBrand?.id]);
+    if (!isBrandValidated && !selectedBrand) {
+      debug('[Dashboard] Waiting for brand validation before fetching');
+      return;
+    }
+
+    fetchData(false, !dashboardFetcher.getCachedData());
+  }, [fetchData, isBrandValidated, orgId, selectedBrand]);
 
   // Auto-refresh interval with adaptive polling
   useEffect(() => {

@@ -456,7 +456,7 @@ export default function Dashboard() {
     );
   }
 
-  if (error) {
+  if (error && !dashboardData) {
     return (
       <Layout>
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">

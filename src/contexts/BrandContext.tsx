@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth, useOrgId, useUser } from '@/contexts/UnifiedAuthProvider';
 
 interface Brand {
   id: string;
@@ -22,37 +23,67 @@ const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
 const SELECTED_BRAND_KEY = 'llumos_selected_brand';
 
+function getInitialStoredBrand(): Brand | null {
+  try {
+    const stored = localStorage.getItem(SELECTED_BRAND_KEY);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as Partial<Brand> | null;
+    if (!parsed?.id || !parsed.org_id || !parsed.name || !parsed.domain) {
+      localStorage.removeItem(SELECTED_BRAND_KEY);
+      return null;
+    }
+
+    const cachedOrgId = localStorage.getItem('sb_last_org_id');
+    if (cachedOrgId && parsed.org_id !== cachedOrgId) {
+      return null;
+    }
+
+    return parsed as Brand;
+  } catch {
+    localStorage.removeItem(SELECTED_BRAND_KEY);
+    return null;
+  }
+}
+
 export function BrandProvider({ children }: { children: React.ReactNode }) {
-  const [selectedBrand, setSelectedBrandState] = useState<Brand | null>(null);
+  const { user, ready } = useAuth();
+  const { ready: userReady } = useUser();
+  const orgId = useOrgId();
+  const [selectedBrand, setSelectedBrandState] = useState<Brand | null>(() => getInitialStoredBrand());
   const [isValidated, setIsValidated] = useState(false);
 
   // Validate and load selected brand from localStorage, or auto-create/select primary brand
   useEffect(() => {
+    let isCancelled = false;
+
     const initializeBrand = async () => {
       const stored = localStorage.getItem(SELECTED_BRAND_KEY);
-      
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!ready) {
+        return;
+      }
+
       if (!user) {
         localStorage.removeItem(SELECTED_BRAND_KEY);
+        setSelectedBrandState(null);
         setIsValidated(true);
         return;
       }
 
-      // Get user's org_id
-      const { data: userData } = await supabase
-        .from('users')
-        .select('org_id')
-        .eq('id', user.id)
-        .single();
+      if (!userReady) {
+        return;
+      }
 
-      if (!userData?.org_id) {
+      if (!orgId) {
         console.log('[BrandContext] User has no org_id, skipping brand initialization');
+        localStorage.removeItem(SELECTED_BRAND_KEY);
+        setSelectedBrandState(null);
         setIsValidated(true);
         return;
       }
 
-      const orgId = userData.org_id;
+      setIsValidated(false);
 
       // If we have a stored brand, validate it
       if (stored) {
@@ -71,8 +102,10 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
             if (brandExists) {
               console.log('[BrandContext] Using validated stored brand:', brandExists.name);
-              setSelectedBrandState(brandExists as Brand);
-              setIsValidated(true);
+              if (!isCancelled) {
+                setSelectedBrandState(brandExists as Brand);
+                setIsValidated(true);
+              }
               return;
             }
           }
@@ -94,7 +127,9 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
       if (brandsError) {
         console.error('[BrandContext] Error fetching brands:', brandsError);
-        setIsValidated(true);
+        if (!isCancelled) {
+          setIsValidated(true);
+        }
         return;
       }
 
@@ -102,9 +137,13 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         // Use existing brand
         const primaryBrand = brands.find(b => b.is_primary) || brands[0];
         console.log('[BrandContext] Using existing brand:', primaryBrand.name);
-        setSelectedBrandState(primaryBrand as Brand);
+        if (!isCancelled) {
+          setSelectedBrandState(primaryBrand as Brand);
+        }
         localStorage.setItem(SELECTED_BRAND_KEY, JSON.stringify(primaryBrand));
-        setIsValidated(true);
+        if (!isCancelled) {
+          setIsValidated(true);
+        }
         return;
       }
 
@@ -119,7 +158,9 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
       if (orgError || !org) {
         console.error('[BrandContext] Error fetching org for brand creation:', orgError);
-        setIsValidated(true);
+        if (!isCancelled) {
+          setIsValidated(true);
+        }
         return;
       }
 
@@ -151,18 +192,28 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
       if (createError) {
         console.error('[BrandContext] Error creating brand:', createError);
-        setIsValidated(true);
+        if (!isCancelled) {
+          setIsValidated(true);
+        }
         return;
       }
 
       console.log('[BrandContext] Successfully created brand:', newBrand.name);
-      setSelectedBrandState(newBrand as Brand);
+      if (!isCancelled) {
+        setSelectedBrandState(newBrand as Brand);
+      }
       localStorage.setItem(SELECTED_BRAND_KEY, JSON.stringify(newBrand));
-      setIsValidated(true);
+      if (!isCancelled) {
+        setIsValidated(true);
+      }
     };
 
     initializeBrand();
-  }, []);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [orgId, ready, user, userReady]);
 
   const setSelectedBrand = (brand: Brand | null) => {
     setSelectedBrandState(brand);
