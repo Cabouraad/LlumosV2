@@ -19,6 +19,8 @@ interface ReportRequest {
   email: string;
   domain: string;
   score: number;
+  /** When true, queue only — don't fire background generation (for webinar / high-volume mode) */
+  queueOnly?: boolean;
 }
 
 serve(async (req) => {
@@ -28,7 +30,7 @@ serve(async (req) => {
   }
 
   try {
-    const { firstName, email, domain, score }: ReportRequest = await req.json();
+    const { firstName, email, domain, score, queueOnly }: ReportRequest = await req.json();
 
     // Validate required fields
     if (!firstName?.trim() || !email?.trim() || !domain?.trim()) {
@@ -57,6 +59,27 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Check for existing pending/processing request to prevent duplicates
+    const { data: existing } = await supabase
+      .from("visibility_report_requests")
+      .select("id, status")
+      .eq("email", email.trim().toLowerCase())
+      .eq("domain", domain.trim())
+      .in("status", ["pending", "processing"])
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      console.log(`[RequestReport] Duplicate request for ${email} / ${domain} — skipping insert`);
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: "Report already queued. You'll receive your AI Visibility Report via email shortly!",
+          queued: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Store the report request
     const { error: insertError } = await supabase
       .from("visibility_report_requests")
@@ -72,9 +95,6 @@ serve(async (req) => {
       console.error("Error storing report request:", insertError);
       throw insertError;
     }
-
-    // NOTE: Admin notification removed - reports are now fully automated via generate-auto-visibility-report
-    // The function generates PDFs and emails them directly to users
 
     // Submit to HubSpot Forms API
     if (HUBSPOT_PORTAL_ID && HUBSPOT_FORM_GUID) {
@@ -108,21 +128,31 @@ serve(async (req) => {
         }
       } catch (hubspotError) {
         console.error("Error submitting to HubSpot:", hubspotError);
-        // Don't fail the request if HubSpot fails
       }
     }
 
-    console.log(`Visibility report requested for ${domain} by ${firstName} (${email}) - Score: ${score}`);
+    console.log(`Visibility report requested for ${domain} by ${firstName} (${email}) - Score: ${score} - QueueOnly: ${!!queueOnly}`);
 
-    // Mark the record as "processing" immediately so process-pending-reports cron
-    // won't pick it up and generate a duplicate report
+    // In queue-only mode (webinar), leave as pending for process-pending-reports to pick up
+    if (queueOnly) {
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: "Report queued successfully. You'll receive your AI Visibility Report via email within 15 minutes!",
+          queued: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Normal mode: mark as processing and fire background generation immediately
     await supabase
       .from("visibility_report_requests")
       .update({ 
         status: "processing",
         metadata: { firstName: firstName.trim(), backgroundTriggeredAt: new Date().toISOString() }
       })
-      .eq("email", email.trim())
+      .eq("email", email.trim().toLowerCase())
       .eq("domain", domain.trim())
       .eq("status", "pending")
       .order("created_at", { ascending: false })
