@@ -9,6 +9,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Validate domain format — must have at least one dot and only valid chars */
+function isValidDomain(domain: string): boolean {
+  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
+  return domainRegex.test(domain.trim().toLowerCase());
+}
+
+/** Retry-aware Supabase query — handles 522/503 transient errors */
+async function fetchPendingWithRetry(
+  supabase: ReturnType<typeof createClient>,
+  batchSize: number,
+  maxRetries = 3,
+): Promise<Array<{ id: string; email: string; domain: string; metadata: any }>> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+      const { data, error } = await supabase
+        .from("visibility_report_requests")
+        .select("id, email, domain, metadata")
+        .in("status", ["pending", "error"])
+        .lt("created_at", twoMinutesAgo)
+        .order("created_at", { ascending: true })
+        .limit(batchSize);
+
+      if (error) {
+        // Check if error message contains HTML (Cloudflare 522/503)
+        if (typeof error.message === "string" && error.message.includes("<!DOCTYPE")) {
+          throw new Error(`Supabase returned HTML error (likely 522/503)`);
+        }
+        throw new Error(`DB query failed: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (err: any) {
+      console.warn(`[ProcessPending] DB fetch attempt ${attempt}/${maxRetries} failed: ${err.message}`);
+      if (attempt < maxRetries) {
+        const delay = attempt * 3000; // 3s, 6s, 9s backoff
+        console.log(`[ProcessPending] Retrying in ${delay / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  return []; // unreachable but satisfies TS
+}
+
 /** Process a wave of N reports concurrently, return per-item results */
 async function processWave(
   supabase: ReturnType<typeof createClient>,
@@ -38,7 +85,7 @@ async function processWave(
     const firstName = (metadata as any)?.firstName || "";
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 150_000); // 150s timeout
+      const timeout = setTimeout(() => controller.abort(), 150_000);
 
       const reportResponse = await fetch(
         `${SUPABASE_URL}/functions/v1/generate-auto-visibility-report`,
@@ -63,7 +110,6 @@ async function processWave(
         console.log(`[ProcessPending] ❌ ${domain}: ${reportResult.error}`);
         results.push({ email, domain, status: "failed", error: reportResult.error });
 
-        // Mark as error so it can be retried
         await supabase
           .from("visibility_report_requests")
           .update({
@@ -120,22 +166,10 @@ serve(async (req) => {
       // no body is fine — use defaults
     }
 
-    // Fetch pending submissions older than 2 minutes
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // Fetch pending with retry logic for transient DB errors
+    const pendingRequests = await fetchPendingWithRetry(supabase, batchSize);
 
-    const { data: pendingRequests, error: fetchError } = await supabase
-      .from("visibility_report_requests")
-      .select("id, email, domain, metadata")
-      .in("status", ["pending", "error"]) // also retry errors
-      .lt("created_at", twoMinutesAgo)
-      .order("created_at", { ascending: true })
-      .limit(batchSize);
-
-    if (fetchError) {
-      throw new Error(`Failed to fetch pending requests: ${fetchError.message}`);
-    }
-
-    if (!pendingRequests || pendingRequests.length === 0) {
+    if (pendingRequests.length === 0) {
       console.log("[ProcessPending] No pending submissions to process");
       return new Response(
         JSON.stringify({ success: true, processed: 0, message: "No pending submissions" }),
@@ -143,15 +177,62 @@ serve(async (req) => {
       );
     }
 
+    // Filter out invalid domains before processing
+    const validRequests: typeof pendingRequests = [];
+    const skippedRequests: Array<{ id: string; domain: string; reason: string }> = [];
+
+    for (const r of pendingRequests) {
+      if (!isValidDomain(r.domain)) {
+        skippedRequests.push({ id: r.id, domain: r.domain, reason: "invalid_domain" });
+      } else {
+        validRequests.push(r);
+      }
+    }
+
+    // Mark invalid entries as skipped so they don't clog the queue
+    if (skippedRequests.length > 0) {
+      console.log(
+        `[ProcessPending] Skipping ${skippedRequests.length} invalid domains: ${skippedRequests.map((s) => s.domain).join(", ")}`,
+      );
+      await Promise.all(
+        skippedRequests.map((s) =>
+          supabase
+            .from("visibility_report_requests")
+            .update({
+              status: "error",
+              metadata: {
+                errorAt: new Date().toISOString(),
+                errorMessage: `Invalid domain format: "${s.domain}"`,
+                skippedByProcessor: true,
+              },
+            })
+            .eq("id", s.id)
+        ),
+      );
+    }
+
+    if (validRequests.length === 0) {
+      console.log("[ProcessPending] No valid domains to process after filtering");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          processed: 0,
+          skipped: skippedRequests.length,
+          message: "All pending requests had invalid domains",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     console.log(
-      `[ProcessPending] Found ${pendingRequests.length} submissions — processing in waves of ${concurrency}`,
+      `[ProcessPending] Found ${validRequests.length} valid submissions (skipped ${skippedRequests.length}) — processing in waves of ${concurrency}`,
     );
 
     const allResults: Array<{ email: string; domain: string; status: string; error?: string }> = [];
 
     // Split into waves of `concurrency` size
-    for (let i = 0; i < pendingRequests.length; i += concurrency) {
-      const wave = pendingRequests.slice(i, i + concurrency);
+    for (let i = 0; i < validRequests.length; i += concurrency) {
+      const wave = validRequests.slice(i, i + concurrency);
       const waveNum = Math.floor(i / concurrency) + 1;
       console.log(
         `[ProcessPending] Wave ${waveNum}: processing ${wave.length} reports (${wave.map((r) => r.domain).join(", ")})`,
@@ -161,7 +242,7 @@ serve(async (req) => {
       allResults.push(...waveResults);
 
       // 5-second cooldown between waves to respect rate limits
-      if (i + concurrency < pendingRequests.length) {
+      if (i + concurrency < validRequests.length) {
         console.log(`[ProcessPending] Cooldown 5s before next wave...`);
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
@@ -171,13 +252,14 @@ serve(async (req) => {
     const failed = allResults.filter((r) => r.status !== "success").length;
 
     console.log(
-      `[ProcessPending] Done. Total: ${allResults.length}, Succeeded: ${succeeded}, Failed: ${failed}`,
+      `[ProcessPending] Done. Valid: ${validRequests.length}, Skipped: ${skippedRequests.length}, Succeeded: ${succeeded}, Failed: ${failed}`,
     );
 
     return new Response(
       JSON.stringify({
         success: true,
         processed: allResults.length,
+        skipped: skippedRequests.length,
         succeeded,
         failed,
         details: allResults,
@@ -185,7 +267,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
-    console.error("[ProcessPending] Fatal error:", error);
+    console.error("[ProcessPending] Fatal error:", error.message);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
