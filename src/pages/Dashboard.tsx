@@ -40,7 +40,8 @@ export default function Dashboard() {
   const appAccess = hasAccessToApp();
   const recommendationsAccess = canAccessRecommendations();
   const competitorAccess = canAccessCompetitorAnalysis();
-  const { data: optimizations = [] } = useContentOptimizations();
+  const [secondaryQueriesEnabled, setSecondaryQueriesEnabled] = useState(false);
+  const { data: optimizations = [] } = useContentOptimizations(secondaryQueriesEnabled && recommendationsAccess.hasAccess);
   const [latestReport, setLatestReport] = useState<any>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const { toast } = useToast();
@@ -52,6 +53,7 @@ export default function Dashboard() {
     limit: 5, // Top 5 competitors only for dashboard chart
     offset: 0,
     brandId: selectedBrand?.id || null,
+    enabled: secondaryQueriesEnabled,
   });
   
   // Post-checkout: refresh subscription and clean URL
@@ -102,44 +104,21 @@ export default function Dashboard() {
     }
   }, [user, orgData, dashboardData, navigate]);
 
-  // Auto-trigger weekly report generation once - deferred to avoid blocking initial load
   useEffect(() => {
-    const hasTriggeredReports = localStorage.getItem('weekly-reports-triggered');
-    if (!hasTriggeredReports && user && orgData?.organizations?.id) {
-      const triggerReports = () => {
-        const run = async () => {
-          try {
-            if (import.meta.env.DEV) {
-              console.log('[Dashboard] Auto-triggering weekly report generation...');
-            }
-            const { data, error } = await supabase.functions.invoke("generate-weekly-report", {
-              body: {}
-            });
-
-            if (error) {
-              console.error('[Dashboard] Error auto-triggering reports:', error);
-            } else if (import.meta.env.DEV) {
-              console.log('[Dashboard] Weekly reports triggered successfully:', data);
-            }
-
-            localStorage.setItem('weekly-reports-triggered', 'true');
-          } catch (error) {
-            console.error('[Dashboard] Failed to trigger reports:', error);
-          }
-        };
-        run();
-      };
-
-      // Use requestIdleCallback to defer until browser is idle, with 15s timeout fallback
-      if ('requestIdleCallback' in window) {
-        const idleId = requestIdleCallback(triggerReports, { timeout: 15000 });
-        return () => cancelIdleCallback(idleId);
-      } else {
-        const timeoutId = setTimeout(triggerReports, 10000);
-        return () => clearTimeout(timeoutId);
-      }
+    if (!dashboardData?.success) {
+      return;
     }
-  }, [user, orgData, toast]);
+
+    const enableSecondaryQueries = () => setSecondaryQueriesEnabled(true);
+
+    if ('requestIdleCallback' in window) {
+      const idleId = requestIdleCallback(enableSecondaryQueries, { timeout: 1200 });
+      return () => cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = window.setTimeout(enableSecondaryQueries, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [dashboardData?.success]);
 
   // Memoize chart data to prevent unnecessary re-renders
   const memoizedChartData = useMemo(() => {
@@ -310,10 +289,10 @@ export default function Dashboard() {
   }, [dashboardData?.responses, competitorData]);
 
   useEffect(() => {
-    if (orgData?.organizations?.id && isFeatureEnabled('FEATURE_WEEKLY_REPORT')) {
+    if (secondaryQueriesEnabled && orgData?.organizations?.id && isFeatureEnabled('FEATURE_WEEKLY_REPORT')) {
       loadLatestReport();
     }
-  }, [orgData?.organizations?.id]);
+  }, [orgData?.organizations?.id, secondaryQueriesEnabled]);
 
   // Transform optimizations for Quick Wins display
   const quickWins = useMemo(() => {

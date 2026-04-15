@@ -34,6 +34,7 @@ interface PromptWithStats {
 interface PromptListProps {
   prompts: PromptWithStats[];
   providerData: any[];
+  promptDetailsById?: Map<string, any>;
   loading: boolean;
   onToggleActive: (promptId: string, active: boolean) => void;
   onDeletePrompt: (promptId: string) => void;
@@ -46,6 +47,7 @@ interface PromptListProps {
 export function PromptList({
   prompts,
   providerData,
+  promptDetailsById,
   loading,
   onToggleActive,
   onDeletePrompt,
@@ -311,7 +313,7 @@ export function PromptList({
         {paginatedPrompts.length > 0 ? (
           <>
             {paginatedPrompts.map((prompt) => {
-              const promptDetails = providerData.find(pd => pd.promptId === prompt.id);
+              const promptDetails = promptDetailsById?.get(prompt.id) ?? providerData.find(pd => pd.promptId === prompt.id);
               return (
                 <PromptRow
                   key={prompt.id}

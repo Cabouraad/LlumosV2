@@ -6,14 +6,17 @@ import { useOrgId } from '@/contexts/UnifiedAuthProvider';
  * React Query hook for fetching competitor data with caching
  * Automatically injects org ID from context to avoid redundant auth lookups
  */
-export function useCompetitors(filters: CompetitorFilters = {}) {
+export function useCompetitors(
+  filters: CompetitorFilters & { enabled?: boolean } = {}
+) {
   const orgId = useOrgId();
+  const { enabled = true, ...queryFilters } = filters;
   
   // Inject org ID from context and ensure 30-day default
   const filtersWithDefaults = {
     days: 30,
-    ...filters,
-    orgId: filters.orgId || orgId,
+    ...queryFilters,
+    orgId: queryFilters.orgId || orgId,
   };
   
   return useQuery<CompetitorSummaryRow[]>({
@@ -24,6 +27,6 @@ export function useCompetitors(filters: CompetitorFilters = {}) {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     retry: 1,
-    enabled: !!filtersWithDefaults.orgId, // Don't fetch until org ID is available
+    enabled: enabled && !!filtersWithDefaults.orgId, // Don't fetch until org ID is available
   });
 }

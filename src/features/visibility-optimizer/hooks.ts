@@ -49,7 +49,7 @@ export function useVisibilityAnalysis() {
   });
 }
 
-export function useContentOptimizations() {
+export function useContentOptimizations(enabled: boolean = true) {
   const { userData } = useUser();
   const { selectedBrand } = useBrand();
   const orgId = userData?.org_id;
@@ -58,7 +58,7 @@ export function useContentOptimizations() {
   return useQuery({
     queryKey: ['content-optimizations', orgId, brandId],
     queryFn: () => getOptimizationsForOrg(orgId!, brandId),
-    enabled: !!orgId,
+    enabled: enabled && !!orgId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,

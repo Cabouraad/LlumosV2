@@ -165,11 +165,8 @@ export default function Prompts() {
         throw new Error('Onboarding incomplete: no org membership');
       }
 
-      // Force fresh load on first page visit to bypass any stale cache
-      const isFirstLoad = !rawPrompts.length;
-
       const attemptFetch = async () => {
-        const unifiedData = await getUnifiedPromptData(!isFirstLoad, dateFrom, dateTo, selectedBrand?.id || null);
+        const unifiedData = await getUnifiedPromptData(true, dateFrom, dateTo, selectedBrand?.id || null);
 
         if (import.meta.env.DEV) {
           // 🐛 DEBUG: Log detailed provider data received
@@ -610,6 +607,15 @@ export default function Prompts() {
 
   // Transform data for the PromptList component
   const transformedPrompts = useMemo(() => transformPromptData(rawPrompts, providerData), [rawPrompts, providerData]);
+  const promptDetailsById = useMemo(() => {
+    const detailsMap = new Map<string, any>();
+    providerData.forEach((detail) => {
+      if (detail?.promptId) {
+        detailsMap.set(detail.promptId, detail);
+      }
+    });
+    return detailsMap;
+  }, [providerData]);
   // Use role-based admin access
   const { isAdmin } = useAdminAccess();
   // Only allow specific admin email to access debug tools
@@ -751,6 +757,7 @@ export default function Prompts() {
                 <PromptList
                   prompts={transformedPrompts}
                   providerData={providerData}
+                  promptDetailsById={promptDetailsById}
                   loading={loading}
                   onToggleActive={handleToggleActive}
                   onDeletePrompt={handleDeletePrompt}
