@@ -49,8 +49,20 @@ serve(async (req) => {
       );
     }
 
+    // Validate domain format — must be a real domain with TLD (e.g., example.com)
+    const cleanDomain = domain.trim().toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/, '')
+      .replace(/\/.*$/, '');
+    const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
+    if (!domainRegex.test(cleanDomain)) {
+      return new Response(
+        JSON.stringify({ error: "Please enter a valid domain (e.g., example.com)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validate length limits
-    if (firstName.length > 100 || email.length > 255 || domain.length > 255) {
+    if (firstName.length > 100 || email.length > 255 || cleanDomain.length > 255) {
       return new Response(
         JSON.stringify({ error: "Input exceeds maximum length" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
