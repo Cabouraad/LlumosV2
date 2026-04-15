@@ -71,6 +71,7 @@ export function FreeVisibilityChecker() {
             email,
             domain: cleanedDomain,
             score: 0,
+            queueOnly: true,
           }
         });
         
