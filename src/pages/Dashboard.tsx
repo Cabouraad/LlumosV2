@@ -116,8 +116,8 @@ export default function Dashboard() {
       return () => cancelIdleCallback(idleId);
     }
 
-    const timeoutId = window.setTimeout(enableSecondaryQueries, 250);
-    return () => window.clearTimeout(timeoutId);
+    const timeoutId = globalThis.setTimeout(enableSecondaryQueries, 250);
+    return () => globalThis.clearTimeout(timeoutId);
   }, [dashboardData?.success]);
 
   // Memoize chart data to prevent unnecessary re-renders
