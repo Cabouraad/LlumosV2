@@ -602,6 +602,14 @@ export async function getUnifiedPromptData(
       responsesByPrompt.get(r.prompt_id)!.push(r);
     });
 
+    // Pre-index 7-day stats by prompt_id for O(1) lookup
+    const sevenDayByPrompt = new Map<string, any>();
+    if (sevenDayData) {
+      sevenDayData.forEach((s: any) => {
+        sevenDayByPrompt.set(s.prompt_id, s);
+      });
+    }
+
     const promptDetails = safePrompts.map(prompt => {
       // Group responses by provider - in date filter mode, get all; otherwise get latest
       const promptResponses = responsesByPrompt.get(prompt.id) || [];
@@ -729,8 +737,8 @@ export async function getUnifiedPromptData(
           brandPresenceRate: totalResponses > 0 ? (brandPresentCount / totalResponses) * 100 : 0
         };
       } else {
-        // Use RPC 7-day stats
-        const promptSevenDay = sevenDayData.find((s: any) => s.prompt_id === prompt.id);
+      // Use RPC 7-day stats (Map lookup)
+        const promptSevenDay = sevenDayByPrompt?.get(prompt.id);
         periodStats = {
           totalRuns: Number(promptSevenDay?.runs_7d || 0),
           avgScore: Number(promptSevenDay?.avg_score_7d || 0),
@@ -751,9 +759,12 @@ export async function getUnifiedPromptData(
       };
     });
 
+    // Pre-index promptDetails by ID for O(1) lookup
+    const detailsByPromptId = new Map(promptDetails.map(d => [d.promptId, d]));
+
     // Update prompts with enhanced details
     const enhancedPrompts = safePrompts.map(prompt => {
-      const detail = promptDetails.find(d => d.promptId === prompt.id);
+      const detail = detailsByPromptId.get(prompt.id);
       if (detail) {
         // Handle both single responses and arrays
         const getResponseValues = (providers: any) => {
