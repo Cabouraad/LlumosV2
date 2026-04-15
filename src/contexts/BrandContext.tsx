@@ -51,7 +51,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
   const { ready: userReady } = useUser();
   const orgId = useOrgId();
   const [selectedBrand, setSelectedBrandState] = useState<Brand | null>(() => getInitialStoredBrand());
-  const [isValidated, setIsValidated] = useState(false);
+  const [isValidated, setIsValidated] = useState(() => !!getInitialStoredBrand());
 
   // Validate and load selected brand from localStorage, or auto-create/select primary brand
   useEffect(() => {
@@ -83,8 +83,6 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setIsValidated(false);
-
       // If we have a stored brand, validate it
       if (stored) {
         try {
@@ -92,6 +90,11 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
           
           // Validate the stored brand belongs to the current user's org
           if (storedBrand.org_id === orgId) {
+            if (!isCancelled) {
+              setSelectedBrandState(prev => prev?.id === storedBrand.id ? prev : storedBrand);
+              setIsValidated(true);
+            }
+
             // Verify brand still exists in database
             const { data: brandExists } = await supabase
               .from('brands')
@@ -108,6 +111,11 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
               }
               return;
             }
+
+            localStorage.removeItem(SELECTED_BRAND_KEY);
+            if (!isCancelled) {
+              setSelectedBrandState(null);
+            }
           }
           // Brand invalid, clear it
           localStorage.removeItem(SELECTED_BRAND_KEY);
@@ -115,6 +123,10 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
           console.error('[BrandContext] Failed to validate stored brand:', e);
           localStorage.removeItem(SELECTED_BRAND_KEY);
         }
+      }
+
+      if (!selectedBrand) {
+        setIsValidated(false);
       }
 
       // Try to find existing brands for this org
@@ -213,7 +225,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isCancelled = true;
     };
-  }, [orgId, ready, user, userReady]);
+  }, [orgId, ready, selectedBrand, user, userReady]);
 
   const setSelectedBrand = (brand: Brand | null) => {
     setSelectedBrandState(brand);
