@@ -200,7 +200,7 @@ serve(async (req) => {
           console.error(`[Background] Auto report failed for ${cleanDomain}:`, errorText);
         }
       } catch (bgError) {
-        console.error(`[Background] Error generating auto report for ${domain}:`, bgError);
+        console.error(`[Background] Error generating auto report for ${cleanDomain}:`, bgError);
       }
     };
 
