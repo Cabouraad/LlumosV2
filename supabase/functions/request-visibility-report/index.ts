@@ -49,8 +49,20 @@ serve(async (req) => {
       );
     }
 
+    // Validate domain format — must be a real domain with TLD (e.g., example.com)
+    const cleanDomain = domain.trim().toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/, '')
+      .replace(/\/.*$/, '');
+    const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
+    if (!domainRegex.test(cleanDomain)) {
+      return new Response(
+        JSON.stringify({ error: "Please enter a valid domain (e.g., example.com)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validate length limits
-    if (firstName.length > 100 || email.length > 255 || domain.length > 255) {
+    if (firstName.length > 100 || email.length > 255 || cleanDomain.length > 255) {
       return new Response(
         JSON.stringify({ error: "Input exceeds maximum length" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -64,7 +76,7 @@ serve(async (req) => {
       .from("visibility_report_requests")
       .select("id, status")
       .eq("email", email.trim().toLowerCase())
-      .eq("domain", domain.trim())
+      .eq("domain", cleanDomain)
       .in("status", ["pending", "processing"])
       .limit(1);
 
@@ -85,7 +97,7 @@ serve(async (req) => {
       .from("visibility_report_requests")
       .insert({
         email: email.trim().toLowerCase(),
-        domain: domain.trim(),
+        domain: cleanDomain,
         score,
         status: "pending",
         metadata: { firstName: firstName.trim() },
@@ -110,7 +122,7 @@ serve(async (req) => {
               fields: [
                 { name: "firstname", value: firstName.trim() },
                 { name: "email", value: email.trim() },
-                { name: "website", value: domain.trim() },
+                { name: "website", value: cleanDomain },
               ],
               context: {
                 pageUri: "https://llumos.app/brands",
@@ -131,7 +143,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Visibility report requested for ${domain} by ${firstName} (${email}) - Score: ${score} - QueueOnly: ${!!queueOnly}`);
+    console.log(`Visibility report requested for ${cleanDomain} by ${firstName} (${email}) - Score: ${score} - QueueOnly: ${!!queueOnly}`);
 
     // In queue-only mode (webinar), leave as pending for process-pending-reports to pick up
     if (queueOnly) {
@@ -153,7 +165,7 @@ serve(async (req) => {
         metadata: { firstName: firstName.trim(), backgroundTriggeredAt: new Date().toISOString() }
       })
       .eq("email", email.trim().toLowerCase())
-      .eq("domain", domain.trim())
+      .eq("domain", cleanDomain)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1);
@@ -161,7 +173,7 @@ serve(async (req) => {
     // Trigger automatic report generation as a background task
     const generateReportInBackground = async () => {
       try {
-        console.log(`[Background] Starting auto report generation for ${domain}`);
+        console.log(`[Background] Starting auto report generation for ${cleanDomain}`);
         
         const reportResponse = await fetch(
           `${SUPABASE_URL}/functions/v1/generate-auto-visibility-report`,
@@ -174,7 +186,7 @@ serve(async (req) => {
             body: JSON.stringify({
               firstName: firstName.trim(),
               email: email.trim(),
-              domain: domain.trim(),
+              domain: cleanDomain,
               score
             }),
           }
@@ -182,13 +194,13 @@ serve(async (req) => {
 
         if (reportResponse.ok) {
           const result = await reportResponse.json();
-          console.log(`[Background] Auto report completed for ${domain}:`, result);
+          console.log(`[Background] Auto report completed for ${cleanDomain}:`, result);
         } else {
           const errorText = await reportResponse.text();
-          console.error(`[Background] Auto report failed for ${domain}:`, errorText);
+          console.error(`[Background] Auto report failed for ${cleanDomain}:`, errorText);
         }
       } catch (bgError) {
-        console.error(`[Background] Error generating auto report for ${domain}:`, bgError);
+        console.error(`[Background] Error generating auto report for ${cleanDomain}:`, bgError);
       }
     };
 
