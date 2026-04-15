@@ -313,7 +313,7 @@ export function PromptList({
         {paginatedPrompts.length > 0 ? (
           <>
             {paginatedPrompts.map((prompt) => {
-              const promptDetails = promptDetailsById?.get(prompt.id) ?? providerData.find(pd => pd.promptId === prompt.id);
+              const promptDetails = promptDetailsById?.get(prompt.id);
               return (
                 <PromptRow
                   key={prompt.id}

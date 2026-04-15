@@ -153,14 +153,16 @@ export function useRealTimeDashboard(
   }, [fetchData]);
 
   // Initial data fetch and refetch when brand changes
+  // Don't gate on isBrandValidated - BrandContext hydrates synchronously from localStorage
+  // so selectedBrand is available immediately. Only skip if orgId is missing.
   useEffect(() => {
-    if (!isBrandValidated && !selectedBrand) {
-      debug('[Dashboard] Waiting for brand validation before fetching');
+    if (!orgId) {
+      debug('[Dashboard] No orgId yet, skipping fetch');
       return;
     }
 
     fetchData(false, !dashboardFetcher.getCachedData());
-  }, [fetchData, isBrandValidated, orgId, selectedBrand]);
+  }, [fetchData, orgId, selectedBrand?.id]);
 
   // Auto-refresh interval with adaptive polling
   useEffect(() => {
