@@ -1547,6 +1547,19 @@ async function generatePDF(
     console.warn('Could not load SMB Team logo:', e);
   }
 
+  // Embed Llumos logo
+  let llumosLogo: any = null;
+  try {
+    const llumosLogoUrl = 'https://lumos-ai-optimize.lovable.app/images/llumos-logo.png';
+    const llumosLogoRes = await fetch(llumosLogoUrl);
+    if (llumosLogoRes.ok) {
+      const llumosLogoBytes = new Uint8Array(await llumosLogoRes.arrayBuffer());
+      llumosLogo = await pdfDoc.embedPng(llumosLogoBytes);
+    }
+  } catch (e) {
+    console.warn('Could not load Llumos logo:', e);
+  }
+
   const W = 612;
   const H = 792;
   const M = 40; // margin
