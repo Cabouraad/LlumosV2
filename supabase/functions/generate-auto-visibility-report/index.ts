@@ -1369,9 +1369,7 @@ function calculateProviderScore(result: ProviderResult): number {
     } else if (result.brandPosition !== null && result.brandPosition <= 5) {
       score += 15;
     }
-    if (firstMentionIndex >= 0 && firstMentionIndex < 200) {
-      score += 25;
-    }
+    // Note: firstMentionIndex removed — brandPosition already covers early-mention bonus
     
     // Bonus for positive context (simplified)
     const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great'];
