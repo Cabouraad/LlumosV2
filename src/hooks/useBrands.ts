@@ -33,7 +33,7 @@ export function useBrands() {
       if (error) throw error;
       return data as Brand[];
     },
-    enabled: !!user,
+    enabled: !!user && ready,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
