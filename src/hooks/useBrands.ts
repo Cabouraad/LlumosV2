@@ -14,7 +14,7 @@ export interface Brand {
 }
 
 export function useBrands() {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
