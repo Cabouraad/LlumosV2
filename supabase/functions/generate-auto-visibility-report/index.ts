@@ -1698,62 +1698,34 @@ async function generatePDF(
   // Full navy background
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: navy });
 
-  // Co-branding logos at top
-  let coverY = H - 80;
+  // Co-branding logos at top — larger SMB Team logo
+  let coverY = H - 100;
   if (smbTeamLogo) {
     const logoDims = smbTeamLogo.scale(1);
-    const logoH2 = 30;
+    const logoH2 = 50;
     const logoW2 = (logoDims.width / logoDims.height) * logoH2;
     const logoX = (W - logoW2) / 2;
     page.drawImage(smbTeamLogo, { x: logoX, y: coverY, width: logoW2, height: logoH2 });
-    coverY -= 60;
+    coverY -= 40;
   }
 
-  // Report title
-  const titleText = 'AI Visibility Report';
-  const titleW = helveticaBold.widthOfTextAtSize(titleText, 32);
-  page.drawText(titleText, { x: (W - titleW) / 2, y: coverY, size: 32, font: helveticaBold, color: white });
-  coverY -= 50;
-
-  // Company / brand name
-  const companyW = helveticaBold.widthOfTextAtSize(brandLabel, 24);
-  page.drawText(brandLabel, { x: (W - companyW) / 2, y: coverY, size: 24, font: helveticaBold, color: yellow });
-  coverY -= 30;
-
-  // Yellow divider line
-  const dividerW = 300;
-  page.drawRectangle({ x: (W - dividerW) / 2, y: coverY, width: dividerW, height: 3, color: yellow });
-  coverY -= 50;
-
-  // Prepared for / domain / date
-  const preparedFor = firstName ? `Prepared for: ${firstName}` : '';
-  const domainLine = `Domain: ${domain}`;
-  const dateLine = `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
-
-  const infoLines = [preparedFor, domainLine, dateLine].filter(Boolean);
-  for (const line of infoLines) {
-    const lineW = helvetica.widthOfTextAtSize(line, 13);
-    page.drawText(line, { x: (W - lineW) / 2, y: coverY, size: 13, font: helvetica, color: rgb(0.75, 0.75, 0.80) });
-    coverY -= 22;
-  }
-
-  // "Powered by Llumos" at bottom of cover
-  const poweredY = 60;
+  // "Powered by Llumos" directly under SMB Team logo
   if (llumosLogo) {
     const llLogoDims = llumosLogo.scale(1);
-    const llLogoH = 20;
+    const llLogoH = 16;
     const llLogoW = (llLogoDims.width / llLogoDims.height) * llLogoH;
     const poweredText = 'Powered by Llumos';
     const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
-    const totalW2 = llLogoW + 8 + poweredTextW;
+    const totalW2 = llLogoW + 6 + poweredTextW;
     const startX = (W - totalW2) / 2;
-    page.drawImage(llumosLogo, { x: startX, y: poweredY - 4, width: llLogoW, height: llLogoH });
-    page.drawText(poweredText, { x: startX + llLogoW + 8, y: poweredY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
+    page.drawImage(llumosLogo, { x: startX, y: coverY - 2, width: llLogoW, height: llLogoH });
+    page.drawText(poweredText, { x: startX + llLogoW + 6, y: coverY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
   } else {
     const poweredText = 'Powered by Llumos';
     const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
-    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: poweredY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
+    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
   }
+  coverY -= 60;
 
   // ====================== PAGE 2: EXECUTIVE SCORECARD ======================
   page = newPage();
