@@ -738,20 +738,20 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 5 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
+            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
 - Prompts should be highly specific to what this business offers
 - Prioritize buyer-intent and vendor-comparison phrasing over educational how-to phrasing
-- At least 3 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
+- At least 5 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
 - Avoid broad informational prompts unless they clearly imply provider selection
 - Think about how someone would search before they know the brand but while they are choosing a solution
 - Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
           },
           {
             role: 'user',
-            content: `Generate 5 unbranded AI search prompts for a business with domain "${domain}".
+            content: `Generate 8 unbranded AI search prompts for a business with domain "${domain}".
 
 ${businessContext ? `BUSINESS RESEARCH (use this to make prompts highly relevant):
 ${businessContext}` : 'Industry: General business'}
@@ -763,12 +763,12 @@ Generate prompts that potential customers of THIS SPECIFIC business would search
 
 If the company sells services, prefer prompts asking for the best firms, agencies, providers, programs, or consultants in that niche.
 
-Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
-["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
+Return ONLY a JSON array of 8 unbranded prompt strings, no other text:
+["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5", "prompt 6", "prompt 7", "prompt 8"]`
           }
         ],
-        temperature: 0.3,
-        max_tokens: 500,
+        temperature: 0,
+        max_tokens: 800,
         seed: 42
       }),
     });
@@ -784,8 +784,8 @@ Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const prompts = JSON.parse(jsonMatch[0]);
-      if (Array.isArray(prompts) && prompts.length >= 5) {
-        return prompts.slice(0, 5);
+      if (Array.isArray(prompts) && prompts.length >= 8) {
+        return prompts.slice(0, 8);
       }
     }
     
