@@ -1709,42 +1709,23 @@ async function generatePDF(
     coverY -= 50;
   }
 
-  // Llumos AI text
-  const llumosText = 'LLUMOS AI';
-  const llumosTextW = helveticaBold.widthOfTextAtSize(llumosText, 14);
-  page.drawText(llumosText, { x: (W - llumosTextW) / 2, y: coverY, size: 14, font: helveticaBold, color: rgb(0.72, 0.68, 0.85) });
-  coverY -= 60;
-
-  // Report title
-  const titleText = 'AI Visibility Report';
-  const titleW = helveticaBold.widthOfTextAtSize(titleText, 34);
-  page.drawText(titleText, { x: (W - titleW) / 2, y: coverY, size: 34, font: helveticaBold, color: white });
-  coverY -= 40;
-
-  // Brand name in yellow
-  const brandTitleW = helveticaBold.widthOfTextAtSize(brandLabel, 24);
-  page.drawText(brandLabel, { x: (W - brandTitleW) / 2, y: coverY, size: 24, font: helveticaBold, color: yellow });
-  coverY -= 50;
-
-  // Yellow accent stripe
-  page.drawRectangle({ x: W * 0.15, y: coverY, width: W * 0.7, height: 4, color: yellow });
-  coverY -= 40;
-
-  // Meta info
-  const metaLines = [
-    `Prepared for: ${firstName}`,
-    `Domain: ${domain}`,
-    `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
-  ];
-  for (const ml of metaLines) {
-    const mlW = helvetica.widthOfTextAtSize(ml, 11);
-    page.drawText(ml, { x: (W - mlW) / 2, y: coverY, size: 11, font: helvetica, color: white });
-    coverY -= 20;
+  // Llumos logo + "Powered by Llumos"
+  if (llumosLogo) {
+    const llLogoDims = llumosLogo.scale(1);
+    const llLogoH = 24;
+    const llLogoW = (llLogoDims.width / llLogoDims.height) * llLogoH;
+    const poweredText = 'Powered by Llumos';
+    const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, 12);
+    const totalW = llLogoW + 8 + poweredTextW;
+    const startX = (W - totalW) / 2;
+    page.drawImage(llumosLogo, { x: startX, y: coverY - 4, width: llLogoW, height: llLogoH });
+    page.drawText(poweredText, { x: startX + llLogoW + 8, y: coverY, size: 12, font: helveticaBold, color: rgb(0.72, 0.68, 0.85) });
+  } else {
+    const poweredText = 'Powered by Llumos';
+    const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, 12);
+    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: 12, font: helveticaBold, color: rgb(0.72, 0.68, 0.85) });
   }
-  coverY -= 10;
-  const confText = 'CONFIDENTIAL';
-  const confW = helveticaBold.widthOfTextAtSize(confText, 9);
-  page.drawText(confText, { x: (W - confW) / 2, y: coverY, size: 9, font: helveticaBold, color: yellow });
+  coverY -= 60;
 
   // ====================== PAGE 2: EXECUTIVE SCORECARD ======================
   page = newPage();
