@@ -1617,7 +1617,7 @@ async function generatePDF(
     // Green top border on footer
     pg.drawRectangle({ x: 0, y: 30, width: W, height: 2, color: green });
     pg.drawText('llumos.app × SMBTeam', { x: M, y: 14, size: 7, font: helvetica, color: light });
-    pg.drawText('Confidential — AI Visibility Report', { x: W / 2 - 60, y: 14, size: 7, font: helvetica, color: light });
+    pg.drawText('AI Visibility Report', { x: W / 2 - 40, y: 14, size: 7, font: helvetica, color: light });
     pg.drawText(`${domain}`, { x: W - M - helvetica.widthOfTextAtSize(domain, 7), y: 14, size: 7, font: helvetica, color: light });
   }
 
@@ -1706,26 +1706,54 @@ async function generatePDF(
     const logoW2 = (logoDims.width / logoDims.height) * logoH2;
     const logoX = (W - logoW2) / 2;
     page.drawImage(smbTeamLogo, { x: logoX, y: coverY, width: logoW2, height: logoH2 });
-    coverY -= 50;
+    coverY -= 60;
   }
 
-  // Llumos logo + "Powered by Llumos"
+  // Report title
+  const titleText = 'AI Visibility Report';
+  const titleW = helveticaBold.widthOfTextAtSize(titleText, 32);
+  page.drawText(titleText, { x: (W - titleW) / 2, y: coverY, size: 32, font: helveticaBold, color: white });
+  coverY -= 50;
+
+  // Company / brand name
+  const companyW = helveticaBold.widthOfTextAtSize(brandLabel, 24);
+  page.drawText(brandLabel, { x: (W - companyW) / 2, y: coverY, size: 24, font: helveticaBold, color: yellow });
+  coverY -= 30;
+
+  // Yellow divider line
+  const dividerW = 300;
+  page.drawRectangle({ x: (W - dividerW) / 2, y: coverY, width: dividerW, height: 3, color: yellow });
+  coverY -= 50;
+
+  // Prepared for / domain / date
+  const preparedFor = firstName ? `Prepared for: ${firstName}` : '';
+  const domainLine = `Domain: ${domain}`;
+  const dateLine = `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+  const infoLines = [preparedFor, domainLine, dateLine].filter(Boolean);
+  for (const line of infoLines) {
+    const lineW = helvetica.widthOfTextAtSize(line, 13);
+    page.drawText(line, { x: (W - lineW) / 2, y: coverY, size: 13, font: helvetica, color: rgb(0.75, 0.75, 0.80) });
+    coverY -= 22;
+  }
+
+  // "Powered by Llumos" at bottom of cover
+  const poweredY = 60;
   if (llumosLogo) {
     const llLogoDims = llumosLogo.scale(1);
-    const llLogoH = 24;
+    const llLogoH = 20;
     const llLogoW = (llLogoDims.width / llLogoDims.height) * llLogoH;
     const poweredText = 'Powered by Llumos';
-    const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, 12);
-    const totalW = llLogoW + 8 + poweredTextW;
-    const startX = (W - totalW) / 2;
-    page.drawImage(llumosLogo, { x: startX, y: coverY - 4, width: llLogoW, height: llLogoH });
-    page.drawText(poweredText, { x: startX + llLogoW + 8, y: coverY, size: 12, font: helveticaBold, color: rgb(0.72, 0.68, 0.85) });
+    const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
+    const totalW2 = llLogoW + 8 + poweredTextW;
+    const startX = (W - totalW2) / 2;
+    page.drawImage(llumosLogo, { x: startX, y: poweredY - 4, width: llLogoW, height: llLogoH });
+    page.drawText(poweredText, { x: startX + llLogoW + 8, y: poweredY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
   } else {
     const poweredText = 'Powered by Llumos';
-    const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, 12);
-    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: 12, font: helveticaBold, color: rgb(0.72, 0.68, 0.85) });
+    const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
+    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: poweredY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
   }
-  coverY -= 60;
 
   // ====================== PAGE 2: EXECUTIVE SCORECARD ======================
   page = newPage();
