@@ -1727,6 +1727,34 @@ async function generatePDF(
   }
   coverY -= 60;
 
+  // Report title
+  const titleText = 'AI Visibility Report';
+  const titleW = helveticaBold.widthOfTextAtSize(titleText, 32);
+  page.drawText(titleText, { x: (W - titleW) / 2, y: coverY, size: 32, font: helveticaBold, color: white });
+  coverY -= 50;
+
+  // Company / brand name
+  const companyW = helveticaBold.widthOfTextAtSize(brandLabel, 24);
+  page.drawText(brandLabel, { x: (W - companyW) / 2, y: coverY, size: 24, font: helveticaBold, color: yellow });
+  coverY -= 30;
+
+  // Yellow divider line
+  const dividerW = 300;
+  page.drawRectangle({ x: (W - dividerW) / 2, y: coverY, width: dividerW, height: 3, color: yellow });
+  coverY -= 50;
+
+  // Prepared for / domain / date
+  const preparedFor = firstName ? `Prepared for: ${firstName}` : '';
+  const domainLine = `Domain: ${domain}`;
+  const dateLine = `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+  const infoLines = [preparedFor, domainLine, dateLine].filter(Boolean);
+  for (const line of infoLines) {
+    const lineW = helvetica.widthOfTextAtSize(line, 13);
+    page.drawText(line, { x: (W - lineW) / 2, y: coverY, size: 13, font: helvetica, color: rgb(0.75, 0.75, 0.80) });
+    coverY -= 22;
+  }
+
   // ====================== PAGE 2: EXECUTIVE SCORECARD ======================
   page = newPage();
   let y = H - 10;
