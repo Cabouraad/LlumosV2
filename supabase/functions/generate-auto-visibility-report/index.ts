@@ -2125,9 +2125,9 @@ async function generatePDF(
     page.drawText('Which brands AI recommends for each query (your brand highlighted):', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
     y -= 20;
 
-    const maxCols = Math.min(h2h.prompts.length, 5);
-    const colStartX = M + 170;
-    const matColW = (contentW - 180) / maxCols;
+    const maxCols = Math.min(h2h.prompts.length, 8);
+    const colStartX = M + 140;
+    const matColW = (contentW - 150) / maxCols;
 
     for (let i = 0; i < maxCols; i++) {
       page.drawText(`P${i + 1}`, { x: colStartX + i * matColW + matColW / 2 - 5, y, size: 9, font: helveticaBold, color: navy });
