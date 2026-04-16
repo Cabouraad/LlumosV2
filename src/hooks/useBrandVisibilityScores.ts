@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrgIdSafe } from '@/lib/org-id';
+import { useAuth, useOrgId } from '@/contexts/UnifiedAuthProvider';
 
 interface BrandVisibilityScore {
   brandId: string;
@@ -23,14 +24,16 @@ interface BrandCardStatsRow {
  * Fetch visibility scores for multiple brands using efficient batched query
  */
 export function useBrandVisibilityScores(brandIds: string[]) {
+  const { ready } = useAuth();
+  const ctxOrgId = useOrgId();
   return useQuery({
-    queryKey: ['brand-visibility-scores', brandIds],
+    queryKey: ['brand-visibility-scores', ctxOrgId, brandIds],
     queryFn: async () => {
       if (brandIds.length === 0) {
         return [];
       }
 
-      const orgId = await getOrgIdSafe();
+      const orgId = ctxOrgId || (await getOrgIdSafe());
 
       // Use the lightweight batched function instead of calling heavy RPC per brand
       const { data, error } = await supabase.rpc('get_brand_card_stats', {
@@ -85,7 +88,7 @@ export function useBrandVisibilityScores(brandIds: string[]) {
 
       return scores;
     },
-    enabled: brandIds.length > 0,
+    enabled: brandIds.length > 0 && ready && !!ctxOrgId,
     staleTime: 60000, // Cache for 1 minute
     refetchOnWindowFocus: false
   });

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getOrgIdSafe } from '@/lib/org-id';
+import { useAuth, useOrgId } from '@/contexts/UnifiedAuthProvider';
 
 export type BrandLlumosScoreRow = {
   score: number;
@@ -13,13 +14,15 @@ export type BrandLlumosScoreRow = {
  * Uses the persisted llumos_scores table to avoid N+1 edge-function calls.
  */
 export function useBrandLlumosScores(brandIds: string[]) {
+  const { ready } = useAuth();
+  const ctxOrgId = useOrgId();
   return useQuery({
-    queryKey: ['brand-llumos-scores', brandIds],
-    enabled: brandIds.length > 0,
+    queryKey: ['brand-llumos-scores', ctxOrgId, brandIds],
+    enabled: brandIds.length > 0 && ready && !!ctxOrgId,
     queryFn: async () => {
       if (brandIds.length === 0) return {} as Record<string, BrandLlumosScoreRow>;
 
-      const orgId = await getOrgIdSafe();
+      const orgId = ctxOrgId || (await getOrgIdSafe());
 
       const { data, error } = await supabase
         .from('llumos_scores')
