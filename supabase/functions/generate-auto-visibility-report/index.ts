@@ -617,8 +617,34 @@ async function refineCompetitorCandidatesFromResults(
 
 /**
  * Research the business to understand their industry and offerings
+ * Caches results in the database to ensure consistency across runs
  */
 async function researchBusiness(domain: string): Promise<string> {
+  // Check DB cache first (keyed by domain, valid for 7 days)
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: cached } = await supabaseAdmin
+      .from('free_checker_leads')
+      .select('metadata')
+      .eq('domain', domain)
+      .not('metadata', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const cachedResearch = (cached?.metadata as any)?.business_research;
+    const cachedAt = (cached?.metadata as any)?.research_cached_at;
+    if (cachedResearch && cachedAt) {
+      const ageMs = Date.now() - new Date(cachedAt).getTime();
+      if (ageMs < 7 * 24 * 60 * 60 * 1000) {
+        console.log('[AutoReport] Using cached business research for', domain);
+        return cachedResearch;
+      }
+    }
+  } catch (e) {
+    console.warn('[AutoReport] Cache lookup failed, will research fresh:', e);
+  }
+
   if (!PERPLEXITY_API_KEY) {
     console.log('[AutoReport] No Perplexity key, skipping business research');
     return '';
@@ -655,6 +681,35 @@ Keep the response concise (under 200 words).`
     const data = await response.json();
     const businessContext = data.choices[0]?.message?.content || '';
     console.log('[AutoReport] Business research:', businessContext.substring(0, 200) + '...');
+
+    // Persist to DB cache
+    try {
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data: lead } = await supabaseAdmin
+        .from('free_checker_leads')
+        .select('id, metadata')
+        .eq('domain', domain)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lead) {
+        await supabaseAdmin
+          .from('free_checker_leads')
+          .update({
+            metadata: {
+              ...(lead.metadata as any || {}),
+              business_research: businessContext,
+              research_cached_at: new Date().toISOString(),
+            }
+          })
+          .eq('id', lead.id);
+        console.log('[AutoReport] Cached business research for', domain);
+      }
+    } catch (e) {
+      console.warn('[AutoReport] Failed to cache research:', e);
+    }
+
     return businessContext;
   } catch (error) {
     console.error('[AutoReport] Error researching business:', error);
@@ -663,7 +718,7 @@ Keep the response concise (under 200 words).`
 }
 
 /**
- * Generate 5 industry-relevant prompts based on domain analysis
+ * Generate 8 industry-relevant prompts based on domain analysis
  */
 async function generateIndustryPrompts(domain: string, businessContext: string): Promise<string[]> {
   if (!OPENAI_API_KEY) {
@@ -683,20 +738,20 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 5 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
+            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
 - Prompts should be highly specific to what this business offers
 - Prioritize buyer-intent and vendor-comparison phrasing over educational how-to phrasing
-- At least 3 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
+- At least 5 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
 - Avoid broad informational prompts unless they clearly imply provider selection
 - Think about how someone would search before they know the brand but while they are choosing a solution
 - Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
           },
           {
             role: 'user',
-            content: `Generate 5 unbranded AI search prompts for a business with domain "${domain}".
+            content: `Generate 8 unbranded AI search prompts for a business with domain "${domain}".
 
 ${businessContext ? `BUSINESS RESEARCH (use this to make prompts highly relevant):
 ${businessContext}` : 'Industry: General business'}
@@ -708,12 +763,12 @@ Generate prompts that potential customers of THIS SPECIFIC business would search
 
 If the company sells services, prefer prompts asking for the best firms, agencies, providers, programs, or consultants in that niche.
 
-Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
-["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5"]`
+Return ONLY a JSON array of 8 unbranded prompt strings, no other text:
+["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5", "prompt 6", "prompt 7", "prompt 8"]`
           }
         ],
-        temperature: 0.3,
-        max_tokens: 500,
+        temperature: 0,
+        max_tokens: 800,
         seed: 42
       }),
     });
@@ -729,8 +784,8 @@ Return ONLY a JSON array of 5 unbranded prompt strings, no other text:
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const prompts = JSON.parse(jsonMatch[0]);
-      if (Array.isArray(prompts) && prompts.length >= 5) {
-        return prompts.slice(0, 5);
+      if (Array.isArray(prompts) && prompts.length >= 8) {
+        return prompts.slice(0, 8);
       }
     }
     
@@ -751,7 +806,10 @@ function getDefaultPrompts(domain: string): string[] {
     `How do I choose the right software for my business needs?`,
     `What should I look for when evaluating SaaS solutions?`,
     `Best practices for improving business efficiency with technology`,
-    `Top recommendations for enterprise software in 2024`
+    `Top recommendations for enterprise software in 2025`,
+    `What are the most trusted providers in the ${domainPart} space?`,
+    `Compare the leading solutions for ${domainPart.includes('crm') ? 'CRM' : 'business'} management`,
+    `Which companies are best known for ${domainPart.includes('crm') ? 'customer management' : 'business solutions'}?`
   ];
 }
 
