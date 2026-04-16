@@ -557,7 +557,6 @@ async function refineCompetitorCandidatesFromResults(
   try {
     const snippets = results
       .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
-      .slice(0, 12)
       .map((result, index) => `Snippet ${index + 1} (${result.provider}): ${result.response.replace(/\s+/g, ' ').trim().slice(0, 260)}`)
       .join('\n');
 
@@ -604,7 +603,11 @@ async function refineCompetitorCandidatesFromResults(
         ).slice(0, 15);
 
         if (refined.length > 0) {
-          return refined;
+          return dedupeBrandNames([
+            ...responseCandidates,
+            ...refined,
+            ...initialCandidates,
+          ]).slice(0, 15);
         }
       }
     }
@@ -612,7 +615,10 @@ async function refineCompetitorCandidatesFromResults(
     console.error('[AutoReport] Error refining competitor candidates from results:', error);
   }
 
-  return combinedCandidates.slice(0, 15);
+  return dedupeBrandNames([
+    ...responseCandidates,
+    ...initialCandidates,
+  ]).slice(0, 15);
 }
 
 /**
