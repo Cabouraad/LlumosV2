@@ -1709,21 +1709,21 @@ async function generatePDF(
     coverY -= 40;
   }
 
-  // "Powered by Llumos" directly under SMB Team logo
+  // "Powered by Llumos" directly under SMB Team logo — text then logo
+  const poweredText = 'Powered by Llumos';
+  const poweredFontSize = 16;
+  const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, poweredFontSize);
   if (llumosLogo) {
     const llLogoDims = llumosLogo.scale(1);
-    const llLogoH = 16;
+    const llLogoH = 22;
     const llLogoW = (llLogoDims.width / llLogoDims.height) * llLogoH;
-    const poweredText = 'Powered by Llumos';
-    const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
-    const totalW2 = llLogoW + 6 + poweredTextW;
+    const gap = 8;
+    const totalW2 = poweredTextW + gap + llLogoW;
     const startX = (W - totalW2) / 2;
-    page.drawImage(llumosLogo, { x: startX, y: coverY - 2, width: llLogoW, height: llLogoH });
-    page.drawText(poweredText, { x: startX + llLogoW + 6, y: coverY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
+    page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.65, 0.65, 0.70) });
+    page.drawImage(llumosLogo, { x: startX + poweredTextW + gap, y: coverY - 3, width: llLogoW, height: llLogoH });
   } else {
-    const poweredText = 'Powered by Llumos';
-    const poweredTextW = helvetica.widthOfTextAtSize(poweredText, 10);
-    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: 10, font: helvetica, color: rgb(0.55, 0.55, 0.60) });
+    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.65, 0.65, 0.70) });
   }
   coverY -= 60;
 
