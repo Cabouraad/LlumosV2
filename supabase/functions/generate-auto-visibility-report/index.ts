@@ -1726,7 +1726,7 @@ async function generatePDF(
   coverY -= 50;
 
   // Prepared for / domain / date
-  const preparedFor = recipientName ? `Prepared for: ${recipientName}` : '';
+  const preparedFor = firstName ? `Prepared for: ${firstName}` : '';
   const domainLine = `Domain: ${domain}`;
   const dateLine = `Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
 
