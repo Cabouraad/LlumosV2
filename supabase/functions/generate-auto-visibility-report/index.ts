@@ -1857,10 +1857,10 @@ async function generatePDF(
   const barY2 = y - scoreCardH + 10;
   const barW2 = contentW - 28;
   page.drawRectangle({ x: M + 14, y: barY2, width: barW2, height: 8, color: rgb(0.15, 0.25, 0.35) });
-  // Segmented bar: green | amber | red
-  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.4, height: 8, color: green });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.4, y: barY2, width: barW2 * 0.3, height: 8, color: amber });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.7, y: barY2, width: barW2 * 0.3, height: 8, color: red });
+  // Segmented bar: red (low) | amber (mid) | green (high)
+  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.3, height: 8, color: red });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.3, y: barY2, width: barW2 * 0.3, height: 8, color: amber });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.6, y: barY2, width: barW2 * 0.4, height: 8, color: green });
   // Score marker
   const markerX = M + 14 + (overallScore / 100) * barW2;
   page.drawRectangle({ x: markerX - 2, y: barY2 - 4, width: 4, height: 16, color: white });
