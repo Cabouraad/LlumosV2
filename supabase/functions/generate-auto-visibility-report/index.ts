@@ -1617,7 +1617,7 @@ async function generatePDF(
     // Green top border on footer
     pg.drawRectangle({ x: 0, y: 30, width: W, height: 2, color: green });
     pg.drawText('llumos.app × SMBTeam', { x: M, y: 14, size: 7, font: helvetica, color: light });
-    pg.drawText('Confidential — AI Visibility Report', { x: W / 2 - 60, y: 14, size: 7, font: helvetica, color: light });
+    pg.drawText('AI Visibility Report', { x: W / 2 - 40, y: 14, size: 7, font: helvetica, color: light });
     pg.drawText(`${domain}`, { x: W - M - helvetica.widthOfTextAtSize(domain, 7), y: 14, size: 7, font: helvetica, color: light });
   }
 
