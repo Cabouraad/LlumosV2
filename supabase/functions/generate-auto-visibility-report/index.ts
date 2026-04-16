@@ -718,7 +718,7 @@ Keep the response concise (under 200 words).`
 }
 
 /**
- * Generate 5 industry-relevant prompts based on domain analysis
+ * Generate 8 industry-relevant prompts based on domain analysis
  */
 async function generateIndustryPrompts(domain: string, businessContext: string): Promise<string[]> {
   if (!OPENAI_API_KEY) {
@@ -806,7 +806,10 @@ function getDefaultPrompts(domain: string): string[] {
     `How do I choose the right software for my business needs?`,
     `What should I look for when evaluating SaaS solutions?`,
     `Best practices for improving business efficiency with technology`,
-    `Top recommendations for enterprise software in 2024`
+    `Top recommendations for enterprise software in 2025`,
+    `What are the most trusted providers in the ${domainPart} space?`,
+    `Compare the leading solutions for ${domainPart.includes('crm') ? 'CRM' : 'business'} management`,
+    `Which companies are best known for ${domainPart.includes('crm') ? 'customer management' : 'business solutions'}?`
   ];
 }
 
