@@ -617,8 +617,34 @@ async function refineCompetitorCandidatesFromResults(
 
 /**
  * Research the business to understand their industry and offerings
+ * Caches results in the database to ensure consistency across runs
  */
 async function researchBusiness(domain: string): Promise<string> {
+  // Check DB cache first (keyed by domain, valid for 7 days)
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: cached } = await supabaseAdmin
+      .from('free_checker_leads')
+      .select('metadata')
+      .eq('domain', domain)
+      .not('metadata', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const cachedResearch = (cached?.metadata as any)?.business_research;
+    const cachedAt = (cached?.metadata as any)?.research_cached_at;
+    if (cachedResearch && cachedAt) {
+      const ageMs = Date.now() - new Date(cachedAt).getTime();
+      if (ageMs < 7 * 24 * 60 * 60 * 1000) {
+        console.log('[AutoReport] Using cached business research for', domain);
+        return cachedResearch;
+      }
+    }
+  } catch (e) {
+    console.warn('[AutoReport] Cache lookup failed, will research fresh:', e);
+  }
+
   if (!PERPLEXITY_API_KEY) {
     console.log('[AutoReport] No Perplexity key, skipping business research');
     return '';
@@ -655,6 +681,35 @@ Keep the response concise (under 200 words).`
     const data = await response.json();
     const businessContext = data.choices[0]?.message?.content || '';
     console.log('[AutoReport] Business research:', businessContext.substring(0, 200) + '...');
+
+    // Persist to DB cache
+    try {
+      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data: lead } = await supabaseAdmin
+        .from('free_checker_leads')
+        .select('id, metadata')
+        .eq('domain', domain)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lead) {
+        await supabaseAdmin
+          .from('free_checker_leads')
+          .update({
+            metadata: {
+              ...(lead.metadata as any || {}),
+              business_research: businessContext,
+              research_cached_at: new Date().toISOString(),
+            }
+          })
+          .eq('id', lead.id);
+        console.log('[AutoReport] Cached business research for', domain);
+      }
+    } catch (e) {
+      console.warn('[AutoReport] Failed to cache research:', e);
+    }
+
     return businessContext;
   } catch (error) {
     console.error('[AutoReport] Error researching business:', error);
