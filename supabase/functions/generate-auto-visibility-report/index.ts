@@ -458,7 +458,11 @@ function extractBrandLikeCandidatesFromText(
   }
 
   for (const match of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'.-]*(?:\s+[A-Z][A-Za-z0-9&'.-]*){0,2})/gm)) {
-    addCandidate(match[1]);
+    const candidate = match[1].trim();
+    // Skip single-word candidates from list items — these are almost always imperative verbs
+    // (e.g., "Contact", "Discuss", "Inquire", "Choose"), not brand names
+    if (!candidate.includes(' ') && !/[.&]/.test(candidate)) continue;
+    addCandidate(candidate);
   }
 
   for (const match of text.matchAll(/(?:include|includes|including|recommend|recommended|options(?:\s+include)?|such as|alternatives?\s+(?:include|are)|platforms?\s+(?:include|like))\s+([^.;:\n]{0,140})/gi)) {
