@@ -1856,8 +1856,8 @@ async function generatePDF(
 
   // Traffic light dot for overall score
   const tlColor = scoreColor(overallScore);
-  drawTlDot(page, M + contentW - 80, y - 30, tlColor, 20);
-  page.drawText(scoreTlLabel(overallScore), { x: M + contentW - 55, y: y - 35, size: 9, font: helveticaBold, color: white });
+  drawTlDot(page, M + contentW - 130, y - 30, tlColor, 20);
+  page.drawText(scoreTlLabel(overallScore), { x: M + contentW - 105, y: y - 35, size: 9, font: helveticaBold, color: white });
 
   // Score bar
   const barY2 = y - scoreCardH + 10;
