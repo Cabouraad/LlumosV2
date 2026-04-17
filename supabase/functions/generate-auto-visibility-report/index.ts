@@ -111,6 +111,26 @@ const COMMON_ENGLISH_WORDS = new Set([
   'particular', 'relevant', 'similar', 'typical', 'general', 'primary', 'major', 'minor',
   'focus', 'focused', 'focusing', 'based', 'known', 'dedicated', 'specialized', 'experienced',
   'established', 'integrated', 'combined', 'tailored', 'customized', 'designed', 'aimed',
+  // Imperative verbs commonly starting numbered/bulleted instruction lists (false positives)
+  'contact', 'discuss', 'inquire', 'choose', 'attend', 'assemble', 'collect', 'gather',
+  'cross-reference', 'crossreference', 'reference', 'schedule', 'request', 'submit', 'prepare',
+  'compile', 'organize', 'arrange', 'coordinate', 'communicate', 'consult', 'evaluate',
+  'assess', 'identify', 'determine', 'establish', 'maintain', 'develop', 'create', 'build',
+  'visit', 'browse', 'explore', 'search', 'look', 'find', 'discover', 'investigate', 'research',
+  'sign', 'signup', 'enroll', 'subscribe', 'join', 'attend', 'participate', 'engage',
+  'avoid', 'prevent', 'protect', 'secure', 'ensure', 'maintain', 'preserve', 'sustain',
+  'leverage', 'utilize', 'employ', 'adopt', 'adapt', 'modify', 'adjust', 'refine', 'improve',
+  'enhance', 'upgrade', 'expand', 'extend', 'increase', 'decrease', 'reduce', 'minimize',
+  'maximize', 'achieve', 'accomplish', 'attain', 'obtain', 'acquire', 'gain', 'earn',
+  'review', 'examine', 'inspect', 'analyze', 'study', 'observe', 'notice', 'recognize',
+  'understand', 'comprehend', 'grasp', 'realize', 'acknowledge', 'accept', 'embrace',
+  'present', 'introduce', 'demonstrate', 'illustrate', 'explain', 'describe', 'outline',
+  'discuss', 'address', 'tackle', 'handle', 'manage', 'oversee', 'supervise', 'direct',
+  'guide', 'lead', 'mentor', 'coach', 'train', 'teach', 'educate', 'inform', 'notify',
+  'alert', 'warn', 'caution', 'advise', 'suggest', 'recommend', 'propose', 'offer',
+  'provide', 'supply', 'deliver', 'distribute', 'allocate', 'assign', 'designate',
+  'appoint', 'nominate', 'elect', 'select', 'pick', 'opt', 'prefer', 'favor',
+  'attempt', 'try', 'endeavor', 'strive', 'pursue', 'chase', 'follow',
 ]);
 
 function escapeRegExp(value: string): string {
