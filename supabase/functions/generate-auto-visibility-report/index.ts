@@ -1535,31 +1535,84 @@ function getIndustryBenchmark(businessContext: string): { industry: string; benc
 }
 
 /**
- * Analyze content gaps from the results
+ * Analyze content gaps from the results — returns specific, actionable opportunities
  */
-function analyzeContentGaps(results: ProviderResult[], brandName: string): string[] {
-  const gaps: string[] = [];
-  const seen = new Set<string>();
+interface ContentGap {
+  prompt: string;
+  providers: string[];           // which AI platforms returned this gap
+  competitorsWinning: string[];  // who is currently being recommended instead
+  recommendation: string;        // specific action the brand should take
+}
+
+function buildGapRecommendation(prompt: string, competitorsWinning: string[]): string {
+  const promptLower = prompt.toLowerCase();
+  const competitorPhrase = competitorsWinning.length > 0
+    ? `Currently AI recommends ${competitorsWinning.slice(0, 3).join(', ')}.`
+    : 'No clear leader yet — strong first-mover opportunity.';
+
+  if (/best|top|leading|recommend/.test(promptLower)) {
+    return `${competitorPhrase} Publish a comparison/listicle page targeting this exact phrase, with FAQ + ItemList schema and 3rd-party validation (reviews, awards, case studies).`;
+  }
+  if (/how to|guide|tutorial|tips/.test(promptLower)) {
+    return `${competitorPhrase} Create an authoritative how-to guide with step-by-step instructions, expert quotes, and a clear byline. AI models prefer educational content with named experts.`;
+  }
+  if (/vs|versus|compare|comparison|alternative/.test(promptLower)) {
+    return `${competitorPhrase} Build a side-by-side comparison page that includes your brand alongside named competitors, with objective criteria and a recommendation matrix.`;
+  }
+  if (/cost|pricing|price|cheap|affordable/.test(promptLower)) {
+    return `${competitorPhrase} Publish transparent pricing/cost content with examples and ranges. Add Service or Offer schema so AI can extract concrete numbers.`;
+  }
+  if (/near me|local|city|area|in [a-z ]{3,}/.test(promptLower)) {
+    return `${competitorPhrase} Strengthen local AEO: optimize Google Business Profile, build city-specific landing pages, and earn citations from local directories AI training sets reference.`;
+  }
+  if (/specialize|specialist|expert|firm for/.test(promptLower)) {
+    return `${competitorPhrase} Publish a dedicated practice/specialty page with credentials, representative cases, and outcomes. Add Person schema for key practitioners.`;
+  }
+  return `${competitorPhrase} Create a focused page answering this exact query — H1 matching the question, FAQ schema, and authoritative backlinks from industry publications.`;
+}
+
+function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
+  const gapsByPrompt = new Map<string, ContentGap>();
 
   for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
-    const normalizedPrompt = missed.prompt.replace(/\s+/g, ' ').trim().toLowerCase();
-    if (seen.has(normalizedPrompt)) continue;
-    seen.add(normalizedPrompt);
-
     const topic = missed.prompt.replace(/\?/g, '').trim();
-    if (topic.length > 10 && topic.length < 140) {
-      gaps.push(topic);
-    }
+    if (topic.length <= 10 || topic.length >= 160) continue;
+    const key = topic.toLowerCase();
 
-    if (gaps.length >= 3) break;
+    const existing = gapsByPrompt.get(key);
+    if (existing) {
+      if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
+      for (const c of missed.competitors) {
+        if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
+      }
+    } else {
+      gapsByPrompt.set(key, {
+        prompt: topic,
+        providers: [missed.provider],
+        competitorsWinning: [...missed.competitors],
+        recommendation: '',
+      });
+    }
   }
-  
-  // Add generic gaps if we don't have enough
+
+  const gaps = Array.from(gapsByPrompt.values())
+    .sort((a, b) => b.providers.length - a.providers.length)
+    .slice(0, 3);
+
+  for (const g of gaps) {
+    g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning);
+  }
+
   if (gaps.length === 0) {
-    gaps.push('Product comparison content', 'Industry expertise articles', 'Customer success stories');
+    return [{
+      prompt: 'Industry comparison and "best of" queries',
+      providers: ['ChatGPT', 'Perplexity', 'Google AIO'],
+      competitorsWinning: [],
+      recommendation: 'Build comparison and listicle content targeting high-intent commercial queries in your category. Include FAQ schema and 3rd-party validation.',
+    }];
   }
-  
-  return gaps.slice(0, 3);
+
+  return gaps;
 }
 
 /**
