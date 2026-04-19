@@ -2060,21 +2060,31 @@ async function generatePDF(
 
   // ====================== CONTENT GAP OPPORTUNITIES ======================
   if (contentGaps.length > 0) {
-    if (y < 150) { page = newPage(); y = H - 10; }
+    if (y < 200) { page = newPage(); y = H - 10; }
 
     y = drawSubsectionHeader(page, 'Content Gap Opportunities', y);
-    page.drawText('Topics where your brand is absent from AI responses:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    page.drawText('Specific queries where your brand is absent — with how to win them back:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
     y -= 18;
 
     for (let i = 0; i < contentGaps.length; i++) {
       const gap = contentGaps[i];
-      // Opportunity card style
-      const cardH = 50;
+      const promptText = gap.prompt.length > 80 ? gap.prompt.substring(0, 78) + '...' : gap.prompt;
+
+      // Wrap recommendation text to estimate card height
+      const recLines = wrapText(gap.recommendation, 95);
+      const competitorLine = gap.competitorsWinning.length > 0
+        ? `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`
+        : 'No clear competitor winning yet — first-mover opportunity.';
+      const compLines = wrapText(competitorLine, 95);
+      const providerLine = `Missing on: ${gap.providers.map(p => p === 'openai' ? 'ChatGPT' : p === 'perplexity' ? 'Perplexity' : p === 'google' ? 'Google AIO' : p).join(', ')}`;
+
+      const bodyContentH = 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
+      const cardH = 22 + bodyContentH;
       if (y - cardH < 60) { page = newPage(); y = H - 60; }
 
-      // Header
+      // Header bar
       page.drawRectangle({ x: M, y: y - 22, width: contentW, height: 22, color: navy });
-      page.drawText(`Gap ${i + 1}: ${gap.length > 70 ? gap.substring(0, 68) + '...' : gap}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
+      page.drawText(`Gap ${i + 1}: ${promptText}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
 
       // Badge
       const badgeText = 'Opportunity';
@@ -2082,12 +2092,30 @@ async function generatePDF(
       page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: green });
       page.drawText(badgeText, { x: M + contentW - badgeW - 2, y: y - 15, size: 7, font: helveticaBold, color: white });
 
-      // Body
-      page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) }); // light yellow "why" row
-      page.drawText('WHY IT MATTERS', { x: M + 10, y: y - 32, size: 7, font: helveticaBold, color: light });
-      page.drawText('AI platforms are answering this query without mentioning your brand.', { x: M + 10, y: y - 44, size: 9, font: helvetica, color: dark });
+      // Body background
+      page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) });
 
-      y -= cardH + 8;
+      // Providers line
+      let by = y - 34;
+      page.drawText(providerLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: mid });
+      by -= 14;
+
+      // Competitors line(s)
+      for (const line of compLines) {
+        page.drawText(line, { x: M + 10, y: by, size: 9, font: helvetica, color: dark });
+        by -= 11;
+      }
+      by -= 6;
+
+      // Recommendation
+      page.drawText('RECOMMENDED ACTION', { x: M + 10, y: by, size: 7, font: helveticaBold, color: light });
+      by -= 12;
+      for (const line of recLines) {
+        page.drawText(line, { x: M + 10, y: by, size: 9, font: helvetica, color: dark });
+        by -= 11;
+      }
+
+      y -= cardH + 10;
     }
   }
 
