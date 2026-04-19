@@ -2137,6 +2137,7 @@ async function generatePDF(
   const consistencyColor = consistency.label === 'No Visibility' ? red : consistency.score >= 80 ? green : consistency.score >= 50 ? amber : red;
 
   y = drawSubsectionHeader(page, 'Provider Consistency Score', y);
+  y -= 24;
   const consPctText = `${consistency.score}%`;
   page.drawText(consPctText, { x: M + 10, y: y - 5, size: 28, font: helveticaBold, color: consistencyColor });
   const consPctW = helveticaBold.widthOfTextAtSize(consPctText, 28);
