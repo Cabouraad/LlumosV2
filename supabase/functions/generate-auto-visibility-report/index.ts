@@ -1535,31 +1535,84 @@ function getIndustryBenchmark(businessContext: string): { industry: string; benc
 }
 
 /**
- * Analyze content gaps from the results
+ * Analyze content gaps from the results — returns specific, actionable opportunities
  */
-function analyzeContentGaps(results: ProviderResult[], brandName: string): string[] {
-  const gaps: string[] = [];
-  const seen = new Set<string>();
+interface ContentGap {
+  prompt: string;
+  providers: string[];           // which AI platforms returned this gap
+  competitorsWinning: string[];  // who is currently being recommended instead
+  recommendation: string;        // specific action the brand should take
+}
+
+function buildGapRecommendation(prompt: string, competitorsWinning: string[]): string {
+  const promptLower = prompt.toLowerCase();
+  const competitorPhrase = competitorsWinning.length > 0
+    ? `Currently AI recommends ${competitorsWinning.slice(0, 3).join(', ')}.`
+    : 'No clear leader yet — strong first-mover opportunity.';
+
+  if (/best|top|leading|recommend/.test(promptLower)) {
+    return `${competitorPhrase} Publish a comparison/listicle page targeting this exact phrase, with FAQ + ItemList schema and 3rd-party validation (reviews, awards, case studies).`;
+  }
+  if (/how to|guide|tutorial|tips/.test(promptLower)) {
+    return `${competitorPhrase} Create an authoritative how-to guide with step-by-step instructions, expert quotes, and a clear byline. AI models prefer educational content with named experts.`;
+  }
+  if (/vs|versus|compare|comparison|alternative/.test(promptLower)) {
+    return `${competitorPhrase} Build a side-by-side comparison page that includes your brand alongside named competitors, with objective criteria and a recommendation matrix.`;
+  }
+  if (/cost|pricing|price|cheap|affordable/.test(promptLower)) {
+    return `${competitorPhrase} Publish transparent pricing/cost content with examples and ranges. Add Service or Offer schema so AI can extract concrete numbers.`;
+  }
+  if (/near me|local|city|area|in [a-z ]{3,}/.test(promptLower)) {
+    return `${competitorPhrase} Strengthen local AEO: optimize Google Business Profile, build city-specific landing pages, and earn citations from local directories AI training sets reference.`;
+  }
+  if (/specialize|specialist|expert|firm for/.test(promptLower)) {
+    return `${competitorPhrase} Publish a dedicated practice/specialty page with credentials, representative cases, and outcomes. Add Person schema for key practitioners.`;
+  }
+  return `${competitorPhrase} Create a focused page answering this exact query — H1 matching the question, FAQ schema, and authoritative backlinks from industry publications.`;
+}
+
+function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
+  const gapsByPrompt = new Map<string, ContentGap>();
 
   for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
-    const normalizedPrompt = missed.prompt.replace(/\s+/g, ' ').trim().toLowerCase();
-    if (seen.has(normalizedPrompt)) continue;
-    seen.add(normalizedPrompt);
-
     const topic = missed.prompt.replace(/\?/g, '').trim();
-    if (topic.length > 10 && topic.length < 140) {
-      gaps.push(topic);
-    }
+    if (topic.length <= 10 || topic.length >= 160) continue;
+    const key = topic.toLowerCase();
 
-    if (gaps.length >= 3) break;
+    const existing = gapsByPrompt.get(key);
+    if (existing) {
+      if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
+      for (const c of missed.competitors) {
+        if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
+      }
+    } else {
+      gapsByPrompt.set(key, {
+        prompt: topic,
+        providers: [missed.provider],
+        competitorsWinning: [...missed.competitors],
+        recommendation: '',
+      });
+    }
   }
-  
-  // Add generic gaps if we don't have enough
+
+  const gaps = Array.from(gapsByPrompt.values())
+    .sort((a, b) => b.providers.length - a.providers.length)
+    .slice(0, 3);
+
+  for (const g of gaps) {
+    g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning);
+  }
+
   if (gaps.length === 0) {
-    gaps.push('Product comparison content', 'Industry expertise articles', 'Customer success stories');
+    return [{
+      prompt: 'Industry comparison and "best of" queries',
+      providers: ['ChatGPT', 'Perplexity', 'Google AIO'],
+      competitorsWinning: [],
+      recommendation: 'Build comparison and listicle content targeting high-intent commercial queries in your category. Include FAQ schema and 3rd-party validation.',
+    }];
   }
-  
-  return gaps.slice(0, 3);
+
+  return gaps;
 }
 
 /**
@@ -2007,21 +2060,31 @@ async function generatePDF(
 
   // ====================== CONTENT GAP OPPORTUNITIES ======================
   if (contentGaps.length > 0) {
-    if (y < 150) { page = newPage(); y = H - 10; }
+    if (y < 200) { page = newPage(); y = H - 10; }
 
     y = drawSubsectionHeader(page, 'Content Gap Opportunities', y);
-    page.drawText('Topics where your brand is absent from AI responses:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    page.drawText('Specific queries where your brand is absent — with how to win them back:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
     y -= 18;
 
     for (let i = 0; i < contentGaps.length; i++) {
       const gap = contentGaps[i];
-      // Opportunity card style
-      const cardH = 50;
+      const promptText = gap.prompt.length > 80 ? gap.prompt.substring(0, 78) + '...' : gap.prompt;
+
+      // Wrap recommendation text to estimate card height
+      const recLines = wrapText(gap.recommendation, 95);
+      const competitorLine = gap.competitorsWinning.length > 0
+        ? `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`
+        : 'No clear competitor winning yet — first-mover opportunity.';
+      const compLines = wrapText(competitorLine, 95);
+      const providerLine = `Missing on: ${gap.providers.map(p => p === 'openai' ? 'ChatGPT' : p === 'perplexity' ? 'Perplexity' : p === 'google' ? 'Google AIO' : p).join(', ')}`;
+
+      const bodyContentH = 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
+      const cardH = 22 + bodyContentH;
       if (y - cardH < 60) { page = newPage(); y = H - 60; }
 
-      // Header
+      // Header bar
       page.drawRectangle({ x: M, y: y - 22, width: contentW, height: 22, color: navy });
-      page.drawText(`Gap ${i + 1}: ${gap.length > 70 ? gap.substring(0, 68) + '...' : gap}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
+      page.drawText(`Gap ${i + 1}: ${promptText}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
 
       // Badge
       const badgeText = 'Opportunity';
@@ -2029,12 +2092,30 @@ async function generatePDF(
       page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: green });
       page.drawText(badgeText, { x: M + contentW - badgeW - 2, y: y - 15, size: 7, font: helveticaBold, color: white });
 
-      // Body
-      page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) }); // light yellow "why" row
-      page.drawText('WHY IT MATTERS', { x: M + 10, y: y - 32, size: 7, font: helveticaBold, color: light });
-      page.drawText('AI platforms are answering this query without mentioning your brand.', { x: M + 10, y: y - 44, size: 9, font: helvetica, color: dark });
+      // Body background
+      page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) });
 
-      y -= cardH + 8;
+      // Providers line
+      let by = y - 34;
+      page.drawText(providerLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: mid });
+      by -= 14;
+
+      // Competitors line(s)
+      for (const line of compLines) {
+        page.drawText(line, { x: M + 10, y: by, size: 9, font: helvetica, color: dark });
+        by -= 11;
+      }
+      by -= 6;
+
+      // Recommendation
+      page.drawText('RECOMMENDED ACTION', { x: M + 10, y: by, size: 7, font: helveticaBold, color: light });
+      by -= 12;
+      for (const line of recLines) {
+        page.drawText(line, { x: M + 10, y: by, size: 9, font: helvetica, color: dark });
+        by -= 11;
+      }
+
+      y -= cardH + 10;
     }
   }
 
@@ -2555,6 +2636,59 @@ serve(async (req) => {
     score = body.score;
 
     console.log(`[AutoReport] Starting report generation for ${domain}`);
+
+    // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
+    const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedDomain = (domain || '').trim().toLowerCase();
+
+    const { data: recentRequests } = await dedupeClient
+      .from('visibility_report_requests')
+      .select('id, status, created_at, metadata')
+      .eq('email', normalizedEmail)
+      .eq('domain', normalizedDomain)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (recentRequests && recentRequests.length > 0) {
+      const now = Date.now();
+      // Skip if a sent report exists in the last 10 minutes
+      const recentlySent = recentRequests.find((r: any) =>
+        r.status === 'sent' && (now - new Date(r.created_at).getTime()) < 10 * 60 * 1000
+      );
+      if (recentlySent) {
+        console.log(`[AutoReport] Skipping duplicate — report already sent within 10 minutes (id: ${recentlySent.id})`);
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'already_sent_recently' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      // Skip if another invocation is already generating (started within last 8 minutes)
+      const inFlight = recentRequests.find((r: any) => {
+        if (r.status !== 'processing') return false;
+        const startedAt = (r.metadata && (r.metadata.generationStartedAt || r.metadata.backgroundTriggeredAt)) || r.created_at;
+        return (now - new Date(startedAt).getTime()) < 8 * 60 * 1000;
+      });
+      if (inFlight) {
+        console.log(`[AutoReport] Skipping duplicate — another generation is already in flight (id: ${inFlight.id})`);
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'already_in_flight' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Mark as processing with a fresh timestamp so concurrent invocations bail out above
+    await dedupeClient
+      .from('visibility_report_requests')
+      .update({
+        status: 'processing',
+        metadata: { firstName, generationStartedAt: new Date().toISOString() }
+      })
+      .eq('email', normalizedEmail)
+      .eq('domain', normalizedDomain)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     // Step 1: Build brand profile from homepage + research
     console.log('[AutoReport] Building brand profile...');
