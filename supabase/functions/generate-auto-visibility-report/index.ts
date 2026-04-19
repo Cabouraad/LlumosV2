@@ -2329,11 +2329,46 @@ async function generatePDF(
 
   y = H - bannerH - 30;
 
-  // What comes next card
-  y = drawSubsectionHeader(page, 'What Comes Next', y);
+  // ============ TOP HALF: SMB Team ============
+  y = drawSubsectionHeader(page, 'Grow Your Law Firm with SMB Team', y);
+
+  page.drawText('SMB Team helps law firms scale with proven growth systems:', { x: M + 10, y, size: 11, font: helvetica, color: mid });
+  y -= 22;
+
+  const smbBenefits = [
+    'Done-for-you marketing built specifically for law firms',
+    'Lead generation systems that fill your pipeline predictably',
+    'Coaching and training from attorneys who scaled 7- and 8-figure firms',
+    'Operations, hiring, and intake playbooks for sustainable growth',
+    'A community of ambitious law firm owners pushing each other forward',
+  ];
+
+  for (const b of smbBenefits) {
+    page.drawText(`•  ${b}`, { x: M + 14, y, size: 10, font: helvetica, color: dark });
+    y -= 16;
+  }
+
+  y -= 14;
+
+  // SMB Team CTA button
+  const smbCtaW = 280;
+  const smbCtaX = (W - smbCtaW) / 2;
+  page.drawRectangle({ x: smbCtaX, y: y - 5, width: smbCtaW, height: 32, color: navy });
+  const smbCtaText = 'Learn More   smbteam.com';
+  const smbCtaTextW = helveticaBold.widthOfTextAtSize(smbCtaText, 12);
+  page.drawText(smbCtaText, { x: smbCtaX + (smbCtaW - smbCtaTextW) / 2, y: y + 5, size: 12, font: helveticaBold, color: yellow });
+
+  y -= 40;
+
+  // Divider between halves
+  page.drawRectangle({ x: M, y: y, width: contentW, height: 1, color: faint });
+  y -= 20;
+
+  // ============ BOTTOM HALF: Llumos ============
+  y = drawSubsectionHeader(page, 'Track AI Visibility with Llumos', y);
 
   page.drawText('This report is a snapshot. With Llumos, you can:', { x: M + 10, y, size: 11, font: helvetica, color: mid });
-  y -= 24;
+  y -= 22;
 
   const benefits = [
     'Track AI visibility changes week over week',
@@ -2345,26 +2380,26 @@ async function generatePDF(
 
   for (const b of benefits) {
     page.drawText(`•  ${b}`, { x: M + 14, y, size: 10, font: helvetica, color: dark });
-    y -= 18;
+    y -= 16;
   }
 
-  y -= 20;
+  y -= 14;
 
-  // CTA button
+  // Llumos CTA button
   const ctaW = 280;
   const ctaX = (W - ctaW) / 2;
-  page.drawRectangle({ x: ctaX, y: y - 5, width: ctaW, height: 36, color: navy });
+  page.drawRectangle({ x: ctaX, y: y - 5, width: ctaW, height: 32, color: navy });
   const ctaText = 'Schedule a Demo   llumos.app';
-  const ctaTextW = helveticaBold.widthOfTextAtSize(ctaText, 13);
-  page.drawText(ctaText, { x: ctaX + (ctaW - ctaTextW) / 2, y: y + 5, size: 13, font: helveticaBold, color: yellow });
+  const ctaTextW = helveticaBold.widthOfTextAtSize(ctaText, 12);
+  page.drawText(ctaText, { x: ctaX + (ctaW - ctaTextW) / 2, y: y + 5, size: 12, font: helveticaBold, color: yellow });
 
-  y -= 50;
+  y -= 36;
   const qText = 'Questions? Reach us at hello@llumos.app';
   const qTextW = helvetica.widthOfTextAtSize(qText, 9);
   page.drawText(qText, { x: (W - qTextW) / 2, y, size: 9, font: helvetica, color: light });
 
   // Methodology — assessment box style
-  y -= 30;
+  y -= 24;
   y = drawSubsectionHeader(page, 'Methodology Snapshot', y);
   for (const bullet of [
     `${new Set(validResults.map((r) => r.prompt)).size} prompts × ${new Set(validResults.map((r) => r.provider)).size} AI providers = ${validResults.length} total checks`,
