@@ -2637,6 +2637,59 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Starting report generation for ${domain}`);
 
+    // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
+    const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedDomain = (domain || '').trim().toLowerCase();
+
+    const { data: recentRequests } = await dedupeClient
+      .from('visibility_report_requests')
+      .select('id, status, created_at, metadata')
+      .eq('email', normalizedEmail)
+      .eq('domain', normalizedDomain)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (recentRequests && recentRequests.length > 0) {
+      const now = Date.now();
+      // Skip if a sent report exists in the last 10 minutes
+      const recentlySent = recentRequests.find((r: any) =>
+        r.status === 'sent' && (now - new Date(r.created_at).getTime()) < 10 * 60 * 1000
+      );
+      if (recentlySent) {
+        console.log(`[AutoReport] Skipping duplicate — report already sent within 10 minutes (id: ${recentlySent.id})`);
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'already_sent_recently' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      // Skip if another invocation is already generating (started within last 8 minutes)
+      const inFlight = recentRequests.find((r: any) => {
+        if (r.status !== 'processing') return false;
+        const startedAt = (r.metadata && (r.metadata.generationStartedAt || r.metadata.backgroundTriggeredAt)) || r.created_at;
+        return (now - new Date(startedAt).getTime()) < 8 * 60 * 1000;
+      });
+      if (inFlight) {
+        console.log(`[AutoReport] Skipping duplicate — another generation is already in flight (id: ${inFlight.id})`);
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'already_in_flight' }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Mark as processing with a fresh timestamp so concurrent invocations bail out above
+    await dedupeClient
+      .from('visibility_report_requests')
+      .update({
+        status: 'processing',
+        metadata: { firstName, generationStartedAt: new Date().toISOString() }
+      })
+      .eq('email', normalizedEmail)
+      .eq('domain', normalizedDomain)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
     // Step 1: Build brand profile from homepage + research
     console.log('[AutoReport] Building brand profile...');
     const [businessContext, homepageSignals] = await Promise.all([
