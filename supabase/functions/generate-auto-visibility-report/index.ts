@@ -2995,26 +2995,33 @@ serve(async (req) => {
     console.log('[AutoReport] Sending email...');
     const emailSent = await sendReportEmail(email, firstName, domain, overallScore, pdfBytes);
 
-    // Step 6: Update database record
+    // Step 6: Update database record — use tracking row id when available so we don't accidentally
+    // update an unrelated row for the same email+domain.
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    
-    await supabase
-      .from('visibility_report_requests')
-      .update({
-        status: emailSent ? 'sent' : 'error',
-        metadata: {
-          firstName,
-          reportGeneratedAt: new Date().toISOString(),
-          calculatedScore: overallScore,
-          promptsRun: prompts.length,
-          providersQueried: 3,
-          emailSent
-        }
-      })
-      .eq('email', email)
-      .eq('domain', domain)
-      .order('created_at', { ascending: false })
-      .limit(1);
+
+    const updatePayload = {
+      status: emailSent ? 'sent' : 'error',
+      metadata: {
+        firstName,
+        reportGeneratedAt: new Date().toISOString(),
+        calculatedScore: overallScore,
+        promptsRun: prompts.length,
+        providersQueried: 3,
+        emailSent
+      }
+    };
+
+    if (trackingRowId) {
+      await supabase.from('visibility_report_requests').update(updatePayload).eq('id', trackingRowId);
+    } else {
+      await supabase
+        .from('visibility_report_requests')
+        .update(updatePayload)
+        .eq('email', normalizedEmail)
+        .eq('domain', normalizedDomain)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    }
 
     console.log(`[AutoReport] Report generation complete for ${domain}`);
 
