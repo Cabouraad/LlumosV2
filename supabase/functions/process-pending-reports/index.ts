@@ -25,10 +25,14 @@ async function fetchPendingWithRetry(
     try {
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
+      // Only pick up rows that are still 'pending'. Do NOT retry 'error' rows here —
+      // an errored row may have already sent the email but failed the post-send DB update,
+      // and re-running it would send a duplicate email. Errored rows should be retried
+      // manually after investigation.
       const { data, error } = await supabase
         .from("visibility_report_requests")
         .select("id, email, domain, metadata")
-        .in("status", ["pending", "error"])
+        .eq("status", "pending")
         .lt("created_at", twoMinutesAgo)
         .order("created_at", { ascending: true })
         .limit(batchSize);
@@ -41,7 +45,14 @@ async function fetchPendingWithRetry(
         throw new Error(`DB query failed: ${error.message}`);
       }
 
-      return data || [];
+      // Filter out rows whose metadata.emailSent === true (defense in depth — should never
+      // happen since we filter by status='pending', but guards against status drift).
+      const safe = (data || []).filter((r: any) => {
+        const meta = r.metadata || {};
+        return meta.emailSent !== true && !meta.reportGeneratedAt;
+      });
+
+      return safe as Array<{ id: string; email: string; domain: string; metadata: any }>;
     } catch (err: any) {
       console.warn(`[ProcessPending] DB fetch attempt ${attempt}/${maxRetries} failed: ${err.message}`);
       if (attempt < maxRetries) {
