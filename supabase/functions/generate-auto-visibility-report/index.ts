@@ -418,11 +418,43 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   // Also check with hyphens replaced by spaces and vice versa
   if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/-/g, ' '))) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/\s+/g, '-'))) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(normalized)) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(normalized.replace(/-/g, ' '))) return false;
   if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
-  if (normalized.split(' ').length > 4) return false;
-  if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
-  if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
+
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.length > 4) return false;
+  if (words.every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
+  if (words.every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
+
+  // Reject phrases that end with a descriptive trailing word (e.g., "Fireproof Performance",
+  // "evergreen websites", "AI SEO consulting", "CFO consulting"). These are categories, not brands.
+  if (words.length >= 2 && DESCRIPTIVE_TRAILING_WORDS.has(words[words.length - 1])) return false;
+
+  // Reject phrases that begin with a descriptive marketing modifier
+  // (e.g., "conversion-friendly SEO-optimized websites")
+  if (DESCRIPTIVE_LEADING_MODIFIERS.has(words[0])) return false;
+  // Also handle compound modifiers anywhere in the phrase
+  if (words.some((w) => DESCRIPTIVE_LEADING_MODIFIERS.has(w))) return false;
+
+  // Reject if the original (untrimmed) input contains a descriptive hyphenated adjective
+  // pattern like "X-friendly", "X-optimized", "X-powered", "X-driven", "X-based", "X-grade"
+  if (/\b[a-z]+-(?:friendly|optimized|powered|driven|based|grade|ready|focused|first|leading|class)\b/i.test(name)) {
+    return false;
+  }
+
+  // Multi-word phrases must be Title Case (every significant word starts with a capital letter or is a known acronym).
+  // This kills phrases like "AI SEO consulting" (lowercase "consulting") and "evergreen websites".
+  if (words.length >= 2) {
+    const originalWords = name.trim().split(/\s+/);
+    const titleCaseCount = originalWords.filter((w) => /^[A-Z0-9]/.test(w) || /^[A-Z]{2,6}$/.test(w)).length;
+    // Allow short connector words (of, the, and, &) to be lowercase; require all OTHER words to start uppercase
+    const significantWords = originalWords.filter((w) => !/^(of|the|and|&|for|to|in|on|at|de|la)$/i.test(w));
+    const significantCapitalized = significantWords.filter((w) => /^[A-Z0-9]/.test(w)).length;
+    if (significantCapitalized < significantWords.length) return false;
+    if (titleCaseCount === 0) return false;
+  }
 
   return true;
 }
