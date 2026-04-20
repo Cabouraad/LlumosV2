@@ -771,9 +771,25 @@ async function refineCompetitorCandidatesFromResults(
     return [];
   }
 
-  let llmRefined: string[] = combinedCandidates;
+  // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted, bypass ALL gates.
+  // Cross-provider/multi-mention corroboration is itself strong evidence the entity is real.
+  const strongKeys = new Set(
+    responseStats
+      .filter((s) => s.providers.size >= 2 || s.mentions >= 2)
+      .map((s) => normalizeEntityName(s.candidate)),
+  );
 
-  if (OPENAI_API_KEY && responseCandidates.length > 0) {
+  const trustedDirect = combinedCandidates.filter((c) => strongKeys.has(normalizeEntityName(c)));
+  const weakCandidates = combinedCandidates.filter((c) => !strongKeys.has(normalizeEntityName(c)));
+
+  console.log(
+    `[AutoReport] Trusted (bypass all gates): ${trustedDirect.length}; weak (need OpenAI+Perplexity): ${weakCandidates.length}`,
+  );
+
+  // Only run the strict OpenAI/Perplexity gates on weak (single-mention, single-provider) candidates
+  let weakAfterOpenAI: string[] = weakCandidates;
+
+  if (OPENAI_API_KEY && weakCandidates.length > 0) {
     try {
       const snippets = results
         .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
@@ -793,11 +809,11 @@ async function refineCompetitorCandidatesFromResults(
           messages: [
             {
               role: 'system',
-              content: 'You validate direct competitor brands for a company based on business context and AI response snippets. Return ONLY a JSON array of brand names that are (a) the proper name of a specific company, (b) explicitly appear in the snippets or candidate list, AND (c) are direct competitors to the target brand. STRICTLY EXCLUDE: descriptive phrases (e.g., "conversion-friendly websites"), service categories (e.g., "AI SEO", "CFO consulting"), marketing taglines (e.g., "Fireproof Performance"), common adjectives masquerading as brands (e.g., "Evergreen"), publishers, directories, platforms, channels. If unsure, leave it out.'
+              content: 'You filter a list of candidate competitor names. Your job is to REMOVE only obvious non-brands. Return ONLY a JSON array of the candidates that should be KEPT. KEEP any candidate that is plausibly the proper name of a real company — even if you are not 100% sure it exists, even if you have not heard of it. REMOVE only when the candidate is clearly: a descriptive phrase (e.g., "conversion-friendly websites"), a service category (e.g., "AI SEO", "CFO consulting"), a marketing tagline (e.g., "Fireproof Performance"), a common adjective (e.g., "Evergreen"), or a generic noun. When in doubt, KEEP. Bias heavily toward keeping.'
             },
             {
               role: 'user',
-              content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness context:\n${businessContext || 'No business context available.'}\n\nInitial researched competitors:\n${initialCandidates.join(', ') || 'None'}\n\nAdditional brand-like names found in AI responses:\n${responseCandidates.join(', ') || 'None'}\n\nAI response snippets:\n${snippets}\n\nReturn only the final direct competitor brands as a JSON array of strings.`
+              content: `Target brand: ${brandName} (${domain})\n\nCandidates to filter:\n${weakCandidates.join('\n')}\n\nAI response snippets for context:\n${snippets}\n\nReturn ONLY a JSON array of the candidate strings to keep.`
             }
           ]
         }),
@@ -811,16 +827,22 @@ async function refineCompetitorCandidatesFromResults(
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           if (Array.isArray(parsed)) {
-            const allowed = new Set(combinedCandidates.map((candidate) => normalizeEntityName(candidate)));
+            const allowed = new Set(weakCandidates.map((candidate) => normalizeEntityName(candidate)));
             const refined = dedupeBrandNames(
               parsed
                 .map((item: unknown) => typeof item === 'string' ? item : '')
                 .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
                 .filter((item: string) => allowed.has(normalizeEntityName(item)))
-            ).slice(0, 15);
+            );
 
-            if (refined.length > 0) {
-              llmRefined = refined;
+            // Only apply OpenAI's filter if it kept a reasonable fraction; otherwise keep all weak
+            // (protects against the LLM being overly aggressive)
+            if (refined.length >= Math.ceil(weakCandidates.length * 0.5)) {
+              weakAfterOpenAI = refined;
+            } else {
+              console.warn(
+                `[AutoReport] OpenAI refine kept only ${refined.length}/${weakCandidates.length} — too aggressive, keeping all weak candidates`,
+              );
             }
           }
         }
@@ -832,27 +854,12 @@ async function refineCompetitorCandidatesFromResults(
     }
   }
 
-  // Strongly-corroborated candidates (≥2 providers OR ≥3 total mentions) bypass Perplexity —
-  // cross-provider corroboration is itself strong evidence the entity exists.
-  // Only weakly-supported single-provider/single-mention candidates need grounded validation.
-  const strongKeys = new Set(
-    responseStats
-      .filter((s) => s.providers.size >= 2 || s.mentions >= 3)
-      .map((s) => normalizeEntityName(s.candidate)),
-  );
-
-  const trustedFromLLM = llmRefined.filter((c) => strongKeys.has(normalizeEntityName(c)));
-  const needsValidation = llmRefined.filter((c) => !strongKeys.has(normalizeEntityName(c)));
-
-  console.log(
-    `[AutoReport] Bypassing Perplexity for ${trustedFromLLM.length} strongly-corroborated candidates; validating ${needsValidation.length}`,
-  );
-
-  const validated = needsValidation.length > 0
-    ? await validateCompetitorsWithPerplexity(needsValidation, brandName, domain, businessContext)
+  // Perplexity is the final, strictest gate — only for weak candidates that survived OpenAI
+  const validated = weakAfterOpenAI.length > 0
+    ? await validateCompetitorsWithPerplexity(weakAfterOpenAI, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames([...trustedFromLLM, ...validated]).slice(0, 15);
+  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 15);
 }
 
 /**
