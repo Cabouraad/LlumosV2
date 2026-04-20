@@ -832,16 +832,27 @@ async function refineCompetitorCandidatesFromResults(
     }
   }
 
-  // Final gate: validate every remaining candidate against Perplexity grounded search.
-  // This is what kills fabricated/descriptive entries that survived everything else.
-  const validated = await validateCompetitorsWithPerplexity(
-    llmRefined,
-    brandName,
-    domain,
-    businessContext,
+  // Strongly-corroborated candidates (≥2 providers OR ≥3 total mentions) bypass Perplexity —
+  // cross-provider corroboration is itself strong evidence the entity exists.
+  // Only weakly-supported single-provider/single-mention candidates need grounded validation.
+  const strongKeys = new Set(
+    responseStats
+      .filter((s) => s.providers.size >= 2 || s.mentions >= 3)
+      .map((s) => normalizeEntityName(s.candidate)),
   );
 
-  return dedupeBrandNames(validated).slice(0, 15);
+  const trustedFromLLM = llmRefined.filter((c) => strongKeys.has(normalizeEntityName(c)));
+  const needsValidation = llmRefined.filter((c) => !strongKeys.has(normalizeEntityName(c)));
+
+  console.log(
+    `[AutoReport] Bypassing Perplexity for ${trustedFromLLM.length} strongly-corroborated candidates; validating ${needsValidation.length}`,
+  );
+
+  const validated = needsValidation.length > 0
+    ? await validateCompetitorsWithPerplexity(needsValidation, brandName, domain, businessContext)
+    : [];
+
+  return dedupeBrandNames([...trustedFromLLM, ...validated]).slice(0, 15);
 }
 
 /**
