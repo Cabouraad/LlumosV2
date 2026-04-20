@@ -534,8 +534,8 @@ function extractCompetitorCandidatesFromResults(
   results: ProviderResult[],
   brandName: string,
   domain: string,
-): string[] {
-  const counts = new Map<string, number>();
+): { candidate: string; providers: Set<string>; mentions: number }[] {
+  const stats = new Map<string, { candidate: string; providers: Set<string>; mentions: number }>();
 
   for (const result of results) {
     if (!result.response || result.response.startsWith('Error') || result.response.startsWith('Provider not') || result.response.startsWith('No AI Overview')) {
@@ -544,13 +544,20 @@ function extractCompetitorCandidatesFromResults(
 
     const candidates = extractBrandLikeCandidatesFromText(result.response, brandName, domain);
     for (const candidate of candidates) {
-      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+      const key = normalizeEntityName(candidate);
+      const existing = stats.get(key);
+      if (existing) {
+        existing.providers.add(result.provider);
+        existing.mentions += 1;
+      } else {
+        stats.set(key, { candidate, providers: new Set([result.provider]), mentions: 1 });
+      }
     }
   }
 
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([candidate]) => candidate);
+  return Array.from(stats.values()).sort((a, b) =>
+    b.providers.size - a.providers.size || b.mentions - a.mentions || a.candidate.localeCompare(b.candidate),
+  );
 }
 
 async function identifyCompetitorCandidates(
