@@ -2865,47 +2865,73 @@ serve(async (req) => {
       .eq('email', normalizedEmail)
       .eq('domain', normalizedDomain)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(10);
 
-    if (recentRequests && recentRequests.length > 0) {
-      const now = Date.now();
-      // Skip if a sent report exists in the last 10 minutes
-      const recentlySent = recentRequests.find((r: any) =>
-        r.status === 'sent' && (now - new Date(r.created_at).getTime()) < 10 * 60 * 1000
+    const now = Date.now();
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const EIGHT_MIN_MS = 8 * 60 * 1000;
+
+    // Hard guard #1: if ANY row for this email+domain has emailSent=true in the last 24h, skip.
+    // Use metadata.reportGeneratedAt as the authoritative "sent at" timestamp (NOT created_at,
+    // which reflects when the request was submitted, not when the email went out).
+    const recentlySent = (recentRequests || []).find((r: any) => {
+      const meta = r.metadata || {};
+      const sentAtRaw = meta.reportGeneratedAt;
+      if (!sentAtRaw || meta.emailSent !== true) return false;
+      const sentAt = new Date(sentAtRaw).getTime();
+      return Number.isFinite(sentAt) && (now - sentAt) < ONE_DAY_MS;
+    });
+    if (recentlySent) {
+      console.log(`[AutoReport] Skipping duplicate — report already emailed within 24h (id: ${recentlySent.id})`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'already_sent_recently' }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-      if (recentlySent) {
-        console.log(`[AutoReport] Skipping duplicate — report already sent within 10 minutes (id: ${recentlySent.id})`);
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'already_sent_recently' }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      // Skip if another invocation is already generating (started within last 8 minutes)
-      const inFlight = recentRequests.find((r: any) => {
-        if (r.status !== 'processing') return false;
-        const startedAt = (r.metadata && (r.metadata.generationStartedAt || r.metadata.backgroundTriggeredAt)) || r.created_at;
-        return (now - new Date(startedAt).getTime()) < 8 * 60 * 1000;
-      });
-      if (inFlight) {
-        console.log(`[AutoReport] Skipping duplicate — another generation is already in flight (id: ${inFlight.id})`);
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'already_in_flight' }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
     }
 
-    // Mark as processing with a fresh timestamp so concurrent invocations bail out above
-    await dedupeClient
-      .from('visibility_report_requests')
-      .update({
-        status: 'processing',
-        metadata: { firstName, generationStartedAt: new Date().toISOString() }
-      })
-      .eq('email', normalizedEmail)
-      .eq('domain', normalizedDomain)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    // Hard guard #2: if another invocation is currently generating (started within last 8 min), skip.
+    const inFlight = (recentRequests || []).find((r: any) => {
+      if (r.status !== 'processing') return false;
+      const meta = r.metadata || {};
+      const startedAt = meta.generationStartedAt || meta.backgroundTriggeredAt || meta.processingStartedAt || r.created_at;
+      const startedMs = new Date(startedAt).getTime();
+      return Number.isFinite(startedMs) && (now - startedMs) < EIGHT_MIN_MS;
+    });
+    if (inFlight) {
+      console.log(`[AutoReport] Skipping duplicate — another generation is in flight (id: ${inFlight.id})`);
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'already_in_flight' }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Determine the tracking row. If no request row exists (e.g., direct/manual invocation),
+    // insert one immediately so dedupe works for retries and concurrent calls.
+    let trackingRowId: string | null = (recentRequests && recentRequests[0]?.id) || null;
+    if (!trackingRowId) {
+      const { data: inserted } = await dedupeClient
+        .from('visibility_report_requests')
+        .insert({
+          email: normalizedEmail,
+          domain: normalizedDomain,
+          score: score || 0,
+          status: 'processing',
+          metadata: { firstName, generationStartedAt: new Date().toISOString(), source: 'direct_invocation' },
+        })
+        .select('id')
+        .maybeSingle();
+      trackingRowId = inserted?.id || null;
+      console.log(`[AutoReport] Created tracking row for direct invocation: ${trackingRowId}`);
+    } else {
+      // Mark as processing with a fresh timestamp so concurrent invocations bail out above
+      await dedupeClient
+        .from('visibility_report_requests')
+        .update({
+          status: 'processing',
+          metadata: { firstName, generationStartedAt: new Date().toISOString() }
+        })
+        .eq('id', trackingRowId);
+    }
 
     // Step 1: Build brand profile from homepage + research
     console.log('[AutoReport] Building brand profile...');
@@ -2976,26 +3002,33 @@ serve(async (req) => {
     console.log('[AutoReport] Sending email...');
     const emailSent = await sendReportEmail(email, firstName, domain, overallScore, pdfBytes);
 
-    // Step 6: Update database record
+    // Step 6: Update database record — use tracking row id when available so we don't accidentally
+    // update an unrelated row for the same email+domain.
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    
-    await supabase
-      .from('visibility_report_requests')
-      .update({
-        status: emailSent ? 'sent' : 'error',
-        metadata: {
-          firstName,
-          reportGeneratedAt: new Date().toISOString(),
-          calculatedScore: overallScore,
-          promptsRun: prompts.length,
-          providersQueried: 3,
-          emailSent
-        }
-      })
-      .eq('email', email)
-      .eq('domain', domain)
-      .order('created_at', { ascending: false })
-      .limit(1);
+
+    const updatePayload = {
+      status: emailSent ? 'sent' : 'error',
+      metadata: {
+        firstName,
+        reportGeneratedAt: new Date().toISOString(),
+        calculatedScore: overallScore,
+        promptsRun: prompts.length,
+        providersQueried: 3,
+        emailSent
+      }
+    };
+
+    if (trackingRowId) {
+      await supabase.from('visibility_report_requests').update(updatePayload).eq('id', trackingRowId);
+    } else {
+      await supabase
+        .from('visibility_report_requests')
+        .update(updatePayload)
+        .eq('email', normalizedEmail)
+        .eq('domain', normalizedDomain)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    }
 
     console.log(`[AutoReport] Report generation complete for ${domain}`);
 
