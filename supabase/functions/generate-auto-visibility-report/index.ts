@@ -69,8 +69,32 @@ const NON_COMPETITOR_ENTITIES = new Set([
 
 const GENERIC_COMPETITOR_TERMS = new Set([
   'agency', 'agencies', 'company', 'companies', 'firm', 'firms', 'service', 'services', 'solutions',
-  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'optimization', 'growth',
-  'consulting', 'tips', 'guide', 'ranked', 'consensus', 'implementation', 'small', 'legal', 'law'
+  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'websites', 'optimization', 'growth',
+  'consulting', 'consultancy', 'coaching', 'tips', 'guide', 'ranked', 'consensus', 'implementation',
+  'small', 'legal', 'law', 'performance', 'evergreen', 'fireproof', 'premium', 'professional',
+  'platform', 'platforms', 'tool', 'tools', 'software', 'product', 'products', 'system', 'systems',
+  'seo', 'sem', 'ppc', 'cro', 'cms', 'crm', 'erp', 'cfo', 'cmo', 'ceo', 'cto', 'coo',
+  'ai', 'ml', 'api', 'sdk', 'saas', 'b2b', 'b2c', 'roi', 'kpi',
+  // Common multi-word generics treated as phrases
+  'ai seo', 'ai marketing', 'cfo consulting', 'cmo consulting', 'seo agency', 'seo services',
+  'digital marketing', 'content marketing', 'paid search', 'organic search', 'lead generation',
+]);
+
+// Words that, when they appear as the LAST word in a candidate, indicate it's a descriptive phrase
+// rather than a brand name (e.g., "Fireproof Performance", "AI SEO consulting", "evergreen websites")
+const DESCRIPTIVE_TRAILING_WORDS = new Set([
+  'websites', 'website', 'services', 'solutions', 'platforms', 'platform', 'tools', 'software',
+  'products', 'systems', 'consulting', 'consultancy', 'coaching', 'agencies', 'agency',
+  'performance', 'optimization', 'marketing', 'strategy', 'strategies', 'growth', 'management',
+  'development', 'design', 'analytics', 'automation', 'generation', 'support', 'experience',
+]);
+
+// Adjectives/modifiers that mark a phrase as descriptive marketing copy, not a brand
+const DESCRIPTIVE_LEADING_MODIFIERS = new Set([
+  'conversion-friendly', 'seo-optimized', 'ai-powered', 'data-driven', 'cloud-based', 'high-performance',
+  'cost-effective', 'user-friendly', 'mobile-first', 'enterprise-grade', 'industry-leading',
+  'best-in-class', 'full-service', 'all-in-one', 'end-to-end', 'turnkey', 'custom', 'bespoke',
+  'affordable', 'premium', 'professional', 'specialized', 'dedicated', 'comprehensive',
 ]);
 
 // Common English words that get falsely detected as brand names due to capitalization at start of sentences
