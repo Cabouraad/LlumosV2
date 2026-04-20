@@ -624,9 +624,11 @@ async function identifyCompetitorCandidates(
 }
 
 /**
- * Validate that each candidate is a real, named company that competes with the brand.
- * Uses Perplexity (grounded web search) so the model can actually verify the entity exists.
- * Returns ONLY candidates with confidence >= 0.75 AND exists=true AND isDirectCompetitor=true.
+ * Validate candidates against Perplexity grounded web search.
+ * Philosophy: Perplexity must ACTIVELY REJECT a candidate to remove it. Uncertain or
+ * unanswered candidates are KEPT — corroboration from AI responses is itself evidence.
+ * A candidate is removed ONLY if Perplexity says exists=false OR isDirectCompetitor=false
+ * with confidence >= 0.7 (i.e., it's confidently wrong).
  */
 async function validateCompetitorsWithPerplexity(
   candidates: string[],
@@ -651,7 +653,7 @@ async function validateCompetitorsWithPerplexity(
         messages: [
           {
             role: 'system',
-            content: 'You verify whether candidate names are REAL, NAMED COMPANIES that DIRECTLY compete with a target brand. Use web search to confirm each candidate exists as a company (has a website, is a registered business, etc.). REJECT generic phrases, descriptive marketing copy, service categories, taglines, common nouns, and anything that is not the proper name of a specific company. A "direct competitor" sells substantially the same product/service to the same audience.',
+            content: 'You verify whether candidate names are REAL, NAMED COMPANIES that compete with a target brand. Use web search. Be GENEROUS — if a name plausibly matches a real company in the same industry, mark exists=true. Only mark exists=false when you are confident the name is a generic phrase, marketing copy, service category, or non-existent entity. For competitors in the same broad industry, mark isDirectCompetitor=true.',
           },
           {
             role: 'user',
@@ -662,9 +664,9 @@ Candidates to verify:
 ${candidates.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
 For EACH candidate, determine:
-- exists: Is this a real, named company you can find on the web? (true/false)
-- isDirectCompetitor: Does it directly compete with ${brandName} for the same customers? (true/false)
-- confidence: How confident are you (0.0 - 1.0)?
+- exists: Is this a real, named company you can find on the web? (true/false). Default to true if unsure.
+- isDirectCompetitor: Does it operate in the same broad industry as ${brandName}? (true/false). Default to true if unsure.
+- confidence: How confident are you in your verdict (0.0 - 1.0)?
 
 Return ONLY a JSON array in this exact shape, in the same order as the candidates above:
 [{"name":"<candidate>","exists":bool,"isDirectCompetitor":bool,"confidence":number}]
@@ -695,38 +697,41 @@ No prose, no markdown, just the JSON array.`,
     for (const v of verdicts) {
       if (v && typeof v.name === 'string') {
         verdictMap.set(normalizeEntityName(v.name), {
-          exists: !!v.exists,
-          isDirectCompetitor: !!v.isDirectCompetitor,
-          confidence: typeof v.confidence === 'number' ? v.confidence : 0,
+          exists: v.exists !== false, // default true if missing
+          isDirectCompetitor: v.isDirectCompetitor !== false, // default true if missing
+          confidence: typeof v.confidence === 'number' ? v.confidence : 0.5,
         });
       }
     }
 
-    const validated: string[] = [];
+    const kept: string[] = [];
     const rejected: Array<{ name: string; reason: string }> = [];
     for (const candidate of candidates) {
       const verdict = verdictMap.get(normalizeEntityName(candidate));
+      // No verdict returned → KEEP (don't punish candidates Perplexity skipped)
       if (!verdict) {
-        rejected.push({ name: candidate, reason: 'no verdict returned' });
+        kept.push(candidate);
         continue;
       }
-      if (verdict.exists && verdict.isDirectCompetitor && verdict.confidence >= 0.75) {
-        validated.push(candidate);
-      } else {
+      // Only reject if Perplexity is CONFIDENTLY wrong (>=0.7) about either field
+      const confidentlyRejected =
+        verdict.confidence >= 0.7 && (!verdict.exists || !verdict.isDirectCompetitor);
+      if (confidentlyRejected) {
         rejected.push({
           name: candidate,
           reason: `exists=${verdict.exists}, direct=${verdict.isDirectCompetitor}, conf=${verdict.confidence}`,
         });
+      } else {
+        kept.push(candidate);
       }
     }
 
-    console.log(`[AutoReport] Perplexity validation: kept ${validated.length}/${candidates.length}`);
+    console.log(`[AutoReport] Perplexity validation: kept ${kept.length}/${candidates.length}`);
     if (rejected.length > 0) {
       console.log('[AutoReport] Rejected by Perplexity:', rejected.map(r => `${r.name} (${r.reason})`).join('; '));
     }
 
-    // Defensive: if validation rejects everything, fall back to originals so we don't end up empty
-    return validated.length > 0 ? validated : candidates;
+    return kept.length > 0 ? kept : candidates;
   } catch (error) {
     console.error('[AutoReport] Perplexity validation error:', error);
     return candidates;
@@ -827,16 +832,27 @@ async function refineCompetitorCandidatesFromResults(
     }
   }
 
-  // Final gate: validate every remaining candidate against Perplexity grounded search.
-  // This is what kills fabricated/descriptive entries that survived everything else.
-  const validated = await validateCompetitorsWithPerplexity(
-    llmRefined,
-    brandName,
-    domain,
-    businessContext,
+  // Strongly-corroborated candidates (≥2 providers OR ≥3 total mentions) bypass Perplexity —
+  // cross-provider corroboration is itself strong evidence the entity exists.
+  // Only weakly-supported single-provider/single-mention candidates need grounded validation.
+  const strongKeys = new Set(
+    responseStats
+      .filter((s) => s.providers.size >= 2 || s.mentions >= 3)
+      .map((s) => normalizeEntityName(s.candidate)),
   );
 
-  return dedupeBrandNames(validated).slice(0, 15);
+  const trustedFromLLM = llmRefined.filter((c) => strongKeys.has(normalizeEntityName(c)));
+  const needsValidation = llmRefined.filter((c) => !strongKeys.has(normalizeEntityName(c)));
+
+  console.log(
+    `[AutoReport] Bypassing Perplexity for ${trustedFromLLM.length} strongly-corroborated candidates; validating ${needsValidation.length}`,
+  );
+
+  const validated = needsValidation.length > 0
+    ? await validateCompetitorsWithPerplexity(needsValidation, brandName, domain, businessContext)
+    : [];
+
+  return dedupeBrandNames([...trustedFromLLM, ...validated]).slice(0, 15);
 }
 
 /**
