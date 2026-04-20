@@ -69,8 +69,32 @@ const NON_COMPETITOR_ENTITIES = new Set([
 
 const GENERIC_COMPETITOR_TERMS = new Set([
   'agency', 'agencies', 'company', 'companies', 'firm', 'firms', 'service', 'services', 'solutions',
-  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'optimization', 'growth',
-  'consulting', 'tips', 'guide', 'ranked', 'consensus', 'implementation', 'small', 'legal', 'law'
+  'strategy', 'strategies', 'marketing', 'digital', 'media', 'website', 'websites', 'optimization', 'growth',
+  'consulting', 'consultancy', 'coaching', 'tips', 'guide', 'ranked', 'consensus', 'implementation',
+  'small', 'legal', 'law', 'performance', 'evergreen', 'fireproof', 'premium', 'professional',
+  'platform', 'platforms', 'tool', 'tools', 'software', 'product', 'products', 'system', 'systems',
+  'seo', 'sem', 'ppc', 'cro', 'cms', 'crm', 'erp', 'cfo', 'cmo', 'ceo', 'cto', 'coo',
+  'ai', 'ml', 'api', 'sdk', 'saas', 'b2b', 'b2c', 'roi', 'kpi',
+  // Common multi-word generics treated as phrases
+  'ai seo', 'ai marketing', 'cfo consulting', 'cmo consulting', 'seo agency', 'seo services',
+  'digital marketing', 'content marketing', 'paid search', 'organic search', 'lead generation',
+]);
+
+// Words that, when they appear as the LAST word in a candidate, indicate it's a descriptive phrase
+// rather than a brand name (e.g., "Fireproof Performance", "AI SEO consulting", "evergreen websites")
+const DESCRIPTIVE_TRAILING_WORDS = new Set([
+  'websites', 'website', 'services', 'solutions', 'platforms', 'platform', 'tools', 'software',
+  'products', 'systems', 'consulting', 'consultancy', 'coaching', 'agencies', 'agency',
+  'performance', 'optimization', 'marketing', 'strategy', 'strategies', 'growth', 'management',
+  'development', 'design', 'analytics', 'automation', 'generation', 'support', 'experience',
+]);
+
+// Adjectives/modifiers that mark a phrase as descriptive marketing copy, not a brand
+const DESCRIPTIVE_LEADING_MODIFIERS = new Set([
+  'conversion-friendly', 'seo-optimized', 'ai-powered', 'data-driven', 'cloud-based', 'high-performance',
+  'cost-effective', 'user-friendly', 'mobile-first', 'enterprise-grade', 'industry-leading',
+  'best-in-class', 'full-service', 'all-in-one', 'end-to-end', 'turnkey', 'custom', 'bespoke',
+  'affordable', 'premium', 'professional', 'specialized', 'dedicated', 'comprehensive',
 ]);
 
 // Common English words that get falsely detected as brand names due to capitalization at start of sentences
@@ -394,11 +418,43 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   // Also check with hyphens replaced by spaces and vice versa
   if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/-/g, ' '))) return false;
   if (NON_COMPETITOR_ENTITIES.has(normalized.replace(/\s+/g, '-'))) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(normalized)) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(normalized.replace(/-/g, ' '))) return false;
   if (COMMON_ENGLISH_WORDS.has(normalized)) return false;
   if (/^\d+$/.test(normalized)) return false;
-  if (normalized.split(' ').length > 4) return false;
-  if (normalized.split(' ').every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
-  if (normalized.split(' ').every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
+
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.length > 4) return false;
+  if (words.every((part) => GENERIC_COMPETITOR_TERMS.has(part))) return false;
+  if (words.every((part) => COMMON_ENGLISH_WORDS.has(part))) return false;
+
+  // Reject phrases that end with a descriptive trailing word (e.g., "Fireproof Performance",
+  // "evergreen websites", "AI SEO consulting", "CFO consulting"). These are categories, not brands.
+  if (words.length >= 2 && DESCRIPTIVE_TRAILING_WORDS.has(words[words.length - 1])) return false;
+
+  // Reject phrases that begin with a descriptive marketing modifier
+  // (e.g., "conversion-friendly SEO-optimized websites")
+  if (DESCRIPTIVE_LEADING_MODIFIERS.has(words[0])) return false;
+  // Also handle compound modifiers anywhere in the phrase
+  if (words.some((w) => DESCRIPTIVE_LEADING_MODIFIERS.has(w))) return false;
+
+  // Reject if the original (untrimmed) input contains a descriptive hyphenated adjective
+  // pattern like "X-friendly", "X-optimized", "X-powered", "X-driven", "X-based", "X-grade"
+  if (/\b[a-z]+-(?:friendly|optimized|powered|driven|based|grade|ready|focused|first|leading|class)\b/i.test(name)) {
+    return false;
+  }
+
+  // Multi-word phrases must be Title Case (every significant word starts with a capital letter or is a known acronym).
+  // This kills phrases like "AI SEO consulting" (lowercase "consulting") and "evergreen websites".
+  if (words.length >= 2) {
+    const originalWords = name.trim().split(/\s+/);
+    const titleCaseCount = originalWords.filter((w) => /^[A-Z0-9]/.test(w) || /^[A-Z]{2,6}$/.test(w)).length;
+    // Allow short connector words (of, the, and, &) to be lowercase; require all OTHER words to start uppercase
+    const significantWords = originalWords.filter((w) => !/^(of|the|and|&|for|to|in|on|at|de|la)$/i.test(w));
+    const significantCapitalized = significantWords.filter((w) => /^[A-Z0-9]/.test(w)).length;
+    if (significantCapitalized < significantWords.length) return false;
+    if (titleCaseCount === 0) return false;
+  }
 
   return true;
 }
@@ -478,8 +534,8 @@ function extractCompetitorCandidatesFromResults(
   results: ProviderResult[],
   brandName: string,
   domain: string,
-): string[] {
-  const counts = new Map<string, number>();
+): { candidate: string; providers: Set<string>; mentions: number }[] {
+  const stats = new Map<string, { candidate: string; providers: Set<string>; mentions: number }>();
 
   for (const result of results) {
     if (!result.response || result.response.startsWith('Error') || result.response.startsWith('Provider not') || result.response.startsWith('No AI Overview')) {
@@ -488,13 +544,20 @@ function extractCompetitorCandidatesFromResults(
 
     const candidates = extractBrandLikeCandidatesFromText(result.response, brandName, domain);
     for (const candidate of candidates) {
-      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+      const key = normalizeEntityName(candidate);
+      const existing = stats.get(key);
+      if (existing) {
+        existing.providers.add(result.provider);
+        existing.mentions += 1;
+      } else {
+        stats.set(key, { candidate, providers: new Set([result.provider]), mentions: 1 });
+      }
     }
   }
 
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([candidate]) => candidate);
+  return Array.from(stats.values()).sort((a, b) =>
+    b.providers.size - a.providers.size || b.mentions - a.mentions || a.candidate.localeCompare(b.candidate),
+  );
 }
 
 async function identifyCompetitorCandidates(
@@ -560,6 +623,116 @@ async function identifyCompetitorCandidates(
   return fallbackCandidates;
 }
 
+/**
+ * Validate that each candidate is a real, named company that competes with the brand.
+ * Uses Perplexity (grounded web search) so the model can actually verify the entity exists.
+ * Returns ONLY candidates with confidence >= 0.75 AND exists=true AND isDirectCompetitor=true.
+ */
+async function validateCompetitorsWithPerplexity(
+  candidates: string[],
+  brandName: string,
+  domain: string,
+  businessContext: string,
+): Promise<string[]> {
+  if (!PERPLEXITY_API_KEY || candidates.length === 0) return candidates;
+
+  const industryHint = businessContext.replace(/\s+/g, ' ').slice(0, 400);
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        temperature: 0,
+        messages: [
+          {
+            role: 'system',
+            content: 'You verify whether candidate names are REAL, NAMED COMPANIES that DIRECTLY compete with a target brand. Use web search to confirm each candidate exists as a company (has a website, is a registered business, etc.). REJECT generic phrases, descriptive marketing copy, service categories, taglines, common nouns, and anything that is not the proper name of a specific company. A "direct competitor" sells substantially the same product/service to the same audience.',
+          },
+          {
+            role: 'user',
+            content: `Target brand: ${brandName} (${domain})
+Industry context: ${industryHint || 'Unknown'}
+
+Candidates to verify:
+${candidates.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+For EACH candidate, determine:
+- exists: Is this a real, named company you can find on the web? (true/false)
+- isDirectCompetitor: Does it directly compete with ${brandName} for the same customers? (true/false)
+- confidence: How confident are you (0.0 - 1.0)?
+
+Return ONLY a JSON array in this exact shape, in the same order as the candidates above:
+[{"name":"<candidate>","exists":bool,"isDirectCompetitor":bool,"confidence":number}]
+
+No prose, no markdown, just the JSON array.`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`[AutoReport] Perplexity competitor validation failed: ${response.status}`);
+      return candidates;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim() || '';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.warn('[AutoReport] Perplexity validation returned no JSON, keeping originals');
+      return candidates;
+    }
+
+    const verdicts = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(verdicts)) return candidates;
+
+    const verdictMap = new Map<string, { exists: boolean; isDirectCompetitor: boolean; confidence: number }>();
+    for (const v of verdicts) {
+      if (v && typeof v.name === 'string') {
+        verdictMap.set(normalizeEntityName(v.name), {
+          exists: !!v.exists,
+          isDirectCompetitor: !!v.isDirectCompetitor,
+          confidence: typeof v.confidence === 'number' ? v.confidence : 0,
+        });
+      }
+    }
+
+    const validated: string[] = [];
+    const rejected: Array<{ name: string; reason: string }> = [];
+    for (const candidate of candidates) {
+      const verdict = verdictMap.get(normalizeEntityName(candidate));
+      if (!verdict) {
+        rejected.push({ name: candidate, reason: 'no verdict returned' });
+        continue;
+      }
+      if (verdict.exists && verdict.isDirectCompetitor && verdict.confidence >= 0.75) {
+        validated.push(candidate);
+      } else {
+        rejected.push({
+          name: candidate,
+          reason: `exists=${verdict.exists}, direct=${verdict.isDirectCompetitor}, conf=${verdict.confidence}`,
+        });
+      }
+    }
+
+    console.log(`[AutoReport] Perplexity validation: kept ${validated.length}/${candidates.length}`);
+    if (rejected.length > 0) {
+      console.log('[AutoReport] Rejected by Perplexity:', rejected.map(r => `${r.name} (${r.reason})`).join('; '));
+    }
+
+    // Defensive: if validation rejects everything, fall back to originals so we don't end up empty
+    return validated.length > 0 ? validated : candidates;
+  } catch (error) {
+    console.error('[AutoReport] Perplexity validation error:', error);
+    return candidates;
+  }
+}
+
 async function refineCompetitorCandidatesFromResults(
   domain: string,
   brandName: string,
@@ -567,82 +740,103 @@ async function refineCompetitorCandidatesFromResults(
   results: ProviderResult[],
   initialCandidates: string[],
 ): Promise<string[]> {
-  const responseCandidates = extractCompetitorCandidatesFromResults(results, brandName, domain);
-  const combinedCandidates = dedupeBrandNames([...responseCandidates, ...initialCandidates]).slice(0, 20);
+  const responseStats = extractCompetitorCandidatesFromResults(results, brandName, domain);
+  const responseCandidates = responseStats.map((s) => s.candidate);
+
+  // Multi-provider corroboration: candidates seen by ≥2 providers are "trusted"
+  // Single-provider candidates must survive the LLM refine + Perplexity validation gate
+  const trustedCandidates = responseStats
+    .filter((s) => s.providers.size >= 2)
+    .map((s) => s.candidate);
+  const singleProviderCandidates = responseStats
+    .filter((s) => s.providers.size < 2)
+    .map((s) => s.candidate);
+
+  console.log(
+    `[AutoReport] Response candidates: ${responseCandidates.length} (trusted ≥2 providers: ${trustedCandidates.length}, single-provider: ${singleProviderCandidates.length})`,
+  );
+
+  const combinedCandidates = dedupeBrandNames([
+    ...trustedCandidates,
+    ...singleProviderCandidates,
+    ...initialCandidates,
+  ]).slice(0, 20);
 
   if (combinedCandidates.length === 0) {
     return [];
   }
 
-  if (!OPENAI_API_KEY || responseCandidates.length === 0) {
-    return combinedCandidates.slice(0, 15);
-  }
+  let llmRefined: string[] = combinedCandidates;
 
-  try {
-    const snippets = results
-      .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
-      .map((result, index) => `Snippet ${index + 1} (${result.provider}): ${result.response.replace(/\s+/g, ' ').trim().slice(0, 260)}`)
-      .join('\n');
+  if (OPENAI_API_KEY && responseCandidates.length > 0) {
+    try {
+      const snippets = results
+        .filter((result) => result.response && !result.response.startsWith('Error') && !result.response.startsWith('Provider not') && !result.response.startsWith('No AI Overview'))
+        .map((result, index) => `Snippet ${index + 1} (${result.provider}): ${result.response.replace(/\s+/g, ' ').trim().slice(0, 260)}`)
+        .join('\n');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0,
-        max_tokens: 400,
-        messages: [
-          {
-            role: 'system',
-            content: 'You validate direct competitor brands for a company based on business context and AI response snippets. Return ONLY a JSON array of brand names that are true direct competitors and explicitly appear in the snippets or the provided candidate list. Exclude generic terms, publishers, directories, platforms, channels, and non-competitor entities.'
-          },
-          {
-            role: 'user',
-            content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness context:\n${businessContext || 'No business context available.'}\n\nInitial researched competitors:\n${initialCandidates.join(', ') || 'None'}\n\nAdditional brand-like names found in AI responses:\n${responseCandidates.join(', ') || 'None'}\n\nAI response snippets:\n${snippets}\n\nReturn only the final direct competitor brands as a JSON array of strings.`
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0,
+          max_tokens: 400,
+          messages: [
+            {
+              role: 'system',
+              content: 'You validate direct competitor brands for a company based on business context and AI response snippets. Return ONLY a JSON array of brand names that are (a) the proper name of a specific company, (b) explicitly appear in the snippets or candidate list, AND (c) are direct competitors to the target brand. STRICTLY EXCLUDE: descriptive phrases (e.g., "conversion-friendly websites"), service categories (e.g., "AI SEO", "CFO consulting"), marketing taglines (e.g., "Fireproof Performance"), common adjectives masquerading as brands (e.g., "Evergreen"), publishers, directories, platforms, channels. If unsure, leave it out.'
+            },
+            {
+              role: 'user',
+              content: `Company domain: ${domain}\nBrand name: ${brandName}\n\nBusiness context:\n${businessContext || 'No business context available.'}\n\nInitial researched competitors:\n${initialCandidates.join(', ') || 'None'}\n\nAdditional brand-like names found in AI responses:\n${responseCandidates.join(', ') || 'None'}\n\nAI response snippets:\n${snippets}\n\nReturn only the final direct competitor brands as a JSON array of strings.`
+            }
+          ]
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices[0]?.message?.content?.trim() || '';
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed)) {
+            const allowed = new Set(combinedCandidates.map((candidate) => normalizeEntityName(candidate)));
+            const refined = dedupeBrandNames(
+              parsed
+                .map((item: unknown) => typeof item === 'string' ? item : '')
+                .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
+                .filter((item: string) => allowed.has(normalizeEntityName(item)))
+            ).slice(0, 15);
+
+            if (refined.length > 0) {
+              llmRefined = refined;
+            }
           }
-        ]
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI competitor refinement error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content?.trim() || '';
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (Array.isArray(parsed)) {
-        const allowed = new Set(combinedCandidates.map((candidate) => normalizeEntityName(candidate)));
-        const refined = dedupeBrandNames(
-          parsed
-            .map((item: unknown) => typeof item === 'string' ? item : '')
-            .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
-            .filter((item: string) => allowed.has(normalizeEntityName(item)))
-        ).slice(0, 15);
-
-        if (refined.length > 0) {
-          return dedupeBrandNames([
-            ...responseCandidates,
-            ...refined,
-            ...initialCandidates,
-          ]).slice(0, 15);
         }
+      } else {
+        console.warn(`[AutoReport] OpenAI competitor refinement returned ${response.status}`);
       }
+    } catch (error) {
+      console.error('[AutoReport] Error refining competitor candidates from results:', error);
     }
-  } catch (error) {
-    console.error('[AutoReport] Error refining competitor candidates from results:', error);
   }
 
-  return dedupeBrandNames([
-    ...responseCandidates,
-    ...initialCandidates,
-  ]).slice(0, 15);
+  // Final gate: validate every remaining candidate against Perplexity grounded search.
+  // This is what kills fabricated/descriptive entries that survived everything else.
+  const validated = await validateCompetitorsWithPerplexity(
+    llmRefined,
+    brandName,
+    domain,
+    businessContext,
+  );
+
+  return dedupeBrandNames(validated).slice(0, 15);
 }
 
 /**
