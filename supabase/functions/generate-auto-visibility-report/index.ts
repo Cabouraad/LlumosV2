@@ -986,33 +986,33 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
+            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that real buyers would ask an AI assistant while evaluating providers in this category.
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
-- Prompts should be highly specific to what this business offers
-- Prioritize buyer-intent and vendor-comparison phrasing over educational how-to phrasing
-- At least 5 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
-- Avoid broad informational prompts unless they clearly imply provider selection
-- Think about how someone would search before they know the brand but while they are choosing a solution
-- Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
+- Prompts must be UNBRANDED (no specific company names anywhere)
+- All prompts should plausibly surface named firms, agencies, products, or competing brands
+
+REQUIRED MIX (exactly 8 prompts following this distribution):
+- 2 BROAD category prompts: "best [category]", "top [category] in [year]"
+- 3 LONG-TAIL intent prompts: include a specific buyer scenario, company size, geography, budget,
+  use case, or industry vertical (e.g. "best CRM for a 10-person law firm", "marketing agency for B2B SaaS startups under $5M ARR")
+- 2 COMPARISON / "vs" prompts: "X vs Y for [use case]" or "alternatives to [well-known incumbent] for [need]"
+- 1 BUYER-DECISION prompt: "How do I choose…", "What should I look for in…", that requires the AI to name providers
+
+Prompts must reflect what an actual buyer types when CHOOSING a provider, not what they type to learn the topic.`
           },
           {
             role: 'user',
             content: `Generate 8 unbranded AI search prompts for a business with domain "${domain}".
 
-${businessContext ? `BUSINESS RESEARCH (use this to make prompts highly relevant):
+${businessContext ? `BUSINESS RESEARCH (use this to ground prompts in the right niche, geography, customer size, and use cases):
 ${businessContext}` : 'Industry: General business'}
 
-Generate prompts that potential customers of THIS SPECIFIC business would search for. Examples:
-- For a running shoe company: "What are the best running shoes for marathon training?"
-- For a CRM software: "How do I choose a CRM for my small business?"
-- For a pizza restaurant: "Best pizza places near me with outdoor seating"
+Use the niche, ICP, geography, and competitors from the research to generate REALISTIC long-tail prompts. The more specific the better — vague prompts produce uninformative reports.
 
-If the company sells services, prefer prompts asking for the best firms, agencies, providers, programs, or consultants in that niche.
-
-Return ONLY a JSON array of 8 unbranded prompt strings, no other text:
-["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5", "prompt 6", "prompt 7", "prompt 8"]`
+Return ONLY a JSON array of 8 prompt strings, no other text:
+["broad 1", "broad 2", "long-tail 1", "long-tail 2", "long-tail 3", "vs 1", "vs 2", "buyer-decision 1"]`
           }
         ],
         temperature: 0,
