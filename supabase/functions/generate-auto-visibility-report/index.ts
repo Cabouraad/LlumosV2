@@ -2007,7 +2007,9 @@ async function generatePDF(
   domain: string,
   overallScore: number,
   results: ProviderResult[],
-  businessContext: string = ''
+  businessContext: string = '',
+  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
+  shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
