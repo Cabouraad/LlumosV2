@@ -986,33 +986,33 @@ async function generateIndustryPrompts(domain: string, businessContext: string):
         messages: [
           {
             role: 'system',
-            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that a real buyer would ask an AI assistant while evaluating providers in this category.
+            content: `You are an expert at generating AI search prompts for competitive visibility audits. Generate exactly 8 UNBRANDED prompts that real buyers would ask an AI assistant while evaluating providers in this category.
 
 CRITICAL RULES:
 - Do NOT include the brand name, company name, or domain in any prompt
-- Prompts should be highly specific to what this business offers
-- Prioritize buyer-intent and vendor-comparison phrasing over educational how-to phrasing
-- At least 5 prompts should be likely to surface named firms, agencies, programs, consultants, or competing brands
-- Avoid broad informational prompts unless they clearly imply provider selection
-- Think about how someone would search before they know the brand but while they are choosing a solution
-- Make prompts realistic - what would someone actually type into ChatGPT or Perplexity?`
+- Prompts must be UNBRANDED (no specific company names anywhere)
+- All prompts should plausibly surface named firms, agencies, products, or competing brands
+
+REQUIRED MIX (exactly 8 prompts following this distribution):
+- 2 BROAD category prompts: "best [category]", "top [category] in [year]"
+- 3 LONG-TAIL intent prompts: include a specific buyer scenario, company size, geography, budget,
+  use case, or industry vertical (e.g. "best CRM for a 10-person law firm", "marketing agency for B2B SaaS startups under $5M ARR")
+- 2 COMPARISON / "vs" prompts: "X vs Y for [use case]" or "alternatives to [well-known incumbent] for [need]"
+- 1 BUYER-DECISION prompt: "How do I choose…", "What should I look for in…", that requires the AI to name providers
+
+Prompts must reflect what an actual buyer types when CHOOSING a provider, not what they type to learn the topic.`
           },
           {
             role: 'user',
             content: `Generate 8 unbranded AI search prompts for a business with domain "${domain}".
 
-${businessContext ? `BUSINESS RESEARCH (use this to make prompts highly relevant):
+${businessContext ? `BUSINESS RESEARCH (use this to ground prompts in the right niche, geography, customer size, and use cases):
 ${businessContext}` : 'Industry: General business'}
 
-Generate prompts that potential customers of THIS SPECIFIC business would search for. Examples:
-- For a running shoe company: "What are the best running shoes for marathon training?"
-- For a CRM software: "How do I choose a CRM for my small business?"
-- For a pizza restaurant: "Best pizza places near me with outdoor seating"
+Use the niche, ICP, geography, and competitors from the research to generate REALISTIC long-tail prompts. The more specific the better — vague prompts produce uninformative reports.
 
-If the company sells services, prefer prompts asking for the best firms, agencies, providers, programs, or consultants in that niche.
-
-Return ONLY a JSON array of 8 unbranded prompt strings, no other text:
-["prompt 1", "prompt 2", "prompt 3", "prompt 4", "prompt 5", "prompt 6", "prompt 7", "prompt 8"]`
+Return ONLY a JSON array of 8 prompt strings, no other text:
+["broad 1", "broad 2", "long-tail 1", "long-tail 2", "long-tail 3", "vs 1", "vs 2", "buyer-decision 1"]`
           }
         ],
         temperature: 0,
@@ -1045,19 +1045,22 @@ Return ONLY a JSON array of 8 unbranded prompt strings, no other text:
 }
 
 function getDefaultPrompts(domain: string): string[] {
-  // Infer industry from domain for generic prompts
-  const domainPart = domain.replace(/\.(com|io|net|org|co|app)$/i, '').toLowerCase();
-  
-  // Generic industry prompts that don't mention the brand
+  const domainPart = domain.replace(/\.(com|io|net|org|co|app|ai|dev)$/i, '').toLowerCase();
+  const niche = domainPart.includes('crm') ? 'CRM' : 'business software';
+
   return [
-    `What are the best tools for ${domainPart.includes('crm') ? 'customer relationship management' : 'business productivity'}?`,
-    `How do I choose the right software for my business needs?`,
-    `What should I look for when evaluating SaaS solutions?`,
-    `Best practices for improving business efficiency with technology`,
-    `Top recommendations for enterprise software in 2025`,
-    `What are the most trusted providers in the ${domainPart} space?`,
-    `Compare the leading solutions for ${domainPart.includes('crm') ? 'CRM' : 'business'} management`,
-    `Which companies are best known for ${domainPart.includes('crm') ? 'customer management' : 'business solutions'}?`
+    // Broad
+    `What are the best ${niche} platforms in 2025?`,
+    `Top-rated ${niche} providers for growing companies`,
+    // Long-tail intent
+    `Best ${niche} for a 10-person team with a limited budget`,
+    `Which ${niche} is best for B2B companies in North America?`,
+    `Recommended ${niche} for an agency managing multiple clients`,
+    // Comparison / vs
+    `What are the best alternatives to the leading ${niche} platform?`,
+    `Compare the top ${niche} vendors on pricing, support, and integrations`,
+    // Buyer-decision
+    `How do I choose the right ${niche} provider for my business?`,
   ];
 }
 
@@ -1717,33 +1720,94 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 }
 
 /**
- * Calculate visibility score for a provider result
+ * Calculate visibility score for a provider result.
+ *
+ * Scoring rebalanced (A) to reduce the "presence cliff":
+ * - Mentioned at all: 35 (was 50, but combined with stronger bonuses gives a softer curve
+ *   while letting a single mention land in the 35-65 range instead of stranding at ~2/100 overall)
+ * - Strong recommendation: +25, Moderate: +12, Weak: +0
+ * - Position bonus: top-3 +20, top-5 +10
+ * - Positive context terms: +3 each (capped at +12)
  */
 function calculateProviderScore(result: ProviderResult): number {
-  let score = 0;
-  
-  if (result.brandMentioned) {
-    score += 50; // Base score for being mentioned
-    
-    // Bonus for brand appearing early in the response (first 300 chars = prominent placement)
-    // Use brandPosition if detected, otherwise check text position
-    if (result.brandPosition !== null && result.brandPosition <= 3) {
-      score += 25;
-    } else if (result.brandPosition !== null && result.brandPosition <= 5) {
-      score += 15;
-    }
-    // Note: firstMentionIndex removed — brandPosition already covers early-mention bonus
-    
-    // Bonus for positive context (simplified)
-    const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great'];
-    for (const term of positiveTerms) {
-      if (result.response.toLowerCase().includes(term)) {
-        score += 5;
-      }
-    }
+  if (!result.brandMentioned) return 0;
+
+  let score = 35;
+
+  if (result.recommendationStrength === 'strong') score += 25;
+  else if (result.recommendationStrength === 'moderate') score += 12;
+
+  if (result.brandPosition !== null && result.brandPosition <= 3) score += 20;
+  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 10;
+
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
+  let posBonus = 0;
+  const lower = result.response.toLowerCase();
+  for (const term of positiveTerms) {
+    if (lower.includes(term)) posBonus += 3;
   }
+  score += Math.min(posBonus, 12);
 
   return Math.min(score, 100);
+}
+
+/**
+ * Category visibility diagnostic (D).
+ * Tells us whether 0 mentions are because the brand is invisible, or because the
+ * AI categorically doesn't surface ANY brand-style answer for this category.
+ */
+function computeCategoryVisibility(results: ProviderResult[]): {
+  coverage: number;
+  label: 'Active Category' | 'Sparse Category' | 'Invisible Category';
+  adjustment: number;
+  detail: string;
+} {
+  const valid = results.filter(
+    r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
+  );
+  if (valid.length === 0) {
+    return { coverage: 0, label: 'Invisible Category', adjustment: 0, detail: 'No valid AI responses to evaluate.' };
+  }
+  const withAnyBrand = valid.filter(r => r.brandMentioned || (r.competitors && r.competitors.length > 0)).length;
+  const coverage = withAnyBrand / valid.length;
+
+  if (coverage >= 0.6) {
+    return {
+      coverage,
+      label: 'Active Category',
+      adjustment: 0,
+      detail: `AI search engines name specific brands in ${Math.round(coverage * 100)}% of these queries — this is a competitive, brand-aware category.`,
+    };
+  }
+  if (coverage >= 0.25) {
+    return {
+      coverage,
+      label: 'Sparse Category',
+      adjustment: 5,
+      detail: `AI search engines name specific brands in only ${Math.round(coverage * 100)}% of these queries. Brand visibility is harder to earn here, so any mention counts more.`,
+    };
+  }
+  return {
+    coverage,
+    label: 'Invisible Category',
+    adjustment: 10,
+    detail: `AI search engines almost never name specific brands for these queries (${Math.round(coverage * 100)}% coverage). Low scores often reflect the entire category being absent, not just your brand.`,
+  };
+}
+
+/**
+ * Share of Voice — fraction of all brand mentions that are YOUR brand.
+ */
+function computeShareOfVoice(results: ProviderResult[]): { sov: number; brandMentions: number; competitorMentions: number } {
+  let brandMentions = 0;
+  let competitorMentions = 0;
+  for (const r of results) {
+    if (r.brandMentioned) brandMentions += 1;
+    competitorMentions += (r.competitors?.length || 0);
+  }
+  const total = brandMentions + competitorMentions;
+  const sov = total === 0 ? 0 : brandMentions / total;
+  return { sov, brandMentions, competitorMentions };
 }
 
 /**
@@ -1943,7 +2007,9 @@ async function generatePDF(
   domain: string,
   overallScore: number,
   results: ProviderResult[],
-  businessContext: string = ''
+  businessContext: string = '',
+  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
+  shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -2257,6 +2323,24 @@ async function generatePDF(
     ? `Your score is ${bDiff} points above the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`
     : `Your score is ${Math.abs(bDiff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`;
   y = drawCalloutBox(page, bText, y, bDiff >= 0 ? green : red);
+
+  // Category visibility diagnostic (D) — clarifies whether low scores are due to
+  // invisible brand or invisible category.
+  if (categoryDiagnostic) {
+    const catColor =
+      categoryDiagnostic.label === 'Active Category' ? green :
+      categoryDiagnostic.label === 'Sparse Category' ? amber : red;
+    const catText = `Category Coverage: ${categoryDiagnostic.label}. ${categoryDiagnostic.detail}`;
+    y = drawCalloutBox(page, catText, y, catColor);
+  }
+
+  // Share of Voice callout — context for the score
+  if (shareOfVoiceInfo && (shareOfVoiceInfo.brandMentions + shareOfVoiceInfo.competitorMentions) > 0) {
+    const sovPct = Math.round(shareOfVoiceInfo.sov * 100);
+    const sovText = `Share of Voice: ${sovPct}% (${shareOfVoiceInfo.brandMentions} mentions of your brand vs. ${shareOfVoiceInfo.competitorMentions} competitor mentions across all AI responses).`;
+    const sovColor = sovPct >= 30 ? green : sovPct >= 10 ? amber : red;
+    y = drawCalloutBox(page, sovText, y, sovColor);
+  }
 
   // ====================== PAGE 3: PLATFORM PERFORMANCE ======================
   page = newPage();
@@ -3043,17 +3127,25 @@ serve(async (req) => {
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
-    // Step 3: Calculate overall score
+    // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    const overallScore = validResults.length > 0 
+    const baseScore = validResults.length > 0
       ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
       : 0;
 
-    console.log(`[AutoReport] Overall score: ${overallScore}`);
+    const categoryVisibility = computeCategoryVisibility(allResults);
+    const shareOfVoice = computeShareOfVoice(validResults);
+
+    // Share of Voice bonus: up to +10 when brand dominates the conversation
+    const sovBonus = Math.round(shareOfVoice.sov * 10);
+
+    const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
+
+    console.log(`[AutoReport] Score breakdown — base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
@@ -3117,6 +3209,22 @@ serve(async (req) => {
             emailSent,
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
+            scoreBreakdown: {
+              base: baseScore,
+              categoryAdjustment: categoryVisibility.adjustment,
+              shareOfVoiceBonus: sovBonus,
+              final: overallScore,
+            },
+            categoryVisibility: {
+              coverage: Number(categoryVisibility.coverage.toFixed(2)),
+              label: categoryVisibility.label,
+              detail: categoryVisibility.detail,
+            },
+            shareOfVoice: {
+              ratio: Number(shareOfVoice.sov.toFixed(2)),
+              brandMentions: shareOfVoice.brandMentions,
+              competitorMentions: shareOfVoice.competitorMentions,
+            },
           },
         });
       if (insertError) {
@@ -3135,7 +3243,9 @@ serve(async (req) => {
         reportGeneratedAt: new Date().toISOString(),
         calculatedScore: overallScore,
         promptsRun: prompts.length,
-        providersQueried: 3,
+        providersQueried: 4,
+        categoryVisibility: categoryVisibility.label,
+        shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
         emailSent
       }
     };
