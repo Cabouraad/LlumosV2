@@ -2324,6 +2324,24 @@ async function generatePDF(
     : `Your score is ${Math.abs(bDiff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`;
   y = drawCalloutBox(page, bText, y, bDiff >= 0 ? green : red);
 
+  // Category visibility diagnostic (D) — clarifies whether low scores are due to
+  // invisible brand or invisible category.
+  if (categoryDiagnostic) {
+    const catColor =
+      categoryDiagnostic.label === 'Active Category' ? green :
+      categoryDiagnostic.label === 'Sparse Category' ? amber : red;
+    const catText = `Category Coverage: ${categoryDiagnostic.label}. ${categoryDiagnostic.detail}`;
+    y = drawCalloutBox(page, catText, y, catColor);
+  }
+
+  // Share of Voice callout — context for the score
+  if (shareOfVoiceInfo && (shareOfVoiceInfo.brandMentions + shareOfVoiceInfo.competitorMentions) > 0) {
+    const sovPct = Math.round(shareOfVoiceInfo.sov * 100);
+    const sovText = `Share of Voice: ${sovPct}% (${shareOfVoiceInfo.brandMentions} mentions of your brand vs. ${shareOfVoiceInfo.competitorMentions} competitor mentions across all AI responses).`;
+    const sovColor = sovPct >= 30 ? green : sovPct >= 10 ? amber : red;
+    y = drawCalloutBox(page, sovText, y, sovColor);
+  }
+
   // ====================== PAGE 3: PLATFORM PERFORMANCE ======================
   page = newPage();
   y = H - 10;
