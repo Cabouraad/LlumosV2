@@ -3189,6 +3189,22 @@ serve(async (req) => {
             emailSent,
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
+            scoreBreakdown: {
+              base: baseScore,
+              categoryAdjustment: categoryVisibility.adjustment,
+              shareOfVoiceBonus: sovBonus,
+              final: overallScore,
+            },
+            categoryVisibility: {
+              coverage: Number(categoryVisibility.coverage.toFixed(2)),
+              label: categoryVisibility.label,
+              detail: categoryVisibility.detail,
+            },
+            shareOfVoice: {
+              ratio: Number(shareOfVoice.sov.toFixed(2)),
+              brandMentions: shareOfVoice.brandMentions,
+              competitorMentions: shareOfVoice.competitorMentions,
+            },
           },
         });
       if (insertError) {
@@ -3207,7 +3223,9 @@ serve(async (req) => {
         reportGeneratedAt: new Date().toISOString(),
         calculatedScore: overallScore,
         promptsRun: prompts.length,
-        providersQueried: 3,
+        providersQueried: 4,
+        categoryVisibility: categoryVisibility.label,
+        shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
         emailSent
       }
     };
