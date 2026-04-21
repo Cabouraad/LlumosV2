@@ -1045,19 +1045,22 @@ Return ONLY a JSON array of 8 prompt strings, no other text:
 }
 
 function getDefaultPrompts(domain: string): string[] {
-  // Infer industry from domain for generic prompts
-  const domainPart = domain.replace(/\.(com|io|net|org|co|app)$/i, '').toLowerCase();
-  
-  // Generic industry prompts that don't mention the brand
+  const domainPart = domain.replace(/\.(com|io|net|org|co|app|ai|dev)$/i, '').toLowerCase();
+  const niche = domainPart.includes('crm') ? 'CRM' : 'business software';
+
   return [
-    `What are the best tools for ${domainPart.includes('crm') ? 'customer relationship management' : 'business productivity'}?`,
-    `How do I choose the right software for my business needs?`,
-    `What should I look for when evaluating SaaS solutions?`,
-    `Best practices for improving business efficiency with technology`,
-    `Top recommendations for enterprise software in 2025`,
-    `What are the most trusted providers in the ${domainPart} space?`,
-    `Compare the leading solutions for ${domainPart.includes('crm') ? 'CRM' : 'business'} management`,
-    `Which companies are best known for ${domainPart.includes('crm') ? 'customer management' : 'business solutions'}?`
+    // Broad
+    `What are the best ${niche} platforms in 2025?`,
+    `Top-rated ${niche} providers for growing companies`,
+    // Long-tail intent
+    `Best ${niche} for a 10-person team with a limited budget`,
+    `Which ${niche} is best for B2B companies in North America?`,
+    `Recommended ${niche} for an agency managing multiple clients`,
+    // Comparison / vs
+    `What are the best alternatives to the leading ${niche} platform?`,
+    `Compare the top ${niche} vendors on pricing, support, and integrations`,
+    // Buyer-decision
+    `How do I choose the right ${niche} provider for my business?`,
   ];
 }
 
