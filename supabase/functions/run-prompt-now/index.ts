@@ -706,3 +706,54 @@ async function executeGoogleAio(promptText: string) {
   }
 }
 
+async function executeClaude(promptText: string) {
+  // Check for fake provider mode in E2E testing
+  if (Deno.env.get('E2E_FAKE_PROVIDERS') === 'true') {
+    console.log('[E2E] Using fake Claude provider (runPromptNow)');
+    const { extractBrands } = await import('../../lib/providers/fake.ts');
+    const result = await extractBrands(promptText, 'claude');
+    return {
+      text: result.responseText,
+      tokenIn: result.tokenIn,
+      tokenOut: result.tokenOut,
+      citations: null
+    };
+  }
+
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) throw new Error('Anthropic API key not configured');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1000,
+      system: 'You are a helpful AI assistant. When providing information, cite credible sources by including relevant URLs as inline citations using the format [Source Title](https://example.com). Include at least 2-3 sources when possible.',
+      messages: [{ role: 'user', content: promptText }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  const responseText = (data.content || []).map((block: any) => block.text || '').join('\n').trim();
+
+  // Claude does not natively return citations — extract markdown-style links from response text
+  const citations = extractOpenAICitations(responseText, (this as any).brandCatalog);
+
+  return {
+    text: responseText,
+    tokenIn: data.usage?.input_tokens || 0,
+    tokenOut: data.usage?.output_tokens || 0,
+    citations
+  };
+}
+
