@@ -478,14 +478,88 @@ function parseCompetitorCandidatesFromResearch(
     .replace(/\[[^\]]+\]/g, ' ')
     .split(/\n\n|\r\n\r\n/)[0];
 
-  for (const rawPart of competitorSection.split(/,|;|\n|•|·|\||\s+and\s+/i)) {
-    const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
-    if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
-      candidates.push(cleaned);
+  // Split on strong delimiters first (newlines, bullets, semicolons, pipes).
+  // Do NOT split on bare commas here — multi-part firm names like
+  // "Skadden, Arps, Slate, Meagher & Flom LLP" must stay intact.
+  const segments = competitorSection.split(/\n|\r|•|·|\||;/);
+  for (const segment of segments) {
+    for (const rawPart of splitFirmAwareList(segment)) {
+      const cleaned = rawPart.trim().replace(/^[-–—\d.\s]+/, '').trim();
+      if (isLikelyCompetitorBrand(cleaned, brandName, domain)) {
+        candidates.push(cleaned);
+      }
     }
   }
 
   return dedupeBrandNames(candidates).slice(0, 15);
+}
+
+/**
+ * Split a comma/and-separated list of brand or firm names into individual entries
+ * while preserving multi-part firm names that contain internal commas (e.g.
+ * "Skadden, Arps, Slate, Meagher & Flom LLP" or "Wachtell, Lipton, Rosen & Katz").
+ *
+ * Heuristic: tokenize on commas and the word "and"/"&" (when used as a separator),
+ * then greedily merge consecutive comma-joined tokens that look like surname
+ * fragments of a single firm. A run of comma-joined Title-Case single-word tokens
+ * that terminates with an "& Word" tail or a firm suffix (LLP, LLC, PC, PLLC, PA,
+ * LP, Inc, Ltd, Group, Partners) is treated as one firm name.
+ */
+function splitFirmAwareList(input: string): string[] {
+  if (!input) return [];
+
+  // First split on " and " used as a list separator (but keep "&" inside names).
+  const andSplit = input.split(/\s+and\s+/i);
+
+  const FIRM_SUFFIX_RE = /\b(LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Group|Partners|Co\.?)$/i;
+  const SURNAME_FRAGMENT_RE = /^[A-Z][A-Za-z'’.-]+$/; // single Title-Case token
+
+  const results: string[] = [];
+
+  for (const chunk of andSplit) {
+    const tokens = chunk.split(',').map((t) => t.trim()).filter(Boolean);
+    if (tokens.length === 0) continue;
+
+    let buffer: string[] = [];
+    const flush = () => {
+      if (buffer.length === 0) return;
+      results.push(buffer.join(', '));
+      buffer = [];
+    };
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const isLast = i === tokens.length - 1;
+      const isFragment = SURNAME_FRAGMENT_RE.test(token);
+      const endsWithAmpTail = /&\s+[A-Z][A-Za-z'’.-]+/.test(token);
+      const endsWithFirmSuffix = FIRM_SUFFIX_RE.test(token);
+
+      if (buffer.length === 0) {
+        buffer.push(token);
+        // If standalone token is clearly a complete name, flush immediately when
+        // the next token doesn't look like a continuation of THIS firm.
+        if (isLast || (!SURNAME_FRAGMENT_RE.test(tokens[i + 1] ?? '') && !/^&/.test(tokens[i + 1] ?? ''))) {
+          // Only flush if current token isn't itself a bare surname fragment
+          // waiting for a tail — bare fragments get merged with whatever follows.
+          if (!isFragment || endsWithAmpTail || endsWithFirmSuffix || token.includes(' ')) {
+            flush();
+          }
+        }
+      } else {
+        // We're already accumulating a multi-part firm name.
+        buffer.push(token);
+        // Terminate the firm name when we hit a token containing "& Word" or a firm suffix.
+        if (endsWithAmpTail || endsWithFirmSuffix || /&/.test(token)) {
+          flush();
+        } else if (isLast) {
+          flush();
+        }
+      }
+    }
+    flush();
+  }
+
+  return results;
 }
 
 function extractBrandLikeCandidatesFromText(
@@ -523,7 +597,9 @@ function extractBrandLikeCandidatesFromText(
   }
 
   for (const match of text.matchAll(/(?:include|includes|including|recommend|recommended|options(?:\s+include)?|such as|alternatives?\s+(?:include|are)|platforms?\s+(?:include|like))\s+([^.;:\n]{0,140})/gi)) {
-    for (const rawPart of match[1].split(/,|;|\/|\s+and\s+/i)) {
+    // Use firm-aware splitter so multi-part firm names (e.g. "Skadden, Arps, Slate,
+    // Meagher & Flom LLP") aren't fragmented into individual surnames.
+    for (const rawPart of splitFirmAwareList(match[1].replace(/\//g, ','))) {
       addCandidate(rawPart);
     }
   }
