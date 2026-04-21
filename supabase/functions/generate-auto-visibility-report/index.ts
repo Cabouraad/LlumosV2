@@ -2631,9 +2631,9 @@ async function generatePDF(
 
     // Strength blocks
     const blockX = M + 140;
-    for (let i = 0; i < provResults.length && i < 5; i++) {
+    for (let i = 0; i < provResults.length && i < 8; i++) {
       const s = provResults[i].recommendationStrength;
-      page.drawRectangle({ x: blockX + i * 22, y: y - 1, width: 18, height: 12, color: strengthColors[s] });
+      page.drawRectangle({ x: blockX + i * 14, y: y - 1, width: 12, height: 12, color: strengthColors[s] });
     }
 
     page.drawText(strengthLabels[dominant], { x: M + 260, y, size: 8, font: helveticaBold, color: strengthColors[dominant] });
