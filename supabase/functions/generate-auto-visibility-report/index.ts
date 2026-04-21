@@ -597,7 +597,9 @@ function extractBrandLikeCandidatesFromText(
   }
 
   for (const match of text.matchAll(/(?:include|includes|including|recommend|recommended|options(?:\s+include)?|such as|alternatives?\s+(?:include|are)|platforms?\s+(?:include|like))\s+([^.;:\n]{0,140})/gi)) {
-    for (const rawPart of match[1].split(/,|;|\/|\s+and\s+/i)) {
+    // Use firm-aware splitter so multi-part firm names (e.g. "Skadden, Arps, Slate,
+    // Meagher & Flom LLP") aren't fragmented into individual surnames.
+    for (const rawPart of splitFirmAwareList(match[1].replace(/\//g, ','))) {
       addCandidate(rawPart);
     }
   }
