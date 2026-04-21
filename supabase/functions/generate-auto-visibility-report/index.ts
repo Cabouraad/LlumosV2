@@ -7,6 +7,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY");
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -1324,6 +1325,63 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
+    result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+
+  return result;
+}
+
+/**
+ * Query Claude (Anthropic)
+ */
+async function queryClaude(prompt: string, brandProfile: BrandProfile, competitorCandidates: string[]): Promise<ProviderResult> {
+  const result: ProviderResult = {
+    provider: 'Claude',
+    prompt,
+    response: '',
+    brandMentioned: false,
+    competitors: [],
+    score: 0,
+    sentiment: 'not_mentioned',
+    recommendationStrength: 'absent',
+    brandPosition: null,
+  };
+
+  if (!ANTHROPIC_API_KEY) {
+    result.response = 'Provider not configured';
+    return result;
+  }
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`Claude error: ${response.status} ${response.statusText} — ${bodyText.slice(0, 300)}`);
+    }
+
+    const data = await response.json();
+    result.response = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
+    result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
+    result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
+    result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
+  } catch (error) {
+    console.error('[AutoReport] Claude error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 
@@ -2959,13 +3017,14 @@ serve(async (req) => {
     const allResults: ProviderResult[] = [];
 
     for (const prompt of prompts) {
-      const [chatgptResult, perplexityResult, googleResult] = await Promise.all([
+      const [chatgptResult, perplexityResult, claudeResult, googleResult] = await Promise.all([
         queryChatGPT(prompt, brandProfile, competitorCandidates),
         queryPerplexity(prompt, brandProfile, competitorCandidates),
+        queryClaude(prompt, brandProfile, competitorCandidates),
         queryGoogleAIO(prompt, brandProfile, competitorCandidates)
       ]);
 
-      allResults.push(chatgptResult, perplexityResult, googleResult);
+      allResults.push(chatgptResult, perplexityResult, claudeResult, googleResult);
     }
 
     // Step 5: Refine competitors using actual AI response text
