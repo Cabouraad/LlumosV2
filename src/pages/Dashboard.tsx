@@ -198,15 +198,14 @@ export default function Dashboard() {
 
   // Compute competitor presence chart data
   const competitorChartData = useMemo(() => {
+    const presenceDaily = (dashboardData as any)?.presenceDaily as
+      | Array<{ date: string; total: number; present: number; competitorPresence: Record<string, number> }>
+      | undefined;
     const responses = dashboardData?.responses as any[] | undefined;
-    if (!responses || competitorData.length === 0) {
-      return [];
-    }
+    if (competitorData.length === 0) return [];
 
     const DAY_MS = 24 * 60 * 60 * 1000;
     const now = new Date();
-
-    // Same 7-day window as before: 6 days ago midnight -> today
     const baseDay = new Date(now);
     baseDay.setHours(0, 0, 0, 0);
     baseDay.setDate(baseDay.getDate() - 6);
@@ -223,38 +222,57 @@ export default function Dashboard() {
     const orgPresentCounts = new Array(7).fill(0);
     const competitorHitCounts: number[][] = Array.from({ length: 7 }, () => new Array(competitorData.length).fill(0));
 
-    for (const response of responses) {
-      if (!response) continue;
-      const status = response.status;
-      if (status !== 'success' && status !== 'completed') continue;
-
-      const ts = Date.parse(response.run_at || response.created_at);
-      if (!Number.isFinite(ts) || ts < baseDayMs || ts >= endMs) continue;
-
-      const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
-      if (dayIndex < 0 || dayIndex >= 7) continue;
-
-      totals[dayIndex]++;
-      if (response.org_brand_present === true) orgPresentCounts[dayIndex]++;
-
-      // competitor presence (count each response at most once per competitor)
-      const raw = response.competitors_json;
-      let arr: string[] = [];
-      if (Array.isArray(raw)) arr = raw;
-      else if (typeof raw === 'string') arr = [raw];
-      else if (raw != null) arr = [String(raw)];
-
-      if (arr.length > 0) {
-        const seen = new Set<number>();
-        for (const item of arr) {
-          if (!item) continue;
-          const idx = competitorIndex.get(String(item).toLowerCase().trim());
-          if (idx !== undefined) seen.add(idx);
-        }
-        for (const idx of seen) {
-          competitorHitCounts[dayIndex][idx]++;
+    // Prefer pre-aggregated daily data from RPC (lean payload)
+    if (Array.isArray(presenceDaily) && presenceDaily.length > 0) {
+      for (const row of presenceDaily) {
+        const ts = Date.parse(row.date);
+        if (!Number.isFinite(ts) || ts < baseDayMs || ts >= endMs) continue;
+        const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
+        if (dayIndex < 0 || dayIndex >= 7) continue;
+        totals[dayIndex] += row.total || 0;
+        orgPresentCounts[dayIndex] += row.present || 0;
+        const cp = row.competitorPresence || {};
+        for (const [name, hits] of Object.entries(cp)) {
+          const idx = competitorIndex.get(String(name).toLowerCase().trim());
+          if (idx !== undefined) competitorHitCounts[dayIndex][idx] += Number(hits) || 0;
         }
       }
+    } else if (Array.isArray(responses)) {
+      // Fallback: legacy raw responses path
+      for (const response of responses) {
+        if (!response) continue;
+        const status = response.status;
+        if (status !== 'success' && status !== 'completed') continue;
+
+        const ts = Date.parse(response.run_at || response.created_at);
+        if (!Number.isFinite(ts) || ts < baseDayMs || ts >= endMs) continue;
+
+        const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
+        if (dayIndex < 0 || dayIndex >= 7) continue;
+
+        totals[dayIndex]++;
+        if (response.org_brand_present === true) orgPresentCounts[dayIndex]++;
+
+        const raw = response.competitors_json;
+        let arr: string[] = [];
+        if (Array.isArray(raw)) arr = raw;
+        else if (typeof raw === 'string') arr = [raw];
+        else if (raw != null) arr = [String(raw)];
+
+        if (arr.length > 0) {
+          const seen = new Set<number>();
+          for (const item of arr) {
+            if (!item) continue;
+            const idx = competitorIndex.get(String(item).toLowerCase().trim());
+            if (idx !== undefined) seen.add(idx);
+          }
+          for (const idx of seen) {
+            competitorHitCounts[dayIndex][idx]++;
+          }
+        }
+      }
+    } else {
+      return [];
     }
 
     const allDays: any[] = [];
