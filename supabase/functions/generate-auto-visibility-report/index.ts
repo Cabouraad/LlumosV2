@@ -1717,33 +1717,94 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 }
 
 /**
- * Calculate visibility score for a provider result
+ * Calculate visibility score for a provider result.
+ *
+ * Scoring rebalanced (A) to reduce the "presence cliff":
+ * - Mentioned at all: 35 (was 50, but combined with stronger bonuses gives a softer curve
+ *   while letting a single mention land in the 35-65 range instead of stranding at ~2/100 overall)
+ * - Strong recommendation: +25, Moderate: +12, Weak: +0
+ * - Position bonus: top-3 +20, top-5 +10
+ * - Positive context terms: +3 each (capped at +12)
  */
 function calculateProviderScore(result: ProviderResult): number {
-  let score = 0;
-  
-  if (result.brandMentioned) {
-    score += 50; // Base score for being mentioned
-    
-    // Bonus for brand appearing early in the response (first 300 chars = prominent placement)
-    // Use brandPosition if detected, otherwise check text position
-    if (result.brandPosition !== null && result.brandPosition <= 3) {
-      score += 25;
-    } else if (result.brandPosition !== null && result.brandPosition <= 5) {
-      score += 15;
-    }
-    // Note: firstMentionIndex removed — brandPosition already covers early-mention bonus
-    
-    // Bonus for positive context (simplified)
-    const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great'];
-    for (const term of positiveTerms) {
-      if (result.response.toLowerCase().includes(term)) {
-        score += 5;
-      }
-    }
+  if (!result.brandMentioned) return 0;
+
+  let score = 35;
+
+  if (result.recommendationStrength === 'strong') score += 25;
+  else if (result.recommendationStrength === 'moderate') score += 12;
+
+  if (result.brandPosition !== null && result.brandPosition <= 3) score += 20;
+  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 10;
+
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
+  let posBonus = 0;
+  const lower = result.response.toLowerCase();
+  for (const term of positiveTerms) {
+    if (lower.includes(term)) posBonus += 3;
   }
+  score += Math.min(posBonus, 12);
 
   return Math.min(score, 100);
+}
+
+/**
+ * Category visibility diagnostic (D).
+ * Tells us whether 0 mentions are because the brand is invisible, or because the
+ * AI categorically doesn't surface ANY brand-style answer for this category.
+ */
+function computeCategoryVisibility(results: ProviderResult[]): {
+  coverage: number;
+  label: 'Active Category' | 'Sparse Category' | 'Invisible Category';
+  adjustment: number;
+  detail: string;
+} {
+  const valid = results.filter(
+    r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
+  );
+  if (valid.length === 0) {
+    return { coverage: 0, label: 'Invisible Category', adjustment: 0, detail: 'No valid AI responses to evaluate.' };
+  }
+  const withAnyBrand = valid.filter(r => r.brandMentioned || (r.competitors && r.competitors.length > 0)).length;
+  const coverage = withAnyBrand / valid.length;
+
+  if (coverage >= 0.6) {
+    return {
+      coverage,
+      label: 'Active Category',
+      adjustment: 0,
+      detail: `AI search engines name specific brands in ${Math.round(coverage * 100)}% of these queries — this is a competitive, brand-aware category.`,
+    };
+  }
+  if (coverage >= 0.25) {
+    return {
+      coverage,
+      label: 'Sparse Category',
+      adjustment: 5,
+      detail: `AI search engines name specific brands in only ${Math.round(coverage * 100)}% of these queries. Brand visibility is harder to earn here, so any mention counts more.`,
+    };
+  }
+  return {
+    coverage,
+    label: 'Invisible Category',
+    adjustment: 10,
+    detail: `AI search engines almost never name specific brands for these queries (${Math.round(coverage * 100)}% coverage). Low scores often reflect the entire category being absent, not just your brand.`,
+  };
+}
+
+/**
+ * Share of Voice — fraction of all brand mentions that are YOUR brand.
+ */
+function computeShareOfVoice(results: ProviderResult[]): { sov: number; brandMentions: number; competitorMentions: number } {
+  let brandMentions = 0;
+  let competitorMentions = 0;
+  for (const r of results) {
+    if (r.brandMentioned) brandMentions += 1;
+    competitorMentions += (r.competitors?.length || 0);
+  }
+  const total = brandMentions + competitorMentions;
+  const sov = total === 0 ? 0 : brandMentions / total;
+  return { sov, brandMentions, competitorMentions };
 }
 
 /**
