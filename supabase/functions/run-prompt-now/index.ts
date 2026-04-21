@@ -167,6 +167,9 @@ Deno.serve(async (req) => {
           case 'google_ai_overview':
             response = await executeGoogleAio(prompt.text);
             break;
+          case 'claude':
+            response = await executeClaude.call(executionContext, prompt.text);
+            break;
           default:
             console.log(`Unknown provider: ${provider.name}`);
             continue;
@@ -220,7 +223,9 @@ Deno.serve(async (req) => {
             ? 'sonar' 
             : provider.name === 'google_ai_overview'
               ? 'google-aio'
-              : 'gemini-2.0-flash-lite';
+              : provider.name === 'claude'
+                ? 'claude-3-5-sonnet-20241022'
+                : 'gemini-2.0-flash-lite';
 
           const { data: pprData, error: pprError } = await supabase
             .from('prompt_provider_responses')
@@ -305,7 +310,9 @@ Deno.serve(async (req) => {
             ? 'sonar' 
             : provider.name === 'google_ai_overview'
               ? 'google-aio'
-              : 'gemini-2.0-flash-lite';
+              : provider.name === 'claude'
+                ? 'claude-3-5-sonnet-20241022'
+                : 'gemini-2.0-flash-lite';
 
         await supabase
           .from('prompt_provider_responses')
