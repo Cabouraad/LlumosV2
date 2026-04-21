@@ -220,7 +220,7 @@ async function executeClaude(promptText: string): Promise<{ responseText: string
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5',
       max_tokens: 2000,
       system: 'You are a helpful AI assistant. When providing information, cite credible sources by including relevant URLs as inline citations using the format [Source Title](https://example.com). Include at least 2-3 sources when possible.',
       messages: [{ role: 'user', content: promptText }],

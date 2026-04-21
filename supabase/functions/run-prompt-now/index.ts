@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
             : provider.name === 'google_ai_overview'
               ? 'google-aio'
               : provider.name === 'claude'
-                ? 'claude-3-5-sonnet-20241022'
+                ? 'claude-sonnet-4-5'
                 : 'gemini-2.0-flash-lite';
 
           const { data: pprData, error: pprError } = await supabase
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
             : provider.name === 'google_ai_overview'
               ? 'google-aio'
               : provider.name === 'claude'
-                ? 'claude-3-5-sonnet-20241022'
+                ? 'claude-sonnet-4-5'
                 : 'gemini-2.0-flash-lite';
 
         await supabase
@@ -731,7 +731,7 @@ async function executeClaude(promptText: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5',
       max_tokens: 1000,
       system: 'You are a helpful AI assistant. When providing information, cite credible sources by including relevant URLs as inline citations using the format [Source Title](https://example.com). Include at least 2-3 sources when possible.',
       messages: [{ role: 'user', content: promptText }],
