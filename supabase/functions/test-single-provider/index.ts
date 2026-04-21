@@ -208,6 +208,41 @@ async function executePerplexity(promptText: string): Promise<{ responseText: st
   };
 }
 
+async function executeClaude(promptText: string): Promise<{ responseText: string; tokenIn: number; tokenOut: number; fullResponse: any }> {
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) throw new Error('Anthropic API key not configured');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2000,
+      system: 'You are a helpful AI assistant. When providing information, cite credible sources by including relevant URLs as inline citations using the format [Source Title](https://example.com). Include at least 2-3 sources when possible.',
+      messages: [{ role: 'user', content: promptText }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  const responseText = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
+
+  return {
+    responseText,
+    tokenIn: data.usage?.input_tokens || 0,
+    tokenOut: data.usage?.output_tokens || 0,
+    fullResponse: data,
+  };
+}
+
 // Response analysis using comprehensive brand analyzer
 async function analyzeResponse(responseText: string, orgName: string) {
   console.log(`Analyzing response for org: ${orgName}`);
@@ -361,6 +396,9 @@ Deno.serve(async (req) => {
       case 'perplexity':
         response = await executePerplexity(promptText);
         break;
+      case 'claude':
+        response = await executeClaude(promptText);
+        break;
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -386,6 +424,10 @@ Deno.serve(async (req) => {
           console.log(`[Citation Extraction] Gemini returned ${citationsData?.citations?.length || 0} citations`);
           break;
         case 'openai':
+          citationsData = extractOpenAICitations(response.responseText);
+          break;
+        case 'claude':
+          // Claude lacks native citations — reuse OpenAI markdown-link extractor on response text
           citationsData = extractOpenAICitations(response.responseText);
           break;
       }

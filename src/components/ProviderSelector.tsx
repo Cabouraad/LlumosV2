@@ -27,6 +27,11 @@ const PROVIDER_INFO = {
     label: 'Gemini',
     description: 'Google\'s advanced AI',
     icon: '✨'
+  },
+  claude: {
+    label: 'Claude',
+    description: 'Anthropic\'s reasoning model',
+    icon: '🧠'
   }
 };
 

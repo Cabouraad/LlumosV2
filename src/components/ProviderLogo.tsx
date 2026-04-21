@@ -39,6 +39,13 @@ export function ProviderLogo({ provider, enabled, size = 'md', showStatus = true
           bgColor: 'bg-orange-100',
           textColor: 'text-orange-900'
         };
+      case 'claude':
+        return {
+          name: 'Claude',
+          Icon: Sparkles,
+          bgColor: 'bg-amber-100',
+          textColor: 'text-amber-900'
+        };
       default:
         return {
           name: name,

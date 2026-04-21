@@ -13,7 +13,8 @@ const providerConfig: Record<ProviderName, { label: string; color: string; citat
   openai: { label: 'GPT', color: 'bg-green-100 text-green-800', citationSupport: false },
   perplexity: { label: 'Perplexity', color: 'bg-blue-100 text-blue-800', citationSupport: true },
   gemini: { label: 'Gemini', color: 'bg-purple-100 text-purple-800', citationSupport: true },
-  google_ai_overview: { label: 'G-AIO', color: 'bg-orange-100 text-orange-800', citationSupport: true }
+  google_ai_overview: { label: 'G-AIO', color: 'bg-orange-100 text-orange-800', citationSupport: true },
+  claude: { label: 'Claude', color: 'bg-amber-100 text-amber-800', citationSupport: false }
 };
 
 export const ProviderBadge: React.FC<ProviderBadgeProps> = ({ provider, className, showCitationInfo = false }) => {

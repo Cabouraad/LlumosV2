@@ -2,22 +2,20 @@
  * Provider access policies by subscription tier
  */
 
-export type ProviderName = 'openai' | 'perplexity' | 'gemini' | 'google_ai_overview';
+export type ProviderName = 'openai' | 'perplexity' | 'gemini' | 'google_ai_overview' | 'claude';
 export type SubscriptionTier = 'starter' | 'growth' | 'pro' | 'agency' | 'free' | 'enterprise';
  
 /**
  * Provider access policies aligned with pricing page:
  * - Starter: 2 providers (OpenAI + Perplexity)
- * - Growth: 4 providers (all)
- * - Pro: 4 providers (all)
- * - Agency: 4 providers (all)
+ * - Growth+: all providers (OpenAI, Perplexity, Gemini, Google AIO, Claude)
  */
 const PROVIDER_TIER_POLICIES: Record<SubscriptionTier, ProviderName[]> = {
   starter: ['openai', 'perplexity'],
-  growth: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
-  pro: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
-  agency: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
-  enterprise: ['openai', 'perplexity', 'gemini', 'google_ai_overview'],
+  growth: ['openai', 'perplexity', 'gemini', 'google_ai_overview', 'claude'],
+  pro: ['openai', 'perplexity', 'gemini', 'google_ai_overview', 'claude'],
+  agency: ['openai', 'perplexity', 'gemini', 'google_ai_overview', 'claude'],
+  enterprise: ['openai', 'perplexity', 'gemini', 'google_ai_overview', 'claude'],
   free: ['openai'] // Fallback for unsubscribed users
 };
 

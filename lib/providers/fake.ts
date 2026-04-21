@@ -43,7 +43,8 @@ export async function extractBrands(promptText: string, provider: string = 'fake
   // Add some variation based on provider
   const providerSuffix = provider === 'openai' ? ' (OpenAI Analysis)' : 
                         provider === 'perplexity' ? ' (Perplexity Research)' : 
-                        provider === 'gemini' ? ' (Gemini Insights)' : '';
+                        provider === 'gemini' ? ' (Gemini Insights)' : 
+                        provider === 'claude' ? ' (Claude Reasoning)' : '';
   
   return {
     brands,
