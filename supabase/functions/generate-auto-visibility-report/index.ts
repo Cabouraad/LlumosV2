@@ -3107,13 +3107,21 @@ serve(async (req) => {
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
-    // Step 3: Calculate overall score
+    // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    const overallScore = validResults.length > 0 
+    const baseScore = validResults.length > 0
       ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
       : 0;
 
-    console.log(`[AutoReport] Overall score: ${overallScore}`);
+    const categoryVisibility = computeCategoryVisibility(allResults);
+    const shareOfVoice = computeShareOfVoice(validResults);
+
+    // Share of Voice bonus: up to +10 when brand dominates the conversation
+    const sovBonus = Math.round(shareOfVoice.sov * 10);
+
+    const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
+
+    console.log(`[AutoReport] Score breakdown — base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
