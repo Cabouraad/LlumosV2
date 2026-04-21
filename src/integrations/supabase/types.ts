@@ -3257,6 +3257,60 @@ export type Database = {
         }
         Relationships: []
       }
+      visibility_reports: {
+        Row: {
+          brand_name: string | null
+          created_at: string
+          domain: string
+          id: string
+          org_id: string | null
+          overall_score: number
+          pdf_storage_path: string | null
+          pdf_url: string | null
+          prompts_run: number
+          providers_queried: number
+          recipient_email: string
+          recipient_first_name: string | null
+          source: string
+          summary: Json
+          updated_at: string
+        }
+        Insert: {
+          brand_name?: string | null
+          created_at?: string
+          domain: string
+          id?: string
+          org_id?: string | null
+          overall_score?: number
+          pdf_storage_path?: string | null
+          pdf_url?: string | null
+          prompts_run?: number
+          providers_queried?: number
+          recipient_email: string
+          recipient_first_name?: string | null
+          source?: string
+          summary?: Json
+          updated_at?: string
+        }
+        Update: {
+          brand_name?: string | null
+          created_at?: string
+          domain?: string
+          id?: string
+          org_id?: string | null
+          overall_score?: number
+          pdf_storage_path?: string | null
+          pdf_url?: string | null
+          prompts_run?: number
+          providers_queried?: number
+          recipient_email?: string
+          recipient_first_name?: string | null
+          source?: string
+          summary?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       visibility_snapshots: {
         Row: {
           company_name: string | null

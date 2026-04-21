@@ -3065,6 +3065,69 @@ serve(async (req) => {
     // update an unrelated row for the same email+domain.
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Step 6a: Persist the report (PDF in storage + row in visibility_reports)
+    let savedPdfUrl: string | null = null;
+    let savedStoragePath: string | null = null;
+    try {
+      const safeDomain = normalizedDomain.replace(/[^a-z0-9.-]/gi, '-');
+      const storagePath = `${safeDomain}/${Date.now()}-ai-visibility-report.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from('visibility-reports')
+        .upload(storagePath, pdfBytes, {
+          contentType: 'application/pdf',
+          upsert: false,
+        });
+      if (uploadError) {
+        console.error('[AutoReport] PDF upload failed:', uploadError.message);
+      } else {
+        savedStoragePath = storagePath;
+        const { data: pub } = supabase.storage.from('visibility-reports').getPublicUrl(storagePath);
+        savedPdfUrl = pub?.publicUrl ?? null;
+      }
+
+      // Try to associate to an org via brand domain
+      let orgIdForReport: string | null = null;
+      try {
+        const { data: brandRow } = await supabase
+          .from('brands')
+          .select('org_id')
+          .ilike('domain', normalizedDomain)
+          .limit(1)
+          .maybeSingle();
+        orgIdForReport = brandRow?.org_id ?? null;
+      } catch (e) {
+        console.warn('[AutoReport] org lookup by domain failed:', (e as Error).message);
+      }
+
+      const { error: insertError } = await supabase
+        .from('visibility_reports')
+        .insert({
+          org_id: orgIdForReport,
+          domain: normalizedDomain,
+          brand_name: brandName,
+          recipient_email: normalizedEmail,
+          recipient_first_name: firstName || null,
+          overall_score: overallScore,
+          prompts_run: prompts.length,
+          providers_queried: 4,
+          pdf_url: savedPdfUrl,
+          pdf_storage_path: savedStoragePath,
+          source: 'lead_magnet',
+          summary: {
+            emailSent,
+            providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
+            generatedAt: new Date().toISOString(),
+          },
+        });
+      if (insertError) {
+        console.error('[AutoReport] visibility_reports insert failed:', insertError.message);
+      } else {
+        console.log('[AutoReport] visibility_reports row saved');
+      }
+    } catch (persistErr: any) {
+      console.error('[AutoReport] Persist report failed:', persistErr?.message);
+    }
+
     const updatePayload = {
       status: emailSent ? 'sent' : 'error',
       metadata: {
