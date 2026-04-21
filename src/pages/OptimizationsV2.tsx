@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, RefreshCw, CheckCircle2, Clock, XCircle, Lightbulb } from "lucide-react";
 import { OptimizationCard } from "@/components/optimizations-v2/OptimizationCard";
 import { LowVisibilityTable } from "@/components/optimizations-v2/LowVisibilityTable";
+import { SavedReportsSidebar } from "@/components/optimizations-v2/SavedReportsSidebar";
 import { useOptimizations, useGenerateOptimizations } from "@/features/optimizations/hooks-v2";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
@@ -141,93 +142,99 @@ export default function OptimizationsV2() {
           </Card>
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="open" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="open" className="gap-2">
-              <Clock className="h-4 w-4" />
-              Open ({openOptimizations.length})
-            </TabsTrigger>
-            <TabsTrigger value="in-progress" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              In Progress ({inProgressOptimizations.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Completed ({completedOptimizations.length})
-            </TabsTrigger>
-            <TabsTrigger value="insights" className="gap-2">
-              <Lightbulb className="h-4 w-4" />
-              Insights
-            </TabsTrigger>
-          </TabsList>
+        {/* Main Content with Saved Reports Sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <Tabs defaultValue="open" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="open" className="gap-2">
+                <Clock className="h-4 w-4" />
+                Open ({openOptimizations.length})
+              </TabsTrigger>
+              <TabsTrigger value="in-progress" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                In Progress ({inProgressOptimizations.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Completed ({completedOptimizations.length})
+              </TabsTrigger>
+              <TabsTrigger value="insights" className="gap-2">
+                <Lightbulb className="h-4 w-4" />
+                Insights
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="open" className="space-y-4">
-            {openQuery.isLoading ? (
-              Array.from({ length: 3 }).map((_, idx) => (
-                <Skeleton key={idx} className="h-64 w-full" />
-              ))
-            ) : openOptimizations.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <CheckCircle2 className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Open Optimizations</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Generate new recommendations to see actionable tasks here
-                  </p>
-                  <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Recommendations
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              openOptimizations.map((opt) => (
-                <OptimizationCard key={opt.id} optimization={opt} />
-              ))
-            )}
-          </TabsContent>
+            <TabsContent value="open" className="space-y-4">
+              {openQuery.isLoading ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <Skeleton key={idx} className="h-64 w-full" />
+                ))
+              ) : openOptimizations.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <CheckCircle2 className="h-16 w-16 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Open Optimizations</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Generate new recommendations to see actionable tasks here
+                    </p>
+                    <Button onClick={handleGenerate} disabled={generateMutation.isPending}>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate Recommendations
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                openOptimizations.map((opt) => (
+                  <OptimizationCard key={opt.id} optimization={opt} />
+                ))
+              )}
+            </TabsContent>
 
-          <TabsContent value="in-progress" className="space-y-4">
-            {inProgressOptimizations.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <RefreshCw className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Tasks In Progress</h3>
-                  <p className="text-muted-foreground">
-                    Start working on an open optimization to see it here
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              inProgressOptimizations.map((opt) => (
-                <OptimizationCard key={opt.id} optimization={opt} />
-              ))
-            )}
-          </TabsContent>
+            <TabsContent value="in-progress" className="space-y-4">
+              {inProgressOptimizations.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <RefreshCw className="h-16 w-16 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Tasks In Progress</h3>
+                    <p className="text-muted-foreground">
+                      Start working on an open optimization to see it here
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                inProgressOptimizations.map((opt) => (
+                  <OptimizationCard key={opt.id} optimization={opt} />
+                ))
+              )}
+            </TabsContent>
 
-          <TabsContent value="completed" className="space-y-4">
-            {completedOptimizations.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <XCircle className="h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Completed Tasks</h3>
-                  <p className="text-muted-foreground">
-                    Complete optimizations to see your achievements here
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              completedOptimizations.map((opt) => (
-                <OptimizationCard key={opt.id} optimization={opt} />
-              ))
-            )}
-          </TabsContent>
+            <TabsContent value="completed" className="space-y-4">
+              {completedOptimizations.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <XCircle className="h-16 w-16 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Completed Tasks</h3>
+                    <p className="text-muted-foreground">
+                      Complete optimizations to see your achievements here
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                completedOptimizations.map((opt) => (
+                  <OptimizationCard key={opt.id} optimization={opt} />
+                ))
+              )}
+            </TabsContent>
 
-          <TabsContent value="insights" className="space-y-6">
-            <LowVisibilityTable />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="insights" className="space-y-6">
+              <LowVisibilityTable />
+            </TabsContent>
+          </Tabs>
+
+          <aside className="space-y-4">
+            <SavedReportsSidebar />
+          </aside>
+        </div>
       </div>
     </Layout>
   );
