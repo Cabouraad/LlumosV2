@@ -396,6 +396,9 @@ Deno.serve(async (req) => {
       case 'perplexity':
         response = await executePerplexity(promptText);
         break;
+      case 'claude':
+        response = await executeClaude(promptText);
+        break;
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
@@ -421,6 +424,10 @@ Deno.serve(async (req) => {
           console.log(`[Citation Extraction] Gemini returned ${citationsData?.citations?.length || 0} citations`);
           break;
         case 'openai':
+          citationsData = extractOpenAICitations(response.responseText);
+          break;
+        case 'claude':
+          // Claude lacks native citations — reuse OpenAI markdown-link extractor on response text
           citationsData = extractOpenAICitations(response.responseText);
           break;
       }
