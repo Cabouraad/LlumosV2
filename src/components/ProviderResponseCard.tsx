@@ -16,7 +16,7 @@ import { useCatalogCompetitors } from '@/hooks/useCatalogCompetitors';
 import { format } from 'date-fns';
 
 interface ProviderResponseCardProps {
-  provider: 'openai' | 'gemini' | 'perplexity' | 'google_ai_overview';
+  provider: 'openai' | 'gemini' | 'perplexity' | 'google_ai_overview' | 'claude';
   response: ProviderResponseData | ProviderResponseData[] | null;
   promptText: string;
 }
