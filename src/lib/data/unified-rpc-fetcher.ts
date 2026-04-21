@@ -15,6 +15,12 @@ export interface UnifiedDashboardResponse {
   prompts: any[];
   responses: any[];
   chartData: any[];
+  presenceDaily?: Array<{
+    date: string;
+    total: number;
+    present: number;
+    competitorPresence: Record<string, number>;
+  }>;
   metrics: {
     avgScore: number;
     overallScore: number;
@@ -202,6 +208,7 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null, preRes
       prompts: Array.isArray(result.prompts) ? result.prompts : [],
       responses: Array.isArray(result.responses) ? result.responses : [],
       chartData: Array.isArray(result.chartData) ? result.chartData : [],
+      presenceDaily: Array.isArray(result.presenceDaily) ? result.presenceDaily : [],
       metrics: result.metrics && typeof result.metrics === 'object' 
         ? {
             avgScore: Number(result.metrics.avgScore) || 0,
