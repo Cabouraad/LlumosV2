@@ -20,7 +20,7 @@ interface ProviderConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
-  authType: 'bearer' | 'google-api-key' | 'edge-function';
+  authType: 'bearer' | 'google-api-key' | 'edge-function' | 'anthropic';
   buildRequest: (prompt: string) => any;
   extractResponse: (data: any) => string;
 }
@@ -96,6 +96,25 @@ function getProviderConfigs(): ProviderConfig[] {
     });
   }
 
+  // Claude (Anthropic)
+  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (anthropicKey) {
+    configs.push({
+      name: 'claude',
+      apiKey: anthropicKey,
+      baseUrl: 'https://api.anthropic.com/v1/messages',
+      model: 'claude-sonnet-4-5',
+      authType: 'anthropic',
+      buildRequest: (prompt) => ({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        system: 'You are a helpful AI assistant. When providing information, cite credible sources by including relevant URLs as inline citations using the format [Source Title](https://example.com). Include at least 2-3 sources when possible.',
+        messages: [{ role: 'user', content: prompt }]
+      }),
+      extractResponse: (data) => (data.content || []).map((block: any) => block.text || '').join('\n').trim()
+    });
+  }
+
   // Google AIO via edge function (requires SERPAPI_KEY and ENABLE_GOOGLE_AIO)
   const serpApiKey = Deno.env.get('SERPAPI_KEY');
   const enableGoogleAio = Deno.env.get('ENABLE_GOOGLE_AIO') === 'true';
@@ -134,6 +153,9 @@ async function callProviderAPI(config: ProviderConfig, prompt: string): Promise<
         headers['Authorization'] = `Bearer ${config.apiKey}`;
       } else if (config.authType === 'google-api-key') {
         headers['X-goog-api-key'] = config.apiKey;
+      } else if (config.authType === 'anthropic') {
+        headers['x-api-key'] = config.apiKey;
+        headers['anthropic-version'] = '2023-06-01';
       } else if (config.authType === 'edge-function') {
         // For edge functions, use service role key
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
