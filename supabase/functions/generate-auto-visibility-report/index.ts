@@ -62,6 +62,16 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
   'forward push', 'law firm growth program',
+  // Service categories that frequently get mis-detected as brands
+  'local seo', 'national seo', 'technical seo', 'on-page seo', 'off-page seo', 'enterprise seo',
+  'strong seo', 'ai seo', 'seo agency', 'seo services', 'seo company', 'seo firm', 'seo consultant',
+  'ppc agency', 'ppc services', 'ppc management', 'paid search', 'paid media', 'paid ads',
+  'google ads management', 'facebook ads management', 'social media marketing', 'social media management',
+  'online reviews', 'reputation management', 'review management', 'link building', 'backlinks',
+  'content writing', 'copywriting', 'web design', 'web development', 'website design',
+  'lead generation', 'demand generation', 'inbound marketing', 'outbound marketing',
+  'targeted ppc', 'targeted google ads', 'targeted facebook ads', 'built-in seo',
+  'agency types', 'remote.co', 'freelancer.com', 'fiverr pro', 'fiverr',
   // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
   // Generic infrastructure
@@ -432,6 +442,16 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   // Reject phrases that end with a descriptive trailing word (e.g., "Fireproof Performance",
   // "evergreen websites", "AI SEO consulting", "CFO consulting"). These are categories, not brands.
   if (words.length >= 2 && DESCRIPTIVE_TRAILING_WORDS.has(words[words.length - 1])) return false;
+
+  // Reject service-category phrases ending in a channel/discipline noun (e.g. "Local SEO",
+  // "Strong SEO", "Targeted PPC", "Premium Marketing", "Paid Ads"). These read as Title Case
+  // but are service descriptors, not brand names. Only allow if the candidate looks brand-shaped
+  // (contains digits, internal caps, or a TLD-like ".io"/".com").
+  const CATEGORY_SUFFIXES = new Set(['seo', 'ppc', 'sem', 'cro', 'ads', 'marketing', 'media', 'advertising']);
+  if (words.length === 2 && CATEGORY_SUFFIXES.has(words[words.length - 1])) {
+    const looksLikeBrand = /\d/.test(name) || /[a-z][A-Z]/.test(name) || /\.(io|com|co|ai|app)\b/i.test(name);
+    if (!looksLikeBrand) return false;
+  }
 
   // Reject phrases that begin with a descriptive marketing modifier
   // (e.g., "conversion-friendly SEO-optimized websites")
@@ -838,26 +858,35 @@ async function refineCompetitorCandidatesFromResults(
     `[AutoReport] Response candidates: ${responseCandidates.length} (trusted ≥2 providers: ${trustedCandidates.length}, single-provider: ${singleProviderCandidates.length})`,
   );
 
-  const combinedCandidates = dedupeBrandNames([
-    ...trustedCandidates,
-    ...singleProviderCandidates,
-    ...initialCandidates,
-  ]).slice(0, 20);
+  // Pre-split compound names: AI responses sometimes return "Facebook, LinkedIn" or "Acme/Beta"
+  // as a single token. Split on commas/slashes/" and "/"&" and re-validate each fragment so the
+  // exclusion list (channels, directories) catches the individual entities.
+  const splitCompound = (raw: string): string[] => {
+    if (!/[,/]|\s+(?:and|&)\s+/i.test(raw)) return [raw];
+    return raw
+      .split(/\s*(?:,|\/|\s+and\s+|\s*&\s*)\s*/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+  const expandedCandidates = dedupeBrandNames(
+    [...trustedCandidates, ...singleProviderCandidates, ...initialCandidates]
+      .flatMap(splitCompound)
+      .filter((c) => isLikelyCompetitorBrand(c, brandName, domain)),
+  );
+  const combinedCandidates = expandedCandidates.slice(0, 20);
 
   if (combinedCandidates.length === 0) {
     return [];
   }
 
-  // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted, bypass ALL gates.
-  // Cross-provider/multi-mention corroboration is itself strong evidence the entity is real.
-  // ALSO trust initial research candidates — they came from a deliberate company-specific
-  // research step and should not be discarded just because the AI providers didn't happen
-  // to organically mention them in this run.
-  const initialKeys = new Set(initialCandidates.map((c) => normalizeEntityName(c)));
+  // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted (skip OpenAI gate).
+  // We STILL run Perplexity on trusted candidates to catch service categories like "Local SEO"
+  // that organically show up across providers but aren't actually competitor brands.
+  const initialKeys = new Set(initialCandidates.flatMap(splitCompound).map((c) => normalizeEntityName(c)));
   const strongKeys = new Set(
     responseStats
       .filter((s) => s.providers.size >= 2 || s.mentions >= 2)
-      .map((s) => normalizeEntityName(s.candidate)),
+      .flatMap((s) => splitCompound(s.candidate).map((c) => normalizeEntityName(c))),
   );
 
   const trustedDirect = combinedCandidates.filter((c) => {
@@ -922,13 +951,19 @@ async function refineCompetitorCandidatesFromResults(
                 .filter((item: string) => allowed.has(normalizeEntityName(item)))
             );
 
-            // Only apply OpenAI's filter if it kept a reasonable fraction; otherwise keep all weak
-            // (protects against the LLM being overly aggressive)
-            if (refined.length >= Math.ceil(weakCandidates.length * 0.5)) {
+            // Soften: instead of throwing away OpenAI's filter when it removes >50%, always
+            // honor its rejections — but only as long as it kept SOMETHING. If it nuked
+            // everything, fall back to the full weak set so we don't end up empty-handed.
+            if (refined.length > 0) {
               weakAfterOpenAI = refined;
+              if (refined.length < weakCandidates.length) {
+                console.log(
+                  `[AutoReport] OpenAI refine kept ${refined.length}/${weakCandidates.length} weak candidates`,
+                );
+              }
             } else {
               console.warn(
-                `[AutoReport] OpenAI refine kept only ${refined.length}/${weakCandidates.length} — too aggressive, keeping all weak candidates`,
+                `[AutoReport] OpenAI refine kept 0/${weakCandidates.length} — keeping all weak candidates`,
               );
             }
           }
@@ -941,12 +976,15 @@ async function refineCompetitorCandidatesFromResults(
     }
   }
 
-  // Perplexity is the final, strictest gate — only for weak candidates that survived OpenAI
-  const validated = weakAfterOpenAI.length > 0
-    ? await validateCompetitorsWithPerplexity(weakAfterOpenAI, brandName, domain, businessContext)
+  // Perplexity is the final, strictest gate — now applied to BOTH trusted and weak candidates.
+  // Trusted multi-provider candidates can still be service categories ("Local SEO") that
+  // organically appear across providers, so they need verification too.
+  const allForValidation = dedupeBrandNames([...trustedDirect, ...weakAfterOpenAI]);
+  const validated = allForValidation.length > 0
+    ? await validateCompetitorsWithPerplexity(allForValidation, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 25);
+  return dedupeBrandNames(validated).slice(0, 25);
 }
 
 /**
