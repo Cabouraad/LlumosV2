@@ -124,7 +124,7 @@ const ProviderVisibilityChartComponent = ({ responses, providerDaily, isLoading 
     
     // Clean up the hasData flag before returning
     return result.map(({ hasData, ...rest }) => rest);
-  }, [responses]);
+  }, [responses, providerDaily]);
 
   // Get active providers (ones with data)
   const activeProviders = useMemo(() => {
