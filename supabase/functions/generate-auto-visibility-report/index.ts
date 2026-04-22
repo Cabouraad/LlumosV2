@@ -2096,6 +2096,7 @@ async function generatePDF(
   businessContext: string = '',
   categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
+  refinedCompetitors: string[] = [],
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -2156,14 +2157,23 @@ async function generatePDF(
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-  // Aggregate competitor counts
+  // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
   const competitorMentions = new Map<string, number>();
   for (const r of validResults) {
     for (const c of r.competitors) {
       competitorMentions.set(c, (competitorMentions.get(c) || 0) + 1);
     }
   }
-  const sortedCompetitors = Array.from(competitorMentions.entries()).sort((a, b) => b[1] - a[1]);
+
+  const sortedCompetitors = (refinedCompetitors.length > 0
+    ? refinedCompetitors.map((name, index) => ({ name, count: competitorMentions.get(name) || 0, index }))
+    : Array.from(competitorMentions.entries()).map(([name, count], index) => ({ name, count, index }))
+  )
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.index - b.index;
+    })
+    .map(({ name, count }) => [name, count] as const);
 
   // Provider aggregate stats
   const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
@@ -2482,7 +2492,13 @@ async function generatePDF(
   y = drawSubsectionHeader(page, 'Competitor Landscape', y);
 
   if (sortedCompetitors.length > 0) {
-    page.drawText('Brands mentioned by AI when your audience searches for relevant topics:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    const hasResearchOnlyCompetitors = sortedCompetitors.some(([, count]) => count === 0);
+    page.drawText(
+      hasResearchOnlyCompetitors
+        ? 'Brands identified across AI responses and validated market research for this category:'
+        : 'Brands mentioned by AI when your audience searches for relevant topics:',
+      { x: M + 5, y, size: 9, font: helveticaOblique, color: light }
+    );
     y -= 18;
 
     for (const [name, count] of sortedCompetitors) {
@@ -2493,9 +2509,14 @@ async function generatePDF(
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
       page.drawText(name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
 
-      const cBarW = Math.min(160, (count / validResults.length) * 200);
-      page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
-      page.drawText(`${count}x mentioned`, { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid });
+      const cBarW = count > 0 ? Math.min(160, (count / Math.max(validResults.length, 1)) * 200) : 0;
+      if (cBarW > 0) {
+        page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
+      }
+      page.drawText(
+        count > 0 ? `${count}x mentioned` : 'research-backed competitor',
+        { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid }
+      );
 
       y -= 24;
     }
@@ -3231,7 +3252,7 @@ serve(async (req) => {
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
