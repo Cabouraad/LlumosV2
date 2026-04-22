@@ -858,26 +858,35 @@ async function refineCompetitorCandidatesFromResults(
     `[AutoReport] Response candidates: ${responseCandidates.length} (trusted ≥2 providers: ${trustedCandidates.length}, single-provider: ${singleProviderCandidates.length})`,
   );
 
-  const combinedCandidates = dedupeBrandNames([
-    ...trustedCandidates,
-    ...singleProviderCandidates,
-    ...initialCandidates,
-  ]).slice(0, 20);
+  // Pre-split compound names: AI responses sometimes return "Facebook, LinkedIn" or "Acme/Beta"
+  // as a single token. Split on commas/slashes/" and "/"&" and re-validate each fragment so the
+  // exclusion list (channels, directories) catches the individual entities.
+  const splitCompound = (raw: string): string[] => {
+    if (!/[,/]|\s+(?:and|&)\s+/i.test(raw)) return [raw];
+    return raw
+      .split(/\s*(?:,|\/|\s+and\s+|\s*&\s*)\s*/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+  const expandedCandidates = dedupeBrandNames(
+    [...trustedCandidates, ...singleProviderCandidates, ...initialCandidates]
+      .flatMap(splitCompound)
+      .filter((c) => isLikelyCompetitorBrand(c, brandName, domain)),
+  );
+  const combinedCandidates = expandedCandidates.slice(0, 20);
 
   if (combinedCandidates.length === 0) {
     return [];
   }
 
-  // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted, bypass ALL gates.
-  // Cross-provider/multi-mention corroboration is itself strong evidence the entity is real.
-  // ALSO trust initial research candidates — they came from a deliberate company-specific
-  // research step and should not be discarded just because the AI providers didn't happen
-  // to organically mention them in this run.
-  const initialKeys = new Set(initialCandidates.map((c) => normalizeEntityName(c)));
+  // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted (skip OpenAI gate).
+  // We STILL run Perplexity on trusted candidates to catch service categories like "Local SEO"
+  // that organically show up across providers but aren't actually competitor brands.
+  const initialKeys = new Set(initialCandidates.flatMap(splitCompound).map((c) => normalizeEntityName(c)));
   const strongKeys = new Set(
     responseStats
       .filter((s) => s.providers.size >= 2 || s.mentions >= 2)
-      .map((s) => normalizeEntityName(s.candidate)),
+      .flatMap((s) => splitCompound(s.candidate).map((c) => normalizeEntityName(c))),
   );
 
   const trustedDirect = combinedCandidates.filter((c) => {
