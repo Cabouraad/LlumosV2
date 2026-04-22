@@ -951,13 +951,19 @@ async function refineCompetitorCandidatesFromResults(
                 .filter((item: string) => allowed.has(normalizeEntityName(item)))
             );
 
-            // Only apply OpenAI's filter if it kept a reasonable fraction; otherwise keep all weak
-            // (protects against the LLM being overly aggressive)
-            if (refined.length >= Math.ceil(weakCandidates.length * 0.5)) {
+            // Soften: instead of throwing away OpenAI's filter when it removes >50%, always
+            // honor its rejections — but only as long as it kept SOMETHING. If it nuked
+            // everything, fall back to the full weak set so we don't end up empty-handed.
+            if (refined.length > 0) {
               weakAfterOpenAI = refined;
+              if (refined.length < weakCandidates.length) {
+                console.log(
+                  `[AutoReport] OpenAI refine kept ${refined.length}/${weakCandidates.length} weak candidates`,
+                );
+              }
             } else {
               console.warn(
-                `[AutoReport] OpenAI refine kept only ${refined.length}/${weakCandidates.length} — too aggressive, keeping all weak candidates`,
+                `[AutoReport] OpenAI refine kept 0/${weakCandidates.length} — keeping all weak candidates`,
               );
             }
           }
@@ -970,12 +976,15 @@ async function refineCompetitorCandidatesFromResults(
     }
   }
 
-  // Perplexity is the final, strictest gate — only for weak candidates that survived OpenAI
-  const validated = weakAfterOpenAI.length > 0
-    ? await validateCompetitorsWithPerplexity(weakAfterOpenAI, brandName, domain, businessContext)
+  // Perplexity is the final, strictest gate — now applied to BOTH trusted and weak candidates.
+  // Trusted multi-provider candidates can still be service categories ("Local SEO") that
+  // organically appear across providers, so they need verification too.
+  const allForValidation = dedupeBrandNames([...trustedDirect, ...weakAfterOpenAI]);
+  const validated = allForValidation.length > 0
+    ? await validateCompetitorsWithPerplexity(allForValidation, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 25);
+  return dedupeBrandNames(validated).slice(0, 25);
 }
 
 /**
