@@ -946,7 +946,7 @@ async function refineCompetitorCandidatesFromResults(
     ? await validateCompetitorsWithPerplexity(weakAfterOpenAI, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 15);
+  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 25);
 }
 
 /**
