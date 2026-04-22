@@ -62,6 +62,16 @@ const NON_COMPETITOR_ENTITIES = new Set([
   'consensus across sources', 'key strategies ranked', 'optimized website', 'website', 'websites',
   'search engine optimization', 'law firms', 'small law firms', 'law firm marketing', 'legal marketing',
   'forward push', 'law firm growth program',
+  // Service categories that frequently get mis-detected as brands
+  'local seo', 'national seo', 'technical seo', 'on-page seo', 'off-page seo', 'enterprise seo',
+  'strong seo', 'ai seo', 'seo agency', 'seo services', 'seo company', 'seo firm', 'seo consultant',
+  'ppc agency', 'ppc services', 'ppc management', 'paid search', 'paid media', 'paid ads',
+  'google ads management', 'facebook ads management', 'social media marketing', 'social media management',
+  'online reviews', 'reputation management', 'review management', 'link building', 'backlinks',
+  'content writing', 'copywriting', 'web design', 'web development', 'website design',
+  'lead generation', 'demand generation', 'inbound marketing', 'outbound marketing',
+  'targeted ppc', 'targeted google ads', 'targeted facebook ads', 'built-in seo',
+  'agency types', 'remote.co', 'freelancer.com', 'fiverr pro', 'fiverr',
   // AI models (these are the tools generating responses, not competitors)
   'openai', 'chatgpt', 'perplexity', 'claude', 'anthropic', 'gemini', 'copilot', 'meta', 'microsoft',
   // Generic infrastructure
