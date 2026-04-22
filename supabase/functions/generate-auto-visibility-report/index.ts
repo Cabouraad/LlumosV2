@@ -850,14 +850,24 @@ async function refineCompetitorCandidatesFromResults(
 
   // Strong-corroboration set: ≥2 providers OR ≥2 total mentions → trusted, bypass ALL gates.
   // Cross-provider/multi-mention corroboration is itself strong evidence the entity is real.
+  // ALSO trust initial research candidates — they came from a deliberate company-specific
+  // research step and should not be discarded just because the AI providers didn't happen
+  // to organically mention them in this run.
+  const initialKeys = new Set(initialCandidates.map((c) => normalizeEntityName(c)));
   const strongKeys = new Set(
     responseStats
       .filter((s) => s.providers.size >= 2 || s.mentions >= 2)
       .map((s) => normalizeEntityName(s.candidate)),
   );
 
-  const trustedDirect = combinedCandidates.filter((c) => strongKeys.has(normalizeEntityName(c)));
-  const weakCandidates = combinedCandidates.filter((c) => !strongKeys.has(normalizeEntityName(c)));
+  const trustedDirect = combinedCandidates.filter((c) => {
+    const key = normalizeEntityName(c);
+    return strongKeys.has(key) || initialKeys.has(key);
+  });
+  const weakCandidates = combinedCandidates.filter((c) => {
+    const key = normalizeEntityName(c);
+    return !strongKeys.has(key) && !initialKeys.has(key);
+  });
 
   console.log(
     `[AutoReport] Trusted (bypass all gates): ${trustedDirect.length}; weak (need OpenAI+Perplexity): ${weakCandidates.length}`,
@@ -936,7 +946,7 @@ async function refineCompetitorCandidatesFromResults(
     ? await validateCompetitorsWithPerplexity(weakAfterOpenAI, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 15);
+  return dedupeBrandNames([...trustedDirect, ...validated]).slice(0, 25);
 }
 
 /**
