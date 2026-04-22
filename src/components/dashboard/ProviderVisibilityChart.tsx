@@ -3,20 +3,80 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { Layers } from 'lucide-react';
 
+interface ProviderDailyRow {
+  date: string;
+  provider: string;
+  total: number;
+  present: number;
+}
+
 interface ProviderVisibilityChartProps {
   responses: any[];
+  providerDaily?: ProviderDailyRow[];
   isLoading?: boolean;
 }
 
-const PROVIDER_CONFIG: Record<string, { label: string; color: string }> = {
-  'openai': { label: 'ChatGPT', color: '#10a37f' },
-  'perplexity': { label: 'Perplexity', color: '#8b5cf6' },
-  'gemini': { label: 'Gemini', color: '#4285f4' },
-  'google': { label: 'Google AI Overviews', color: '#ea4335' },
+const PROVIDER_CONFIG: Record<string, { label: string; color: string; aliases: string[] }> = {
+  'openai': { label: 'ChatGPT', color: '#10a37f', aliases: ['openai', 'chatgpt', 'gpt'] },
+  'perplexity': { label: 'Perplexity', color: '#8b5cf6', aliases: ['perplexity'] },
+  'gemini': { label: 'Gemini', color: '#4285f4', aliases: ['gemini'] },
+  'google': { label: 'Google AI Overviews', color: '#ea4335', aliases: ['google_ai_overviews', 'google_aio', 'aio', 'google'] },
 };
 
-const ProviderVisibilityChartComponent = ({ responses, isLoading }: ProviderVisibilityChartProps) => {
+const ProviderVisibilityChartComponent = ({ responses, providerDaily, isLoading }: ProviderVisibilityChartProps) => {
   const chartData = useMemo(() => {
+    // Prefer pre-aggregated daily data from RPC (covers full 7-day window)
+    if (Array.isArray(providerDaily) && providerDaily.length > 0) {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const baseDay = new Date();
+      baseDay.setHours(0, 0, 0, 0);
+      baseDay.setDate(baseDay.getDate() - 6);
+      const baseDayMs = baseDay.getTime();
+      const endMs = baseDayMs + 7 * DAY_MS;
+
+      const days: any[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(baseDayMs + i * DAY_MS);
+        const row: any = { date: d.toISOString(), hasData: false };
+        Object.keys(PROVIDER_CONFIG).forEach((k) => { row[k] = null; });
+        days.push(row);
+      }
+
+      const buckets: Record<number, Record<string, { total: number; present: number }>> = {};
+      for (const row of providerDaily) {
+        const ts = Date.parse(row.date);
+        if (!Number.isFinite(ts) || ts < baseDayMs || ts >= endMs) continue;
+        const dayIndex = Math.floor((ts - baseDayMs) / DAY_MS);
+        if (dayIndex < 0 || dayIndex >= 7) continue;
+
+        const providerLower = String(row.provider || '').toLowerCase();
+        const matchedKey = Object.keys(PROVIDER_CONFIG).find((k) =>
+          PROVIDER_CONFIG[k].aliases.some((alias) => providerLower.includes(alias))
+        );
+        if (!matchedKey) continue;
+
+        if (!buckets[dayIndex]) buckets[dayIndex] = {};
+        if (!buckets[dayIndex][matchedKey]) buckets[dayIndex][matchedKey] = { total: 0, present: 0 };
+        buckets[dayIndex][matchedKey].total += Number(row.total) || 0;
+        buckets[dayIndex][matchedKey].present += Number(row.present) || 0;
+      }
+
+      for (let i = 0; i < 7; i++) {
+        const dayBuckets = buckets[i];
+        if (!dayBuckets) continue;
+        for (const [key, stats] of Object.entries(dayBuckets)) {
+          if (stats.total > 0) {
+            days[i][key] = Math.round((stats.present / stats.total) * 100);
+            days[i].hasData = true;
+          }
+        }
+      }
+
+      const daysWithData = days.filter((d: any) => d.hasData);
+      return daysWithData.slice(-5).map(({ hasData, ...rest }: any) => rest);
+    }
+
+    // Fallback: legacy per-response calculation
     if (!responses || responses.length === 0) return [];
 
     const allDays: any[] = [];
