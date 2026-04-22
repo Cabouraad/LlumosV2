@@ -2096,6 +2096,7 @@ async function generatePDF(
   businessContext: string = '',
   categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
+  refinedCompetitors: string[] = [],
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -2156,14 +2157,23 @@ async function generatePDF(
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-  // Aggregate competitor counts
+  // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
   const competitorMentions = new Map<string, number>();
   for (const r of validResults) {
     for (const c of r.competitors) {
       competitorMentions.set(c, (competitorMentions.get(c) || 0) + 1);
     }
   }
-  const sortedCompetitors = Array.from(competitorMentions.entries()).sort((a, b) => b[1] - a[1]);
+
+  const sortedCompetitors = (refinedCompetitors.length > 0
+    ? refinedCompetitors.map((name, index) => ({ name, count: competitorMentions.get(name) || 0, index }))
+    : Array.from(competitorMentions.entries()).map(([name, count], index) => ({ name, count, index }))
+  )
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.index - b.index;
+    })
+    .map(({ name, count }) => [name, count] as const);
 
   // Provider aggregate stats
   const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
