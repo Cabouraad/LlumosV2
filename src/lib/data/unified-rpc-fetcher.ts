@@ -21,6 +21,12 @@ export interface UnifiedDashboardResponse {
     present: number;
     competitorPresence: Record<string, number>;
   }>;
+  providerDaily?: Array<{
+    date: string;
+    provider: string;
+    total: number;
+    present: number;
+  }>;
   metrics: {
     avgScore: number;
     overallScore: number;
