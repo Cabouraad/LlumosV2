@@ -215,6 +215,7 @@ export async function getUnifiedDashboardDataRPC(brandId?: string | null, preRes
       responses: Array.isArray(result.responses) ? result.responses : [],
       chartData: Array.isArray(result.chartData) ? result.chartData : [],
       presenceDaily: Array.isArray(result.presenceDaily) ? result.presenceDaily : [],
+      providerDaily: Array.isArray(result.providerDaily) ? result.providerDaily : [],
       metrics: result.metrics && typeof result.metrics === 'object' 
         ? {
             avgScore: Number(result.metrics.avgScore) || 0,
