@@ -4039,29 +4039,58 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_latest_prompt_provider_responses: {
-        Args: { p_org_id: string }
-        Returns: {
-          brands_json: Json
-          citations_json: Json
-          competitors_count: number
-          competitors_json: Json
-          error: string
-          id: string
-          metadata: Json
-          model: string
-          org_brand_present: boolean
-          org_brand_prominence: number
-          prompt_id: string
-          provider: string
-          raw_ai_response: string
-          run_at: string
-          score: number
-          status: string
-          token_in: number
-          token_out: number
-        }[]
-      }
+      get_latest_prompt_provider_responses:
+        | {
+            Args: { p_org_id: string }
+            Returns: {
+              brands_json: Json
+              citations_json: Json
+              competitors_count: number
+              competitors_json: Json
+              error: string
+              id: string
+              metadata: Json
+              model: string
+              org_brand_present: boolean
+              org_brand_prominence: number
+              prompt_id: string
+              provider: string
+              raw_ai_response: string
+              run_at: string
+              score: number
+              status: string
+              token_in: number
+              token_out: number
+            }[]
+          }
+        | {
+            Args: {
+              p_brand_id?: string
+              p_lookback_days?: number
+              p_org_id: string
+              p_slim?: boolean
+            }
+            Returns: {
+              brands_json: Json
+              citations_json: Json
+              competitors_count: number
+              competitors_json: Json
+              error: string
+              id: string
+              metadata: Json
+              model: string
+              org_brand_present: boolean
+              org_brand_prominence: number
+              prompt_id: string
+              provider: string
+              raw_ai_response: string
+              run_at: string
+              score: number
+              status: string
+              token_in: number
+              token_out: number
+            }[]
+          }
       get_latest_prompt_provider_responses_catalog_only: {
         Args: { p_org_id?: string; p_prompt_id?: string }
         Returns: {
