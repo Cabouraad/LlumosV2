@@ -20,7 +20,7 @@ interface ProviderConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
-  authType: 'bearer' | 'google-api-key' | 'edge-function';
+  authType: 'bearer' | 'google-api-key' | 'edge-function' | 'anthropic';
   buildRequest: (prompt: string) => any;
   extractResponse: (data: any) => string;
 }
