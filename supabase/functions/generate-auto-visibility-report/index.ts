@@ -443,6 +443,16 @@ function isLikelyCompetitorBrand(name: string, brandName: string, domain: string
   // "evergreen websites", "AI SEO consulting", "CFO consulting"). These are categories, not brands.
   if (words.length >= 2 && DESCRIPTIVE_TRAILING_WORDS.has(words[words.length - 1])) return false;
 
+  // Reject service-category phrases ending in a channel/discipline noun (e.g. "Local SEO",
+  // "Strong SEO", "Targeted PPC", "Premium Marketing", "Paid Ads"). These read as Title Case
+  // but are service descriptors, not brand names. Only allow if the candidate looks brand-shaped
+  // (contains digits, internal caps, or a TLD-like ".io"/".com").
+  const CATEGORY_SUFFIXES = new Set(['seo', 'ppc', 'sem', 'cro', 'ads', 'marketing', 'media', 'advertising']);
+  if (words.length === 2 && CATEGORY_SUFFIXES.has(words[words.length - 1])) {
+    const looksLikeBrand = /\d/.test(name) || /[a-z][A-Z]/.test(name) || /\.(io|com|co|ai|app)\b/i.test(name);
+    if (!looksLikeBrand) return false;
+  }
+
   // Reject phrases that begin with a descriptive marketing modifier
   // (e.g., "conversion-friendly SEO-optimized websites")
   if (DESCRIPTIVE_LEADING_MODIFIERS.has(words[0])) return false;
