@@ -2492,7 +2492,13 @@ async function generatePDF(
   y = drawSubsectionHeader(page, 'Competitor Landscape', y);
 
   if (sortedCompetitors.length > 0) {
-    page.drawText('Brands mentioned by AI when your audience searches for relevant topics:', { x: M + 5, y, size: 9, font: helveticaOblique, color: light });
+    const hasResearchOnlyCompetitors = sortedCompetitors.some(([, count]) => count === 0);
+    page.drawText(
+      hasResearchOnlyCompetitors
+        ? 'Brands identified across AI responses and validated market research for this category:'
+        : 'Brands mentioned by AI when your audience searches for relevant topics:',
+      { x: M + 5, y, size: 9, font: helveticaOblique, color: light }
+    );
     y -= 18;
 
     for (const [name, count] of sortedCompetitors) {
@@ -2503,9 +2509,14 @@ async function generatePDF(
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
       page.drawText(name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
 
-      const cBarW = Math.min(160, (count / validResults.length) * 200);
-      page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
-      page.drawText(`${count}x mentioned`, { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid });
+      const cBarW = count > 0 ? Math.min(160, (count / Math.max(validResults.length, 1)) * 200) : 0;
+      if (cBarW > 0) {
+        page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
+      }
+      page.drawText(
+        count > 0 ? `${count}x mentioned` : 'research-backed competitor',
+        { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid }
+      );
 
       y -= 24;
     }
