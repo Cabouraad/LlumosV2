@@ -515,6 +515,7 @@ export default function Dashboard() {
           {/* Visibility by AI Platform */}
           <ProviderVisibilityChart 
             responses={dashboardData?.responses || []}
+            providerDaily={(dashboardData as any)?.providerDaily || []}
             isLoading={loading}
           />
 
