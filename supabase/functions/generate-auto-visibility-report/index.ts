@@ -2303,6 +2303,12 @@ async function generatePDF(
 
   function newPage() {
     const pg = pdfDoc.addPage([W, H]);
+    // Patch drawText to sanitize non-WinAnsi characters (emojis, exotic Unicode)
+    // that pdf-lib's standard fonts (Helvetica) cannot encode.
+    const origDrawText = pg.drawText.bind(pg);
+    pg.drawText = (text: string, options: any) => {
+      return origDrawText(sanitizePdfText(text), options);
+    };
     drawFooter(pg);
     return pg;
   }
