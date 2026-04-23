@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status = 'failed', metadata = metadata || jsonb_build_object('error', 'crashed before domain set', 'clearedAt', now()::text) WHERE id = '4d374a06-767d-44e3-9b58-289d0b7d5af5';
