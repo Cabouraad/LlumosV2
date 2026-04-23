@@ -225,7 +225,8 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeEntityName(value: string): string {
+function normalizeEntityName(value: string | null | undefined): string {
+  if (typeof value !== 'string' || !value) return '';
   return value
     .toLowerCase()
     .replace(/^https?:\/\//, '')
@@ -422,12 +423,14 @@ function expandBrandAliases(names: string[]): string[] {
   ]);
 
   const expanded = new Set<string>();
-  const add = (value: string) => {
+  const add = (value: string | null | undefined) => {
+    if (typeof value !== 'string' || !value) return;
     const cleaned = value.replace(/\s+/g, ' ').trim();
     if (cleaned.length >= 2) expanded.add(cleaned);
   };
 
-  for (const name of names) {
+  for (const name of (names || [])) {
+    if (typeof name !== 'string' || !name) continue;
     const cleaned = name.replace(/\s+/g, ' ').trim();
     if (!cleaned) continue;
 
@@ -455,17 +458,19 @@ function expandBrandAliases(names: string[]): string[] {
 function buildBrandSelfExclusionKeys(brandProfile: BrandProfile, domain?: string): Set<string> {
   const keys = new Set<string>();
 
-  const add = (value: string) => {
+  const add = (value: string | null | undefined) => {
+    if (typeof value !== 'string' || !value) return;
     const normalized = normalizeEntityName(value);
     if (!normalized) return;
     keys.add(normalized);
     const withoutAnd = normalized.replace(/\band\b/g, ' ').replace(/\s+/g, ' ').trim();
     if (withoutAnd) keys.add(withoutAnd);
-    keys.add(normalized.replace(/\s+/g, ''));
+    const compact = normalized.replace(/\s+/g, '');
+    if (compact) keys.add(compact);
   };
 
   add(brandProfile.primaryName);
-  for (const alias of brandProfile.aliases) {
+  for (const alias of (brandProfile.aliases || [])) {
     add(alias);
   }
 
