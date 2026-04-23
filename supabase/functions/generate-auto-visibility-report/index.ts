@@ -398,16 +398,112 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
       return bScore - aScore || a.length - b.length;
     })[0] || fallbackName;
 
+  const aliasSeed = expandBrandAliases([
+    primaryName,
+    fallbackName,
+    domainStem,
+    ...candidates,
+  ]);
+
   return {
     primaryName,
     aliases: dedupeBrandNames([
-      primaryName,
-      fallbackName,
-      domainStem,
-      primaryName.replace(/\s+/g, ''),
-      primaryName.replace(/\s+/g, '-'),
+      ...aliasSeed,
+      ...aliasSeed.map((alias) => alias.replace(/\s+/g, '')),
+      ...aliasSeed.map((alias) => alias.replace(/\s+/g, '-')),
     ]).filter((alias) => normalizeEntityName(alias).length >= 3),
   };
+}
+
+function expandBrandAliases(names: string[]): string[] {
+  const trailingBrandWords = new Set([
+    'llc', 'inc', 'corp', 'corporation', 'ltd', 'llp', 'pllc', 'pc', 'pa', 'lp', 'co', 'company',
+    'group', 'firm', 'legal', 'law', 'attorneys', 'attorney', 'lawyers', 'lawyer',
+  ]);
+
+  const expanded = new Set<string>();
+  const add = (value: string) => {
+    const cleaned = value.replace(/\s+/g, ' ').trim();
+    if (cleaned.length >= 2) expanded.add(cleaned);
+  };
+
+  for (const name of names) {
+    const cleaned = name.replace(/\s+/g, ' ').trim();
+    if (!cleaned) continue;
+
+    add(cleaned);
+    add(cleaned.replace(/\s*&\s*/g, ' and '));
+    add(cleaned.replace(/\s*&\s*/g, ' '));
+    add(cleaned.replace(/\band\b/gi, ' '));
+
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) add(words.slice(0, 2).join(' '));
+    if (words.length >= 3) add(words.slice(0, 3).join(' '));
+
+    let trimmedWords = [...words];
+    while (trimmedWords.length > 1) {
+      const lastWord = normalizeEntityName(trimmedWords[trimmedWords.length - 1]);
+      if (!trailingBrandWords.has(lastWord)) break;
+      trimmedWords = trimmedWords.slice(0, -1);
+      add(trimmedWords.join(' '));
+    }
+  }
+
+  return dedupeBrandNames([...expanded]);
+}
+
+function buildBrandSelfExclusionKeys(brandProfile: BrandProfile, domain?: string): Set<string> {
+  const keys = new Set<string>();
+
+  const add = (value: string) => {
+    const normalized = normalizeEntityName(value);
+    if (!normalized) return;
+    keys.add(normalized);
+    const withoutAnd = normalized.replace(/\band\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (withoutAnd) keys.add(withoutAnd);
+    keys.add(normalized.replace(/\s+/g, ''));
+  };
+
+  add(brandProfile.primaryName);
+  for (const alias of brandProfile.aliases) {
+    add(alias);
+  }
+
+  if (domain) {
+    const domainStem = domain
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .split('.')[0];
+    add(domainStem);
+    add(prettifyDomainLabel(domain));
+  }
+
+  return keys;
+}
+
+function isSelfBrandCandidate(name: string, brandProfile: BrandProfile, domain?: string): boolean {
+  const normalizedCandidate = normalizeEntityName(name);
+  if (!normalizedCandidate) return false;
+
+  const exclusionKeys = buildBrandSelfExclusionKeys(brandProfile, domain);
+  if (exclusionKeys.has(normalizedCandidate) || exclusionKeys.has(normalizedCandidate.replace(/\s+/g, ''))) {
+    return true;
+  }
+
+  const candidateWords = normalizedCandidate.split(' ').filter(Boolean);
+  if (candidateWords.length >= 2) {
+    for (const alias of exclusionKeys) {
+      const aliasWords = alias.split(' ').filter(Boolean);
+      if (
+        aliasWords.length > candidateWords.length &&
+        aliasWords.slice(0, candidateWords.length).join(' ') === normalizedCandidate
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function aliasToRegexSource(alias: string): string | null {
