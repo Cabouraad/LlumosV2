@@ -835,12 +835,34 @@ No prose, no markdown, just the JSON array.`,
   }
 }
 
+export interface CompetitorFilterMetrics {
+  domain: string;
+  brandName: string;
+  initial: number;
+  responseExtracted: number;
+  trustedMultiProvider: number;
+  singleProvider: number;
+  afterCompoundSplit: number;
+  trustedBypass: number;
+  weakInput: number;
+  weakAfterOpenAI: number;
+  openAIApplied: boolean;
+  openAIKeptAll: boolean;
+  combinedForPerplexity: number;
+  afterPerplexity: number;
+  final: number;
+  droppedByOpenAI: number;
+  droppedByPerplexity: number;
+  timestamp: string;
+}
+
 async function refineCompetitorCandidatesFromResults(
   domain: string,
   brandName: string,
   businessContext: string,
   results: ProviderResult[],
   initialCandidates: string[],
+  metricsOut?: { metrics?: CompetitorFilterMetrics },
 ): Promise<string[]> {
   const responseStats = extractCompetitorCandidatesFromResults(results, brandName, domain);
   const responseCandidates = responseStats.map((s) => s.candidate);
@@ -984,7 +1006,37 @@ async function refineCompetitorCandidatesFromResults(
     ? await validateCompetitorsWithPerplexity(allForValidation, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames(validated).slice(0, 25);
+  const finalList = dedupeBrandNames(validated).slice(0, 25);
+
+  const metrics: CompetitorFilterMetrics = {
+    domain,
+    brandName,
+    initial: initialCandidates.length,
+    responseExtracted: responseCandidates.length,
+    trustedMultiProvider: trustedCandidates.length,
+    singleProvider: singleProviderCandidates.length,
+    afterCompoundSplit: combinedCandidates.length,
+    trustedBypass: trustedDirect.length,
+    weakInput: weakCandidates.length,
+    weakAfterOpenAI: weakAfterOpenAI.length,
+    openAIApplied: !!OPENAI_API_KEY && weakCandidates.length > 0,
+    openAIKeptAll: weakAfterOpenAI.length === weakCandidates.length,
+    combinedForPerplexity: allForValidation.length,
+    afterPerplexity: validated.length,
+    final: finalList.length,
+    droppedByOpenAI: Math.max(0, weakCandidates.length - weakAfterOpenAI.length),
+    droppedByPerplexity: Math.max(0, allForValidation.length - validated.length),
+    timestamp: new Date().toISOString(),
+  };
+
+  // Single-line structured log for easy querying / regression detection
+  console.log(`[CompetitorFilterMetrics] ${JSON.stringify(metrics)}`);
+
+  if (metricsOut) {
+    metricsOut.metrics = metrics;
+  }
+
+  return finalList;
 }
 
 /**
@@ -3257,14 +3309,37 @@ serve(async (req) => {
     }
 
     // Step 5: Refine competitors using actual AI response text
+    const filterMetricsRef: { metrics?: CompetitorFilterMetrics } = {};
     const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
       domain,
       brandName,
       businessContext,
       allResults,
       competitorCandidates,
+      filterMetricsRef,
     );
     console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
+
+    // Persist per-run filter metrics to the request row for regression tracking
+    if (filterMetricsRef.metrics && trackingRowId) {
+      try {
+        const { data: existingReq } = await dedupeClient
+          .from('visibility_report_requests')
+          .select('metadata')
+          .eq('id', trackingRowId)
+          .maybeSingle();
+        const mergedMeta = {
+          ...((existingReq?.metadata as Record<string, unknown>) ?? {}),
+          competitorFilterMetrics: filterMetricsRef.metrics,
+        };
+        await dedupeClient
+          .from('visibility_report_requests')
+          .update({ metadata: mergedMeta })
+          .eq('id', trackingRowId);
+      } catch (metricsErr) {
+        console.warn('[AutoReport] Failed to persist competitor filter metrics:', metricsErr);
+      }
+    }
 
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
