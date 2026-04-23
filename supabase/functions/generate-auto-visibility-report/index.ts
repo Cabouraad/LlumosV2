@@ -1162,14 +1162,27 @@ async function refineCompetitorCandidatesFromResults(
                 .filter((item: string) => !isSelfBrandCandidate(item, brandProfile, domain))
             );
 
-            // Soften: instead of throwing away OpenAI's filter when it removes >50%, always
-            // honor its rejections — but only as long as it kept SOMETHING. If it nuked
-            // everything, fall back to the full weak set so we don't end up empty-handed.
+            // OpenAI is a SOFT signal — useful for removing obvious garbage, but it
+            // routinely doesn't recognize small/local/niche brands (law firms, doctors,
+            // local trades). If it would drop more than 60% of the weak candidates we
+            // assume it's being over-aggressive and keep the union of OpenAI-kept
+            // plus the top remaining candidates (so niche legitimate firms survive).
             if (refined.length > 0) {
-              weakAfterOpenAI = refined;
-              if (refined.length < weakCandidates.length) {
+              const minToKeep = Math.min(weakCandidates.length, Math.max(refined.length, Math.ceil(weakCandidates.length * 0.4)));
+              if (refined.length >= minToKeep) {
+                weakAfterOpenAI = refined;
+              } else {
+                // Backfill with weak candidates OpenAI dropped, preserving original order
+                const refinedKeys = new Set(refined.map((c) => normalizeEntityName(c)));
+                const backfill = weakCandidates.filter((c) => !refinedKeys.has(normalizeEntityName(c)));
+                weakAfterOpenAI = dedupeBrandNames([...refined, ...backfill]).slice(0, minToKeep);
                 console.log(
-                  `[AutoReport] OpenAI refine kept ${refined.length}/${weakCandidates.length} weak candidates`,
+                  `[AutoReport] OpenAI refine kept ${refined.length}/${weakCandidates.length} — backfilled to ${weakAfterOpenAI.length} (40% floor) to protect niche brands`,
+                );
+              }
+              if (weakAfterOpenAI.length < weakCandidates.length) {
+                console.log(
+                  `[AutoReport] OpenAI refine final: ${weakAfterOpenAI.length}/${weakCandidates.length} weak candidates kept`,
                 );
               }
             } else {
