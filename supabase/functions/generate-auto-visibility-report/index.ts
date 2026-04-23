@@ -379,7 +379,12 @@ async function fetchHomepageSignals(domain: string): Promise<HomepageSignals> {
   return { context: '', brandCandidates: [] };
 }
 
-function buildBrandProfile(domain: string, businessContext: string, homepageSignals: HomepageSignals): BrandProfile {
+function buildBrandProfile(
+  domain: string,
+  businessContext: string,
+  homepageSignals: HomepageSignals,
+  companyNameOverride?: string,
+): BrandProfile {
   const fallbackName = prettifyDomainLabel(domain);
   const domainStem = domain
     .replace(/^https?:\/\//i, '')
@@ -388,20 +393,23 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
     .split('.')[0];
   const normalizedStem = normalizeEntityName(domainStem);
 
+  const overrideName = (typeof companyNameOverride === 'string' ? companyNameOverride.trim() : '');
+
   const candidates = dedupeBrandNames([
+    ...(overrideName ? [overrideName] : []),
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
     fallbackName,
   ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
-  const primaryName = candidates
+  const primaryName = overrideName || (candidates
     .sort((a, b) => {
       const aNorm = normalizeEntityName(a);
       const bNorm = normalizeEntityName(b);
       const aScore = (aNorm === normalizedStem ? 20 : 0) + (aNorm.includes(normalizedStem) || normalizedStem.includes(aNorm) ? 10 : 0) + (a.split(/\s+/).length <= 3 ? 2 : 0);
       const bScore = (bNorm === normalizedStem ? 20 : 0) + (bNorm.includes(normalizedStem) || normalizedStem.includes(bNorm) ? 10 : 0) + (b.split(/\s+/).length <= 3 ? 2 : 0);
       return bScore - aScore || a.length - b.length;
-    })[0] || fallbackName;
+    })[0] || fallbackName);
 
   const aliasSeed = expandBrandAliases([
     primaryName,
