@@ -177,13 +177,15 @@ export function IntentPromptSuggestions({
 
       if (!userData?.org_id) return null;
 
-      // Query matches what edge function stores: version=1, status='ready'
+      // Query matches what edge function stores: version=1, status='ready', suggestion_type='core_intent'
+      // Filtering by suggestion_type prevents picking up rows from competitor/local prompt generators
       const { data: suggestions, error } = await supabase
         .from('prompt_suggestions')
         .select('prompts_json, generation_params, status')
         .eq('org_id', userData.org_id)
         .eq('version', 1)
         .eq('status', 'ready')
+        .eq('suggestion_type', 'core_intent')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -230,6 +232,7 @@ export function IntentPromptSuggestions({
         .select('status, prompts_json, error_message')
         .eq('org_id', userData.org_id)
         .eq('version', 1)
+        .eq('suggestion_type', 'core_intent')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
