@@ -1,0 +1,1 @@
+UPDATE public.visibility_report_requests SET status = 'failed', metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('error', 'cleared by operator', 'clearedAt', now()::text) WHERE email = 'chris.abouraad@smbteam.com' AND status = 'processing';
