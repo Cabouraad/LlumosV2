@@ -74,6 +74,10 @@ interface ReportRequest {
    *  (e.g. process-pending-reports) that already marked the row as 'processing'
    *  is not blocked by its own update. */
   requestId?: string;
+  /** Optional: explicit brand/company name override. When provided, this takes
+   *  precedence over homepage-extracted candidates so we don't end up with
+   *  bogus primary names like "Client Login" or "A. Holt". */
+  companyName?: string;
 }
 
 interface BrandProfile {
@@ -225,7 +229,8 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeEntityName(value: string): string {
+function normalizeEntityName(value: string | null | undefined): string {
+  if (typeof value !== 'string' || !value) return '';
   return value
     .toLowerCase()
     .replace(/^https?:\/\//, '')
@@ -374,7 +379,12 @@ async function fetchHomepageSignals(domain: string): Promise<HomepageSignals> {
   return { context: '', brandCandidates: [] };
 }
 
-function buildBrandProfile(domain: string, businessContext: string, homepageSignals: HomepageSignals): BrandProfile {
+function buildBrandProfile(
+  domain: string,
+  businessContext: string,
+  homepageSignals: HomepageSignals,
+  companyNameOverride?: string,
+): BrandProfile {
   const fallbackName = prettifyDomainLabel(domain);
   const domainStem = domain
     .replace(/^https?:\/\//i, '')
@@ -383,20 +393,23 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
     .split('.')[0];
   const normalizedStem = normalizeEntityName(domainStem);
 
+  const overrideName = (typeof companyNameOverride === 'string' ? companyNameOverride.trim() : '');
+
   const candidates = dedupeBrandNames([
+    ...(overrideName ? [overrideName] : []),
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
     fallbackName,
   ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
-  const primaryName = candidates
+  const primaryName = overrideName || (candidates
     .sort((a, b) => {
       const aNorm = normalizeEntityName(a);
       const bNorm = normalizeEntityName(b);
       const aScore = (aNorm === normalizedStem ? 20 : 0) + (aNorm.includes(normalizedStem) || normalizedStem.includes(aNorm) ? 10 : 0) + (a.split(/\s+/).length <= 3 ? 2 : 0);
       const bScore = (bNorm === normalizedStem ? 20 : 0) + (bNorm.includes(normalizedStem) || normalizedStem.includes(bNorm) ? 10 : 0) + (b.split(/\s+/).length <= 3 ? 2 : 0);
       return bScore - aScore || a.length - b.length;
-    })[0] || fallbackName;
+    })[0] || fallbackName);
 
   const aliasSeed = expandBrandAliases([
     primaryName,
@@ -422,12 +435,14 @@ function expandBrandAliases(names: string[]): string[] {
   ]);
 
   const expanded = new Set<string>();
-  const add = (value: string) => {
+  const add = (value: string | null | undefined) => {
+    if (typeof value !== 'string' || !value) return;
     const cleaned = value.replace(/\s+/g, ' ').trim();
     if (cleaned.length >= 2) expanded.add(cleaned);
   };
 
-  for (const name of names) {
+  for (const name of (names || [])) {
+    if (typeof name !== 'string' || !name) continue;
     const cleaned = name.replace(/\s+/g, ' ').trim();
     if (!cleaned) continue;
 
@@ -455,17 +470,19 @@ function expandBrandAliases(names: string[]): string[] {
 function buildBrandSelfExclusionKeys(brandProfile: BrandProfile, domain?: string): Set<string> {
   const keys = new Set<string>();
 
-  const add = (value: string) => {
+  const add = (value: string | null | undefined) => {
+    if (typeof value !== 'string' || !value) return;
     const normalized = normalizeEntityName(value);
     if (!normalized) return;
     keys.add(normalized);
     const withoutAnd = normalized.replace(/\band\b/g, ' ').replace(/\s+/g, ' ').trim();
     if (withoutAnd) keys.add(withoutAnd);
-    keys.add(normalized.replace(/\s+/g, ''));
+    const compact = normalized.replace(/\s+/g, '');
+    if (compact) keys.add(compact);
   };
 
   add(brandProfile.primaryName);
-  for (const alias of brandProfile.aliases) {
+  for (const alias of (brandProfile.aliases || [])) {
     add(alias);
   }
 
@@ -3410,8 +3427,9 @@ serve(async (req) => {
     domain = body.domain;
     score = body.score;
     const callerRequestId = body.requestId || null;
+    const companyNameOverride = (typeof body.companyName === 'string' ? body.companyName.trim() : '') || undefined;
 
-    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}`);
+    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}`);
 
     // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
     const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -3508,7 +3526,7 @@ serve(async (req) => {
       fetchHomepageSignals(domain),
     ]);
 
-    const brandProfile = buildBrandProfile(domain, businessContext, homepageSignals);
+    const brandProfile = buildBrandProfile(domain, businessContext, homepageSignals, companyNameOverride);
     const brandName = brandProfile.primaryName;
     console.log('[AutoReport] Brand profile:', { primaryName: brandProfile.primaryName, aliases: brandProfile.aliases });
 
