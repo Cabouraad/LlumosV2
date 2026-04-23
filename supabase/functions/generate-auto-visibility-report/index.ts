@@ -1437,6 +1437,7 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
         temperature: 0.7,
         max_tokens: 800
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
@@ -1490,6 +1491,7 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
         messages: [{ role: 'user', content: prompt }],
         return_citations: true
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) throw new Error(`Perplexity error: ${response.status}`);
@@ -1544,6 +1546,7 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
         max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) {
@@ -1596,7 +1599,9 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     googleSearchUrl.searchParams.set('gl', 'us');
     googleSearchUrl.searchParams.set('hl', 'en');
 
-    const searchResponse = await fetch(googleSearchUrl.toString());
+    const searchResponse = await fetch(googleSearchUrl.toString(), {
+      signal: AbortSignal.timeout(25_000),
+    });
     if (!searchResponse.ok) throw new Error(`SerpAPI search error: ${searchResponse.status}`);
 
     const searchData = await searchResponse.json();
@@ -1612,7 +1617,9 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     aioUrl.searchParams.set('page_token', pageToken);
     aioUrl.searchParams.set('api_key', SERPAPI_KEY);
 
-    const aioResponse = await fetch(aioUrl.toString());
+    const aioResponse = await fetch(aioUrl.toString(), {
+      signal: AbortSignal.timeout(25_000),
+    });
     if (!aioResponse.ok) throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
 
     const aioData = await aioResponse.json();
