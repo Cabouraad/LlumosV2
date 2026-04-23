@@ -21,6 +21,11 @@ interface ReportRequest {
   email: string;
   domain: string;
   score: number;
+  /** Optional: ID of the visibility_report_requests row that triggered this run.
+   *  When provided, the in-flight dedupe guard ignores that row so a caller
+   *  (e.g. process-pending-reports) that already marked the row as 'processing'
+   *  is not blocked by its own update. */
+  requestId?: string;
 }
 
 interface BrandProfile {
