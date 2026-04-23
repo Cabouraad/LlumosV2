@@ -3309,14 +3309,43 @@ serve(async (req) => {
     }
 
     // Step 5: Refine competitors using actual AI response text
+    const filterMetricsRef: { metrics?: CompetitorFilterMetrics } = {};
     const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
       domain,
       brandName,
       businessContext,
       allResults,
       competitorCandidates,
+      filterMetricsRef,
     );
     console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
+
+    // Persist per-run filter metrics to the request row for regression tracking
+    if (filterMetricsRef.metrics) {
+      try {
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: existingReq } = await supabaseAdmin
+          .from('visibility_report_requests')
+          .select('id, metadata')
+          .eq('email', email.trim().toLowerCase())
+          .eq('domain', domain)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (existingReq?.id) {
+          const mergedMeta = {
+            ...(existingReq.metadata as Record<string, unknown> ?? {}),
+            competitorFilterMetrics: filterMetricsRef.metrics,
+          };
+          await supabaseAdmin
+            .from('visibility_report_requests')
+            .update({ metadata: mergedMeta })
+            .eq('id', existingReq.id);
+        }
+      } catch (metricsErr) {
+        console.warn('[AutoReport] Failed to persist competitor filter metrics:', metricsErr);
+      }
+    }
 
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
