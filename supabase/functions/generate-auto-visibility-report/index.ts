@@ -3258,10 +3258,15 @@ serve(async (req) => {
     // Hard guard #1: if ANY row for this email+domain has emailSent=true in the last 24h, skip.
     // Use metadata.reportGeneratedAt as the authoritative "sent at" timestamp (NOT created_at,
     // which reflects when the request was submitted, not when the email went out).
+    // EXCEPTION: when callerRequestId is provided, the caller explicitly wants a new run
+    // (e.g., a fresh queue entry for the same email+domain) — only check whether the SPECIFIC
+    // caller row has already been sent, not any historical row.
     const recentlySent = (recentRequests || []).find((r: any) => {
       const meta = r.metadata || {};
       const sentAtRaw = meta.reportGeneratedAt;
       if (!sentAtRaw || meta.emailSent !== true) return false;
+      // When caller provided a request ID, only block on that exact row.
+      if (callerRequestId && r.id !== callerRequestId) return false;
       const sentAt = new Date(sentAtRaw).getTime();
       return Number.isFinite(sentAt) && (now - sentAt) < ONE_DAY_MS;
     });
