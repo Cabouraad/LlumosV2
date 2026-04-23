@@ -3458,9 +3458,21 @@ serve(async (req) => {
       console.error('[AutoReport] Persist report failed:', persistErr?.message);
     }
 
+    // Merge with existing metadata so we don't wipe competitorFilterMetrics or other prior fields
+    let existingMetaForUpdate: Record<string, unknown> = {};
+    if (trackingRowId) {
+      const { data: existingRow } = await supabase
+        .from('visibility_report_requests')
+        .select('metadata')
+        .eq('id', trackingRowId)
+        .maybeSingle();
+      existingMetaForUpdate = (existingRow?.metadata as Record<string, unknown>) ?? {};
+    }
+
     const updatePayload = {
       status: emailSent ? 'sent' : 'error',
       metadata: {
+        ...existingMetaForUpdate,
         firstName,
         reportGeneratedAt: new Date().toISOString(),
         calculatedScore: overallScore,
@@ -3468,8 +3480,8 @@ serve(async (req) => {
         providersQueried: 4,
         categoryVisibility: categoryVisibility.label,
         shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
-        emailSent
-      }
+        emailSent,
+      },
     };
 
     if (trackingRowId) {
