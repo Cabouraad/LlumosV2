@@ -198,7 +198,24 @@ function prettifyDomainLabel(domain: string): string {
     .toLowerCase();
 
   let label = base.replace(/[-_]+/g, ' ');
-  const suffixes = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio'];
+
+  // Iteratively strip legal-entity suffixes glued to the end (pllc, llc, inc, corp, etc.)
+  // e.g., "gilmanlawpllc" -> "gilmanlaw"
+  const legalSuffixes = ['pllc', 'llc', 'inc', 'corp', 'ltd', 'llp', 'lp', 'pc', 'pa', 'co'];
+  let stripped = true;
+  while (stripped) {
+    stripped = false;
+    for (const suffix of legalSuffixes) {
+      if (!label.includes(' ') && label.endsWith(suffix) && label.length > suffix.length + 2) {
+        label = label.slice(0, -suffix.length);
+        stripped = true;
+        break;
+      }
+    }
+  }
+
+  // Split a known business-type suffix (e.g., "gilmanlaw" -> "gilman law")
+  const suffixes = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio', 'firm', 'attorneys', 'attorney', 'lawyers', 'lawyer', 'clinic', 'health', 'dental', 'realty', 'homes', 'tech', 'software', 'solutions', 'systems', 'capital', 'ventures'];
   const matchingSuffix = suffixes.find((suffix) => label.endsWith(suffix) && label.length > suffix.length + 2 && !label.includes(' '));
 
   if (matchingSuffix) {
