@@ -3183,6 +3183,7 @@ serve(async (req) => {
   let email = '';
   let domain = '';
   let score = 0;
+  let trackingRowIdOuter: string | null = null;
 
   try {
     const body: ReportRequest = await req.json();
