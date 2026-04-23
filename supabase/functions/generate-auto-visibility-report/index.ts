@@ -3302,20 +3302,20 @@ serve(async (req) => {
     const prompts = await generateIndustryPrompts(domain, businessContext);
     console.log('[AutoReport] Generated prompts:', prompts);
 
-    // Step 4: Query all providers for each prompt
+    // Step 4: Query all providers for each prompt — run all prompts concurrently
+    // (each prompt fans out to 4 providers; ~32 in-flight max with 8 prompts).
     console.log('[AutoReport] Querying providers...');
-    const allResults: ProviderResult[] = [];
-
-    for (const prompt of prompts) {
-      const [chatgptResult, perplexityResult, claudeResult, googleResult] = await Promise.all([
-        queryChatGPT(prompt, brandProfile, competitorCandidates),
-        queryPerplexity(prompt, brandProfile, competitorCandidates),
-        queryClaude(prompt, brandProfile, competitorCandidates),
-        queryGoogleAIO(prompt, brandProfile, competitorCandidates)
-      ]);
-
-      allResults.push(chatgptResult, perplexityResult, claudeResult, googleResult);
-    }
+    const perPromptResults = await Promise.all(
+      prompts.map((prompt) =>
+        Promise.all([
+          queryChatGPT(prompt, brandProfile, competitorCandidates),
+          queryPerplexity(prompt, brandProfile, competitorCandidates),
+          queryClaude(prompt, brandProfile, competitorCandidates),
+          queryGoogleAIO(prompt, brandProfile, competitorCandidates),
+        ])
+      )
+    );
+    const allResults: ProviderResult[] = perPromptResults.flat();
 
     // Step 5: Refine competitors using actual AI response text
     const filterMetricsRef: { metrics?: CompetitorFilterMetrics } = {};
