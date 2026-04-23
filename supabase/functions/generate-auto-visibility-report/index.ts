@@ -16,6 +16,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ---- Claude concurrency limiter ----
+// Anthropic enforces a per-account concurrent-connections cap. With multiple
+// reports running in parallel (each fanning out 8 prompts × 4 providers), naive
+// Promise.all calls quickly exceed it and Claude returns 429 "Number of
+// concurrent connections has exceeded your rate limit". Funnel every Claude
+// request through a tiny semaphore + retry-with-backoff so other providers
+// stay parallel but Claude is paced.
+const CLAUDE_MAX_CONCURRENT = 2;
+let claudeInFlight = 0;
+const claudeWaiters: Array<() => void> = [];
+
+async function acquireClaudeSlot(): Promise<void> {
+  if (claudeInFlight < CLAUDE_MAX_CONCURRENT) {
+    claudeInFlight++;
+    return;
+  }
+  await new Promise<void>((resolve) => claudeWaiters.push(resolve));
+  claudeInFlight++;
+}
+
+function releaseClaudeSlot(): void {
+  claudeInFlight = Math.max(0, claudeInFlight - 1);
+  const next = claudeWaiters.shift();
+  if (next) next();
+}
+
+async function fetchClaudeWithBackoff(input: RequestInfo, init: RequestInit, maxAttempts = 4): Promise<Response> {
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const resp = await fetch(input, init);
+      if (resp.status !== 429 && resp.status !== 529) return resp;
+      // Rate limited or overloaded — read body so the connection releases, then back off.
+      await resp.text().catch(() => '');
+      const backoff = Math.min(8000, 600 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 400);
+      console.warn(`[AutoReport] Claude ${resp.status} on attempt ${attempt}/${maxAttempts}, retrying in ${backoff}ms`);
+      await new Promise((r) => setTimeout(r, backoff));
+      lastErr = new Error(`Claude transient ${resp.status}`);
+    } catch (err) {
+      lastErr = err;
+      const backoff = Math.min(8000, 600 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 400);
+      console.warn(`[AutoReport] Claude fetch threw on attempt ${attempt}/${maxAttempts}, retrying in ${backoff}ms`, err);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Claude request failed after retries');
+}
+
 interface ReportRequest {
   firstName: string;
   email: string;
