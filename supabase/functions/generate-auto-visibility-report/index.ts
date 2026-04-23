@@ -398,16 +398,112 @@ function buildBrandProfile(domain: string, businessContext: string, homepageSign
       return bScore - aScore || a.length - b.length;
     })[0] || fallbackName;
 
+  const aliasSeed = expandBrandAliases([
+    primaryName,
+    fallbackName,
+    domainStem,
+    ...candidates,
+  ]);
+
   return {
     primaryName,
     aliases: dedupeBrandNames([
-      primaryName,
-      fallbackName,
-      domainStem,
-      primaryName.replace(/\s+/g, ''),
-      primaryName.replace(/\s+/g, '-'),
+      ...aliasSeed,
+      ...aliasSeed.map((alias) => alias.replace(/\s+/g, '')),
+      ...aliasSeed.map((alias) => alias.replace(/\s+/g, '-')),
     ]).filter((alias) => normalizeEntityName(alias).length >= 3),
   };
+}
+
+function expandBrandAliases(names: string[]): string[] {
+  const trailingBrandWords = new Set([
+    'llc', 'inc', 'corp', 'corporation', 'ltd', 'llp', 'pllc', 'pc', 'pa', 'lp', 'co', 'company',
+    'group', 'firm', 'legal', 'law', 'attorneys', 'attorney', 'lawyers', 'lawyer',
+  ]);
+
+  const expanded = new Set<string>();
+  const add = (value: string) => {
+    const cleaned = value.replace(/\s+/g, ' ').trim();
+    if (cleaned.length >= 2) expanded.add(cleaned);
+  };
+
+  for (const name of names) {
+    const cleaned = name.replace(/\s+/g, ' ').trim();
+    if (!cleaned) continue;
+
+    add(cleaned);
+    add(cleaned.replace(/\s*&\s*/g, ' and '));
+    add(cleaned.replace(/\s*&\s*/g, ' '));
+    add(cleaned.replace(/\band\b/gi, ' '));
+
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) add(words.slice(0, 2).join(' '));
+    if (words.length >= 3) add(words.slice(0, 3).join(' '));
+
+    let trimmedWords = [...words];
+    while (trimmedWords.length > 1) {
+      const lastWord = normalizeEntityName(trimmedWords[trimmedWords.length - 1]);
+      if (!trailingBrandWords.has(lastWord)) break;
+      trimmedWords = trimmedWords.slice(0, -1);
+      add(trimmedWords.join(' '));
+    }
+  }
+
+  return dedupeBrandNames([...expanded]);
+}
+
+function buildBrandSelfExclusionKeys(brandProfile: BrandProfile, domain?: string): Set<string> {
+  const keys = new Set<string>();
+
+  const add = (value: string) => {
+    const normalized = normalizeEntityName(value);
+    if (!normalized) return;
+    keys.add(normalized);
+    const withoutAnd = normalized.replace(/\band\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (withoutAnd) keys.add(withoutAnd);
+    keys.add(normalized.replace(/\s+/g, ''));
+  };
+
+  add(brandProfile.primaryName);
+  for (const alias of brandProfile.aliases) {
+    add(alias);
+  }
+
+  if (domain) {
+    const domainStem = domain
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .split('.')[0];
+    add(domainStem);
+    add(prettifyDomainLabel(domain));
+  }
+
+  return keys;
+}
+
+function isSelfBrandCandidate(name: string, brandProfile: BrandProfile, domain?: string): boolean {
+  const normalizedCandidate = normalizeEntityName(name);
+  if (!normalizedCandidate) return false;
+
+  const exclusionKeys = buildBrandSelfExclusionKeys(brandProfile, domain);
+  if (exclusionKeys.has(normalizedCandidate) || exclusionKeys.has(normalizedCandidate.replace(/\s+/g, ''))) {
+    return true;
+  }
+
+  const candidateWords = normalizedCandidate.split(' ').filter(Boolean);
+  if (candidateWords.length >= 2) {
+    for (const alias of exclusionKeys) {
+      const aliasWords = alias.split(' ').filter(Boolean);
+      if (
+        aliasWords.length > candidateWords.length &&
+        aliasWords.slice(0, candidateWords.length).join(' ') === normalizedCandidate
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function aliasToRegexSource(alias: string): string | null {
@@ -729,10 +825,12 @@ function extractCompetitorCandidatesFromResults(
 
 async function identifyCompetitorCandidates(
   domain: string,
-  brandName: string,
+  brandProfile: BrandProfile,
   businessContext: string,
 ): Promise<string[]> {
-  const fallbackCandidates = parseCompetitorCandidatesFromResearch(businessContext, brandName, domain);
+  const brandName = brandProfile.primaryName;
+  const fallbackCandidates = parseCompetitorCandidatesFromResearch(businessContext, brandName, domain)
+    .filter((candidate) => !isSelfBrandCandidate(candidate, brandProfile, domain));
 
   if (!OPENAI_API_KEY) {
     return fallbackCandidates;
@@ -775,7 +873,8 @@ async function identifyCompetitorCandidates(
       if (Array.isArray(parsed)) {
         const aiCandidates = parsed
           .map((item: unknown) => typeof item === 'string' ? item : '')
-          .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain));
+          .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
+          .filter((item: string) => !isSelfBrandCandidate(item, brandProfile, domain));
 
         const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 15);
         if (cleanedCandidates.length > 0) {
@@ -928,12 +1027,13 @@ export interface CompetitorFilterMetrics {
 
 async function refineCompetitorCandidatesFromResults(
   domain: string,
-  brandName: string,
+  brandProfile: BrandProfile,
   businessContext: string,
   results: ProviderResult[],
   initialCandidates: string[],
   metricsOut?: { metrics?: CompetitorFilterMetrics },
 ): Promise<string[]> {
+  const brandName = brandProfile.primaryName;
   const responseStats = extractCompetitorCandidatesFromResults(results, brandName, domain);
   const responseCandidates = responseStats.map((s) => s.candidate);
 
@@ -963,7 +1063,8 @@ async function refineCompetitorCandidatesFromResults(
   const expandedCandidates = dedupeBrandNames(
     [...trustedCandidates, ...singleProviderCandidates, ...initialCandidates]
       .flatMap(splitCompound)
-      .filter((c) => isLikelyCompetitorBrand(c, brandName, domain)),
+      .filter((c) => isLikelyCompetitorBrand(c, brandName, domain))
+      .filter((c) => !isSelfBrandCandidate(c, brandProfile, domain)),
   );
   const combinedCandidates = expandedCandidates.slice(0, 20);
 
@@ -1041,6 +1142,7 @@ async function refineCompetitorCandidatesFromResults(
                 .map((item: unknown) => typeof item === 'string' ? item : '')
                 .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
                 .filter((item: string) => allowed.has(normalizeEntityName(item)))
+                .filter((item: string) => !isSelfBrandCandidate(item, brandProfile, domain))
             );
 
             // Soften: instead of throwing away OpenAI's filter when it removes >50%, always
@@ -1071,12 +1173,15 @@ async function refineCompetitorCandidatesFromResults(
   // Perplexity is the final, strictest gate — now applied to BOTH trusted and weak candidates.
   // Trusted multi-provider candidates can still be service categories ("Local SEO") that
   // organically appear across providers, so they need verification too.
-  const allForValidation = dedupeBrandNames([...trustedDirect, ...weakAfterOpenAI]);
+  const allForValidation = dedupeBrandNames([...trustedDirect, ...weakAfterOpenAI])
+    .filter((candidate) => !isSelfBrandCandidate(candidate, brandProfile, domain));
   const validated = allForValidation.length > 0
     ? await validateCompetitorsWithPerplexity(allForValidation, brandName, domain, businessContext)
     : [];
 
-  const finalList = dedupeBrandNames(validated).slice(0, 25);
+  const finalList = dedupeBrandNames(validated)
+    .filter((candidate) => !isSelfBrandCandidate(candidate, brandProfile, domain))
+    .slice(0, 25);
 
   const metrics: CompetitorFilterMetrics = {
     domain,
@@ -1515,7 +1620,7 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
-    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
+    result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1569,7 +1674,7 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
-    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
+    result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1633,7 +1738,7 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
     const data = await response.json();
     result.response = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
-    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
+    result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1712,7 +1817,7 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     }
 
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
-    result.competitors = extractCompetitors(result.response, brandProfile.primaryName, competitorCandidates);
+    result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1729,16 +1834,15 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
  * Extract only direct competitor brands from response text
  * Uses a researched company-specific competitor allowlist instead of generic pattern matching
  */
-function extractCompetitors(text: string, brandName: string, competitorCandidates: string[]): string[] {
+function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
   if (!competitorCandidates.length || !text) return [];
 
   const textLower = text.toLowerCase();
-  const brandLower = brandName.toLowerCase();
 
   return competitorCandidates.filter((candidate) => {
     const candidateLower = candidate.toLowerCase().trim();
     if (!candidateLower || candidateLower.length < 2) return false;
-    if (candidateLower === brandLower) return false;
+    if (isSelfBrandCandidate(candidate, brandProfile)) return false;
 
     // Use word-boundary matching to prevent false positives
     // For short names (< 4 chars), require exact word boundaries
@@ -3410,7 +3514,7 @@ serve(async (req) => {
 
     // Step 2: Identify competitor candidates
     console.log('[AutoReport] Identifying competitors...');
-    const competitorCandidates = await identifyCompetitorCandidates(domain, brandName, businessContext);
+    const competitorCandidates = await identifyCompetitorCandidates(domain, brandProfile, businessContext);
     console.log('[AutoReport] Initial competitor candidates:', competitorCandidates);
 
     // Step 3: Generate industry-relevant prompts based on research
@@ -3437,7 +3541,7 @@ serve(async (req) => {
     const filterMetricsRef: { metrics?: CompetitorFilterMetrics } = {};
     const refinedCompetitorCandidates = await refineCompetitorCandidatesFromResults(
       domain,
-      brandName,
+      brandProfile,
       businessContext,
       allResults,
       competitorCandidates,
