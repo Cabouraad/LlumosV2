@@ -3526,24 +3526,50 @@ serve(async (req) => {
         error?.message
       );
       
-      // Update database record with error status
+      // Update database record with error status — target the specific tracking row when known
+      // so we never accidentally reset the dedupe guard on a previously-sent row.
       try {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        await supabase
-          .from('visibility_report_requests')
-          .update({
-            status: 'error',
-            metadata: {
-              firstName,
-              errorAt: new Date().toISOString(),
-              errorMessage: error?.message || 'Unknown error',
-              failureNotificationSent
-            }
-          })
-          .eq('email', email)
-          .eq('domain', domain)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        if (trackingRowIdOuter) {
+          const { data: existingErrRow } = await supabase
+            .from('visibility_report_requests')
+            .select('metadata')
+            .eq('id', trackingRowIdOuter)
+            .maybeSingle();
+          const existingErrMeta = (existingErrRow?.metadata as Record<string, unknown>) ?? {};
+          await supabase
+            .from('visibility_report_requests')
+            .update({
+              status: 'error',
+              metadata: {
+                ...existingErrMeta,
+                firstName,
+                errorAt: new Date().toISOString(),
+                errorMessage: error?.message || 'Unknown error',
+                failureNotificationSent,
+              },
+            })
+            .eq('id', trackingRowIdOuter);
+        } else {
+          // No tracking row id available — fall back to email+domain but only update rows
+          // that are NOT already in 'sent' status, to protect the dedupe guard.
+          await supabase
+            .from('visibility_report_requests')
+            .update({
+              status: 'error',
+              metadata: {
+                firstName,
+                errorAt: new Date().toISOString(),
+                errorMessage: error?.message || 'Unknown error',
+                failureNotificationSent,
+              },
+            })
+            .eq('email', email)
+            .eq('domain', domain)
+            .neq('status', 'sent')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        }
       } catch (dbError) {
         console.error('[AutoReport] Failed to update database with error status:', dbError);
       }
