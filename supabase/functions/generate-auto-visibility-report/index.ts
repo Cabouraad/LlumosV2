@@ -2205,6 +2205,13 @@ async function generatePDF(
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const helveticaOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
+  // Patch widthOfTextAtSize on each font to sanitize non-WinAnsi characters
+  // (emojis, exotic Unicode) that pdf-lib's standard fonts cannot encode.
+  for (const f of [helvetica, helveticaBold, helveticaOblique]) {
+    const orig = f.widthOfTextAtSize.bind(f);
+    f.widthOfTextAtSize = (text: string, size: number) => orig(sanitizePdfText(text), size);
+  }
+
   // Embed SMB Team logo
   let smbTeamLogo: any = null;
   try {
@@ -2303,6 +2310,12 @@ async function generatePDF(
 
   function newPage() {
     const pg = pdfDoc.addPage([W, H]);
+    // Patch drawText to sanitize non-WinAnsi characters (emojis, exotic Unicode)
+    // that pdf-lib's standard fonts (Helvetica) cannot encode.
+    const origDrawText = pg.drawText.bind(pg);
+    pg.drawText = (text: string, options: any) => {
+      return origDrawText(sanitizePdfText(text), options);
+    };
     drawFooter(pg);
     return pg;
   }
@@ -3067,8 +3080,26 @@ async function generatePDF(
 /**
  * Wrap text to fit within character limit
  */
+function sanitizePdfText(text: string): string {
+  if (text == null) return '';
+  const s = String(text);
+  // Replace common smart punctuation with ASCII equivalents
+  let out = s
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\u00A0/g, ' ');
+  // Strip any remaining character outside the WinAnsi (Latin-1 supplement) range
+  // pdf-lib's standard Helvetica only supports WinAnsi-encodable glyphs.
+  // Allow ASCII (0x20-0x7E), tab/newline, and Latin-1 supplement (0xA0-0xFF).
+  out = out.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF×]/g, '');
+  return out;
+}
+
 function wrapText(text: string, maxChars: number): string[] {
-  const words = text.split(' ');
+  const sanitized = sanitizePdfText(text);
+  const words = sanitized.split(' ');
   const lines: string[] = [];
   let currentLine = '';
   
@@ -3082,7 +3113,7 @@ function wrapText(text: string, maxChars: number): string[] {
   }
   
   if (currentLine) lines.push(currentLine);
-  return lines.length > 0 ? lines : [text.substring(0, maxChars)];
+  return lines.length > 0 ? lines : [sanitized.substring(0, maxChars)];
 }
 
 /**
