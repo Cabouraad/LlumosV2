@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status = 'error' WHERE id IN ('6b308b04-6e40-42af-b8dd-17ea4c0d8bb6','1c362d9c-e757-4950-be6d-c08e8a4cc056','4934dc23-c567-43ec-8743-fc645f7705a1','50f91709-fea8-48a1-a15a-9d443019d932','b45eca3b-79bd-4696-90bd-5a46f26be72a','e62a64dd-d94d-4389-b5f1-cbba6ae2e285');
