@@ -1006,7 +1006,37 @@ async function refineCompetitorCandidatesFromResults(
     ? await validateCompetitorsWithPerplexity(allForValidation, brandName, domain, businessContext)
     : [];
 
-  return dedupeBrandNames(validated).slice(0, 25);
+  const finalList = dedupeBrandNames(validated).slice(0, 25);
+
+  const metrics: CompetitorFilterMetrics = {
+    domain,
+    brandName,
+    initial: initialCandidates.length,
+    responseExtracted: responseCandidates.length,
+    trustedMultiProvider: trustedCandidates.length,
+    singleProvider: singleProviderCandidates.length,
+    afterCompoundSplit: combinedCandidates.length,
+    trustedBypass: trustedDirect.length,
+    weakInput: weakCandidates.length,
+    weakAfterOpenAI: weakAfterOpenAI.length,
+    openAIApplied: !!OPENAI_API_KEY && weakCandidates.length > 0,
+    openAIKeptAll: weakAfterOpenAI.length === weakCandidates.length,
+    combinedForPerplexity: allForValidation.length,
+    afterPerplexity: validated.length,
+    final: finalList.length,
+    droppedByOpenAI: Math.max(0, weakCandidates.length - weakAfterOpenAI.length),
+    droppedByPerplexity: Math.max(0, allForValidation.length - validated.length),
+    timestamp: new Date().toISOString(),
+  };
+
+  // Single-line structured log for easy querying / regression detection
+  console.log(`[CompetitorFilterMetrics] ${JSON.stringify(metrics)}`);
+
+  if (metricsOut) {
+    metricsOut.metrics = metrics;
+  }
+
+  return finalList;
 }
 
 /**
