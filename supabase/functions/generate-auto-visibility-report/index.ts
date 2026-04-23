@@ -825,10 +825,12 @@ function extractCompetitorCandidatesFromResults(
 
 async function identifyCompetitorCandidates(
   domain: string,
-  brandName: string,
+  brandProfile: BrandProfile,
   businessContext: string,
 ): Promise<string[]> {
-  const fallbackCandidates = parseCompetitorCandidatesFromResearch(businessContext, brandName, domain);
+  const brandName = brandProfile.primaryName;
+  const fallbackCandidates = parseCompetitorCandidatesFromResearch(businessContext, brandName, domain)
+    .filter((candidate) => !isSelfBrandCandidate(candidate, brandProfile, domain));
 
   if (!OPENAI_API_KEY) {
     return fallbackCandidates;
@@ -871,7 +873,8 @@ async function identifyCompetitorCandidates(
       if (Array.isArray(parsed)) {
         const aiCandidates = parsed
           .map((item: unknown) => typeof item === 'string' ? item : '')
-          .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain));
+          .filter((item: string) => isLikelyCompetitorBrand(item, brandName, domain))
+          .filter((item: string) => !isSelfBrandCandidate(item, brandProfile, domain));
 
         const cleanedCandidates = dedupeBrandNames(aiCandidates).slice(0, 15);
         if (cleanedCandidates.length > 0) {
