@@ -242,7 +242,8 @@ function normalizeEntityName(value: string | null | undefined): string {
     .trim();
 }
 
-function prettifyDomainLabel(domain: string): string {
+function prettifyDomainLabel(domain: string | null | undefined): string {
+  if (!domain || typeof domain !== 'string') return '';
   const base = domain
     .replace(/^https?:\/\//i, '')
     .replace(/^www\./i, '')
