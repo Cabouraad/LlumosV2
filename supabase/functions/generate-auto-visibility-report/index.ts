@@ -3073,8 +3073,26 @@ async function generatePDF(
 /**
  * Wrap text to fit within character limit
  */
+function sanitizePdfText(text: string): string {
+  if (text == null) return '';
+  const s = String(text);
+  // Replace common smart punctuation with ASCII equivalents
+  let out = s
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/\u00A0/g, ' ');
+  // Strip any remaining character outside the WinAnsi (Latin-1 supplement) range
+  // pdf-lib's standard Helvetica only supports WinAnsi-encodable glyphs.
+  // Allow ASCII (0x20-0x7E), tab/newline, and Latin-1 supplement (0xA0-0xFF).
+  out = out.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF×]/g, '');
+  return out;
+}
+
 function wrapText(text: string, maxChars: number): string[] {
-  const words = text.split(' ');
+  const sanitized = sanitizePdfText(text);
+  const words = sanitized.split(' ');
   const lines: string[] = [];
   let currentLine = '';
   
@@ -3088,7 +3106,7 @@ function wrapText(text: string, maxChars: number): string[] {
   }
   
   if (currentLine) lines.push(currentLine);
-  return lines.length > 0 ? lines : [text.substring(0, maxChars)];
+  return lines.length > 0 ? lines : [sanitized.substring(0, maxChars)];
 }
 
 /**
