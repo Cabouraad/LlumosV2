@@ -3321,27 +3321,21 @@ serve(async (req) => {
     console.log('[AutoReport] Refined competitor candidates from AI responses:', refinedCompetitorCandidates);
 
     // Persist per-run filter metrics to the request row for regression tracking
-    if (filterMetricsRef.metrics) {
+    if (filterMetricsRef.metrics && trackingRowId) {
       try {
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const { data: existingReq } = await supabaseAdmin
+        const { data: existingReq } = await dedupeClient
           .from('visibility_report_requests')
-          .select('id, metadata')
-          .eq('email', email.trim().toLowerCase())
-          .eq('domain', domain)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .select('metadata')
+          .eq('id', trackingRowId)
           .maybeSingle();
-        if (existingReq?.id) {
-          const mergedMeta = {
-            ...(existingReq.metadata as Record<string, unknown> ?? {}),
-            competitorFilterMetrics: filterMetricsRef.metrics,
-          };
-          await supabaseAdmin
-            .from('visibility_report_requests')
-            .update({ metadata: mergedMeta })
-            .eq('id', existingReq.id);
-        }
+        const mergedMeta = {
+          ...((existingReq?.metadata as Record<string, unknown>) ?? {}),
+          competitorFilterMetrics: filterMetricsRef.metrics,
+        };
+        await dedupeClient
+          .from('visibility_report_requests')
+          .update({ metadata: mergedMeta })
+          .eq('id', trackingRowId);
       } catch (metricsErr) {
         console.warn('[AutoReport] Failed to persist competitor filter metrics:', metricsErr);
       }
