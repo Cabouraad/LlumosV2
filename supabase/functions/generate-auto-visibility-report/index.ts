@@ -1437,6 +1437,7 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
         temperature: 0.7,
         max_tokens: 800
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
@@ -1490,6 +1491,7 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
         messages: [{ role: 'user', content: prompt }],
         return_citations: true
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) throw new Error(`Perplexity error: ${response.status}`);
@@ -1544,6 +1546,7 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
         max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       }),
+      signal: AbortSignal.timeout(25_000),
     });
 
     if (!response.ok) {
@@ -1596,7 +1599,9 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     googleSearchUrl.searchParams.set('gl', 'us');
     googleSearchUrl.searchParams.set('hl', 'en');
 
-    const searchResponse = await fetch(googleSearchUrl.toString());
+    const searchResponse = await fetch(googleSearchUrl.toString(), {
+      signal: AbortSignal.timeout(25_000),
+    });
     if (!searchResponse.ok) throw new Error(`SerpAPI search error: ${searchResponse.status}`);
 
     const searchData = await searchResponse.json();
@@ -1612,7 +1617,9 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     aioUrl.searchParams.set('page_token', pageToken);
     aioUrl.searchParams.set('api_key', SERPAPI_KEY);
 
-    const aioResponse = await fetch(aioUrl.toString());
+    const aioResponse = await fetch(aioUrl.toString(), {
+      signal: AbortSignal.timeout(25_000),
+    });
     if (!aioResponse.ok) throw new Error(`SerpAPI AIO error: ${aioResponse.status}`);
 
     const aioData = await aioResponse.json();
@@ -3183,6 +3190,7 @@ serve(async (req) => {
   let email = '';
   let domain = '';
   let score = 0;
+  let trackingRowIdOuter: string | null = null;
 
   try {
     const body: ReportRequest = await req.json();
@@ -3271,6 +3279,7 @@ serve(async (req) => {
         })
         .eq('id', trackingRowId);
     }
+    trackingRowIdOuter = trackingRowId;
 
     // Step 1: Build brand profile from homepage + research
     console.log('[AutoReport] Building brand profile...');
@@ -3293,20 +3302,20 @@ serve(async (req) => {
     const prompts = await generateIndustryPrompts(domain, businessContext);
     console.log('[AutoReport] Generated prompts:', prompts);
 
-    // Step 4: Query all providers for each prompt
+    // Step 4: Query all providers for each prompt — run all prompts concurrently
+    // (each prompt fans out to 4 providers; ~32 in-flight max with 8 prompts).
     console.log('[AutoReport] Querying providers...');
-    const allResults: ProviderResult[] = [];
-
-    for (const prompt of prompts) {
-      const [chatgptResult, perplexityResult, claudeResult, googleResult] = await Promise.all([
-        queryChatGPT(prompt, brandProfile, competitorCandidates),
-        queryPerplexity(prompt, brandProfile, competitorCandidates),
-        queryClaude(prompt, brandProfile, competitorCandidates),
-        queryGoogleAIO(prompt, brandProfile, competitorCandidates)
-      ]);
-
-      allResults.push(chatgptResult, perplexityResult, claudeResult, googleResult);
-    }
+    const perPromptResults = await Promise.all(
+      prompts.map((prompt) =>
+        Promise.all([
+          queryChatGPT(prompt, brandProfile, competitorCandidates),
+          queryPerplexity(prompt, brandProfile, competitorCandidates),
+          queryClaude(prompt, brandProfile, competitorCandidates),
+          queryGoogleAIO(prompt, brandProfile, competitorCandidates),
+        ])
+      )
+    );
+    const allResults: ProviderResult[] = perPromptResults.flat();
 
     // Step 5: Refine competitors using actual AI response text
     const filterMetricsRef: { metrics?: CompetitorFilterMetrics } = {};
@@ -3456,9 +3465,21 @@ serve(async (req) => {
       console.error('[AutoReport] Persist report failed:', persistErr?.message);
     }
 
+    // Merge with existing metadata so we don't wipe competitorFilterMetrics or other prior fields
+    let existingMetaForUpdate: Record<string, unknown> = {};
+    if (trackingRowId) {
+      const { data: existingRow } = await supabase
+        .from('visibility_report_requests')
+        .select('metadata')
+        .eq('id', trackingRowId)
+        .maybeSingle();
+      existingMetaForUpdate = (existingRow?.metadata as Record<string, unknown>) ?? {};
+    }
+
     const updatePayload = {
       status: emailSent ? 'sent' : 'error',
       metadata: {
+        ...existingMetaForUpdate,
         firstName,
         reportGeneratedAt: new Date().toISOString(),
         calculatedScore: overallScore,
@@ -3466,8 +3487,8 @@ serve(async (req) => {
         providersQueried: 4,
         categoryVisibility: categoryVisibility.label,
         shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
-        emailSent
-      }
+        emailSent,
+      },
     };
 
     if (trackingRowId) {
@@ -3512,24 +3533,50 @@ serve(async (req) => {
         error?.message
       );
       
-      // Update database record with error status
+      // Update database record with error status — target the specific tracking row when known
+      // so we never accidentally reset the dedupe guard on a previously-sent row.
       try {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        await supabase
-          .from('visibility_report_requests')
-          .update({
-            status: 'error',
-            metadata: {
-              firstName,
-              errorAt: new Date().toISOString(),
-              errorMessage: error?.message || 'Unknown error',
-              failureNotificationSent
-            }
-          })
-          .eq('email', email)
-          .eq('domain', domain)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        if (trackingRowIdOuter) {
+          const { data: existingErrRow } = await supabase
+            .from('visibility_report_requests')
+            .select('metadata')
+            .eq('id', trackingRowIdOuter)
+            .maybeSingle();
+          const existingErrMeta = (existingErrRow?.metadata as Record<string, unknown>) ?? {};
+          await supabase
+            .from('visibility_report_requests')
+            .update({
+              status: 'error',
+              metadata: {
+                ...existingErrMeta,
+                firstName,
+                errorAt: new Date().toISOString(),
+                errorMessage: error?.message || 'Unknown error',
+                failureNotificationSent,
+              },
+            })
+            .eq('id', trackingRowIdOuter);
+        } else {
+          // No tracking row id available — fall back to email+domain but only update rows
+          // that are NOT already in 'sent' status, to protect the dedupe guard.
+          await supabase
+            .from('visibility_report_requests')
+            .update({
+              status: 'error',
+              metadata: {
+                firstName,
+                errorAt: new Date().toISOString(),
+                errorMessage: error?.message || 'Unknown error',
+                failureNotificationSent,
+              },
+            })
+            .eq('email', email)
+            .eq('domain', domain)
+            .neq('status', 'sent')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        }
       } catch (dbError) {
         console.error('[AutoReport] Failed to update database with error status:', dbError);
       }
