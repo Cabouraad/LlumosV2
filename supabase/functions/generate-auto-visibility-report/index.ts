@@ -1070,9 +1070,38 @@ async function refineCompetitorCandidatesFromResults(
   // Pre-split compound names: AI responses sometimes return "Facebook, LinkedIn" or "Acme/Beta"
   // as a single token. Split on commas/slashes/" and "/"&" and re-validate each fragment so the
   // exclusion list (channels, directories) catches the individual entities.
+  //
+  // IMPORTANT: Many law/professional firms legitimately contain "&" or "and" in their name
+  // (e.g., "Morgan & Morgan", "Weitz & Luxenberg", "Cohen and Cohen"). We must NOT split these
+  // or we'll destroy the firm name and Perplexity validation will reject the orphaned fragments.
   const splitCompound = (raw: string): string[] => {
-    if (!/[,/]|\s+(?:and|&)\s+/i.test(raw)) return [raw];
-    return raw
+    const trimmed = raw.trim();
+    if (!/[,/]|\s+(?:and|&)\s+/i.test(trimmed)) return [trimmed];
+
+    // Heuristic: treat as a single firm/brand name (do NOT split) when:
+    //  - Short (<= 5 words) AND contains only one "&" / "and" connector AND no commas/slashes
+    //    → covers "Morgan & Morgan", "Weitz & Luxenberg", "Cohen and Cohen Law", etc.
+    //  - Repeated surname pattern "X & X" or "X and X" (always a single firm)
+    const wordCount = trimmed.split(/\s+/).length;
+    const hasComma = /,/.test(trimmed);
+    const hasSlash = /\//.test(trimmed);
+    const connectorMatches = trimmed.match(/\s+(?:and|&)\s+/gi) || [];
+
+    // Repeated-surname pattern: "Morgan & Morgan", "Smith and Smith"
+    const repeatMatch = trimmed.match(/^([A-Z][a-zA-Z'-]+)\s+(?:and|&)\s+\1(\s+[A-Z][\w&'.,-]*)*$/i);
+    if (repeatMatch) return [trimmed];
+
+    // Short firm-style name with a single "&"/"and" → keep intact
+    if (!hasComma && !hasSlash && connectorMatches.length === 1 && wordCount <= 5) {
+      return [trimmed];
+    }
+
+    // Trailing "& Partner" / "& Associates" / "& Co" style → keep intact
+    if (!hasComma && !hasSlash && /\s+(?:&|and)\s+(?:Partners?|Associates?|Co\.?|Company|Sons?|Bros\.?|Brothers?|Daughters?)\b/i.test(trimmed)) {
+      return [trimmed];
+    }
+
+    return trimmed
       .split(/\s*(?:,|\/|\s+and\s+|\s*&\s*)\s*/i)
       .map((s) => s.trim())
       .filter(Boolean);
