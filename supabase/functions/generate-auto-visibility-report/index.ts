@@ -2205,6 +2205,13 @@ async function generatePDF(
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const helveticaOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
+  // Patch widthOfTextAtSize on each font to sanitize non-WinAnsi characters
+  // (emojis, exotic Unicode) that pdf-lib's standard fonts cannot encode.
+  for (const f of [helvetica, helveticaBold, helveticaOblique]) {
+    const orig = f.widthOfTextAtSize.bind(f);
+    f.widthOfTextAtSize = (text: string, size: number) => orig(sanitizePdfText(text), size);
+  }
+
   // Embed SMB Team logo
   let smbTeamLogo: any = null;
   try {
