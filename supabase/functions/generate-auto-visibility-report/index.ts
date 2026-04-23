@@ -21,6 +21,11 @@ interface ReportRequest {
   email: string;
   domain: string;
   score: number;
+  /** Optional: ID of the visibility_report_requests row that triggered this run.
+   *  When provided, the in-flight dedupe guard ignores that row so a caller
+   *  (e.g. process-pending-reports) that already marked the row as 'processing'
+   *  is not blocked by its own update. */
+  requestId?: string;
 }
 
 interface BrandProfile {
@@ -3198,8 +3203,9 @@ serve(async (req) => {
     email = body.email;
     domain = body.domain;
     score = body.score;
+    const callerRequestId = body.requestId || null;
 
-    console.log(`[AutoReport] Starting report generation for ${domain}`);
+    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}`);
 
     // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
     const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -3237,8 +3243,11 @@ serve(async (req) => {
     }
 
     // Hard guard #2: if another invocation is currently generating (started within last 8 min), skip.
+    // IMPORTANT: ignore the caller's own row (callerRequestId) — the caller may have just marked
+    // it as 'processing' before invoking us, which would otherwise cause a self-block.
     const inFlight = (recentRequests || []).find((r: any) => {
       if (r.status !== 'processing') return false;
+      if (callerRequestId && r.id === callerRequestId) return false;
       const meta = r.metadata || {};
       const startedAt = meta.generationStartedAt || meta.backgroundTriggeredAt || meta.processingStartedAt || r.created_at;
       const startedMs = new Date(startedAt).getTime();

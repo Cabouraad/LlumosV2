@@ -106,7 +106,7 @@ async function processWave(
             "Content-Type": "application/json",
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           },
-          body: JSON.stringify({ firstName, email, domain, score: 0 }),
+          body: JSON.stringify({ firstName, email, domain, score: 0, requestId: request.id }),
           signal: controller.signal,
         },
       );
