@@ -578,6 +578,7 @@ Deno.serve(async (req) => {
       .select('*')
       .eq('org_id', orgId)
       .eq('version', 1)
+      .eq('suggestion_type', 'core_intent')
       .eq('prompt_hash', promptHash)
       .eq('status', 'ready')
       .maybeSingle();
@@ -589,6 +590,7 @@ Deno.serve(async (req) => {
         .eq('org_id', orgId)
         .eq('brand_id', brandId)
         .eq('version', 1)
+        .eq('suggestion_type', 'core_intent')
         .eq('prompt_hash', promptHash)
         .eq('status', 'ready')
         .maybeSingle();
@@ -612,7 +614,7 @@ Deno.serve(async (req) => {
 
     const { data: buildingRecord, error: insertError } = await supabase
       .from('prompt_suggestions')
-      .insert({ org_id: orgId, brand_id: brandId, version: 1, status: 'building', prompt_hash: promptHash, generation_params: params, prompts_json: [] })
+      .insert({ org_id: orgId, brand_id: brandId, version: 1, suggestion_type: 'core_intent', status: 'building', prompt_hash: promptHash, generation_params: params, prompts_json: [] })
       .select()
       .single();
 
@@ -625,6 +627,7 @@ Deno.serve(async (req) => {
         .select('*')
         .eq('org_id', orgId)
         .eq('version', 1)
+        .eq('suggestion_type', 'core_intent')
         .eq('prompt_hash', promptHash)
         .maybeSingle();
 
@@ -702,7 +705,7 @@ Deno.serve(async (req) => {
         } else {
           await supabase
             .from('prompt_suggestions')
-            .upsert({ org_id: orgId, brand_id: brandId, version: 1, status: 'ready', prompt_hash: promptHash, generation_params: params, prompts_json: processedPrompts, llm_model: result.model });
+            .upsert({ org_id: orgId, brand_id: brandId, version: 1, suggestion_type: 'core_intent', status: 'ready', prompt_hash: promptHash, generation_params: params, prompts_json: processedPrompts, llm_model: result.model });
         }
       } catch (e) {
         console.error('Background generation job failed:', e);
