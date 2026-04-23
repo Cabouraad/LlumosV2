@@ -3427,8 +3427,9 @@ serve(async (req) => {
     domain = body.domain;
     score = body.score;
     const callerRequestId = body.requestId || null;
+    const companyNameOverride = (typeof body.companyName === 'string' ? body.companyName.trim() : '') || undefined;
 
-    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}`);
+    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}`);
 
     // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
     const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -3525,7 +3526,7 @@ serve(async (req) => {
       fetchHomepageSignals(domain),
     ]);
 
-    const brandProfile = buildBrandProfile(domain, businessContext, homepageSignals);
+    const brandProfile = buildBrandProfile(domain, businessContext, homepageSignals, companyNameOverride);
     const brandName = brandProfile.primaryName;
     console.log('[AutoReport] Brand profile:', { primaryName: brandProfile.primaryName, aliases: brandProfile.aliases });
 
