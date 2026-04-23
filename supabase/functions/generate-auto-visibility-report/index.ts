@@ -1604,20 +1604,26 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
   }
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(25_000),
-    });
+    await acquireClaudeSlot();
+    let response: Response;
+    try {
+      response = await fetchClaudeWithBackoff('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 800,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        signal: AbortSignal.timeout(45_000),
+      });
+    } finally {
+      releaseClaudeSlot();
+    }
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
