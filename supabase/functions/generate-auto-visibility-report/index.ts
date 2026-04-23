@@ -835,12 +835,34 @@ No prose, no markdown, just the JSON array.`,
   }
 }
 
+export interface CompetitorFilterMetrics {
+  domain: string;
+  brandName: string;
+  initial: number;
+  responseExtracted: number;
+  trustedMultiProvider: number;
+  singleProvider: number;
+  afterCompoundSplit: number;
+  trustedBypass: number;
+  weakInput: number;
+  weakAfterOpenAI: number;
+  openAIApplied: boolean;
+  openAIKeptAll: boolean;
+  combinedForPerplexity: number;
+  afterPerplexity: number;
+  final: number;
+  droppedByOpenAI: number;
+  droppedByPerplexity: number;
+  timestamp: string;
+}
+
 async function refineCompetitorCandidatesFromResults(
   domain: string,
   brandName: string,
   businessContext: string,
   results: ProviderResult[],
   initialCandidates: string[],
+  metricsOut?: { metrics?: CompetitorFilterMetrics },
 ): Promise<string[]> {
   const responseStats = extractCompetitorCandidatesFromResults(results, brandName, domain);
   const responseCandidates = responseStats.map((s) => s.candidate);
