@@ -3272,6 +3272,7 @@ serve(async (req) => {
         })
         .eq('id', trackingRowId);
     }
+    trackingRowIdOuter = trackingRowId;
 
     // Step 1: Build brand profile from homepage + research
     console.log('[AutoReport] Building brand profile...');
