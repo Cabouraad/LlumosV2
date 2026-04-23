@@ -59,12 +59,13 @@ export default function PromptDetail() {
         setLoading(true);
 
         // Fetch prompt basics and unified data in parallel
+        // Note: rely on RLS for access control instead of filtering by selected brand's org_id,
+        // so prompts belonging to a different brand in the same user's orgs still load.
         const [promptResult, unifiedData] = await Promise.all([
           supabase
             .from('prompts')
             .select('*')
             .eq('id', promptId)
-            .eq('org_id', orgData.id)
             .maybeSingle(),
           getUnifiedPromptData(true, dateRange.from, dateRange.to)
         ]);
