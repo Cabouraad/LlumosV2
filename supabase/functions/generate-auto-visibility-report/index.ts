@@ -74,6 +74,10 @@ interface ReportRequest {
    *  (e.g. process-pending-reports) that already marked the row as 'processing'
    *  is not blocked by its own update. */
   requestId?: string;
+  /** Optional: explicit brand/company name override. When provided, this takes
+   *  precedence over homepage-extracted candidates so we don't end up with
+   *  bogus primary names like "Client Login" or "A. Holt". */
+  companyName?: string;
 }
 
 interface BrandProfile {
