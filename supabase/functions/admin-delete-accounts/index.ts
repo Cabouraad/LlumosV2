@@ -126,9 +126,10 @@ serve(async (req) => {
 
         results.push({ email: userRecord.email, success: true });
         console.log(`Successfully deleted user: ${userRecord.email}`);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error(`Error deleting user ${userRecord.email}:`, err);
-        results.push({ email: userRecord.email, success: false, error: err.message });
+        const message = err instanceof Error ? err.message : String(err);
+        results.push({ email: userRecord.email, success: false, error: message });
       }
     }
 
