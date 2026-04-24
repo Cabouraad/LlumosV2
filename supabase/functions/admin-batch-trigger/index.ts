@@ -298,10 +298,10 @@ Deno.serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('❌ Admin batch trigger error:', error);
-    
+    const message = error instanceof Error ? error.message : String(error);
     return new Response(JSON.stringify({ 
       success: false,
-      error: error.message,
+      error: message,
       timestamp: new Date().toISOString()
     }), {
       status: 500,
