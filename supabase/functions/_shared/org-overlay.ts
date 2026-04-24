@@ -5,6 +5,7 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { toError } from './error-utils.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
