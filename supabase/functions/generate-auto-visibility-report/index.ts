@@ -3535,18 +3535,26 @@ function getIndustryBenchmark(businessContext: string): { industry: string; benc
 interface ContentGap {
   prompt: string;
   providers: string[];           // which AI platforms returned this gap
-  competitorsWinning: string[];  // who is currently being recommended instead
+  competitorsWinning: string[];  // who is currently being recommended (sorted by strength)
+  entitiesMentioned: string[];   // background-mention-only entities (no recommendation event)
   recommendation: string;        // specific action the brand should take
   intent: PromptIntent;
   intentWeight: number;
   priority: 'High' | 'Medium' | 'Low';
 }
 
-function buildGapRecommendation(prompt: string, competitorsWinning: string[]): string {
+function buildGapRecommendation(prompt: string, competitorsWinning: string[], entitiesMentioned: string[] = []): string {
   const promptLower = prompt.toLowerCase();
-  const competitorPhrase = competitorsWinning.length > 0
-    ? `Currently AI recommends ${competitorsWinning.slice(0, 3).join(', ')}.`
-    : 'No clear leader yet — strong first-mover opportunity.';
+  // Recommendation lead-in mirrors the same three-state logic used in the
+  // PDF "competitor line" so the action sentence stays consistent.
+  let competitorPhrase: string;
+  if (competitorsWinning.length > 0) {
+    competitorPhrase = `Currently AI recommends ${competitorsWinning.slice(0, 3).join(', ')}.`;
+  } else if (entitiesMentioned.length > 0) {
+    competitorPhrase = `AI is naming ${entitiesMentioned.slice(0, 3).join(', ')} in this category but no clear recommendation leader was detected.`;
+  } else {
+    competitorPhrase = 'No clear leader yet — strong first-mover opportunity.';
+  }
 
   if (/best|top|leading|recommend/.test(promptLower)) {
     return `${competitorPhrase} Publish a comparison/listicle page targeting this exact phrase, with FAQ + ItemList schema and 3rd-party validation (reviews, awards, case studies).`;
