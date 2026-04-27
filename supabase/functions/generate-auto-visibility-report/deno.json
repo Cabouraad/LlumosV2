@@ -1,8 +1,0 @@
-{
-  "nodeModulesDir": "auto",
-  "imports": {
-    "npm:@supabase/supabase-js@2": "./_test_stubs.ts",
-    "npm:resend@2.0.0": "./_test_stubs.ts",
-    "npm:pdf-lib@1.17.1": "./_test_stubs.ts"
-  }
-}
