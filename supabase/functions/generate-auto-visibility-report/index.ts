@@ -3812,46 +3812,93 @@ serve(async (req) => {
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
-    // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
+    // Step 3: Calculate overall score using the Visibility Funnel model.
+    // Components: Mention Coverage (40) + Prompt Coverage (20) + Provider Coverage (15)
+    //           + Mention Quality (15, gated by coverage) + Share of Voice (10) = 100.
+    // Category difficulty is NOT added to the score — kept as a separate diagnostic.
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-    // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
-    // This avoids the prior issue where a brand mentioned strongly in 3/8 responses scored ~25 because
-    // the 5 zeros dragged the simple average down.
-    const mentionedResults = validResults.filter(r => r.brandMentioned);
-    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
-    const avgQuality = mentionedResults.length > 0
-      ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
-      : 0;
-    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
-    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
-
-    const categoryVisibility = computeCategoryVisibility(allResults);
-    const shareOfVoice = computeShareOfVoice(validResults);
-
-    // Share of Voice bonus: up to +10 when brand dominates the conversation
-    const sovBonus = Math.round(shareOfVoice.sov * 10);
-
-    let overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
-
-    // ===== CROSS-VALIDATION GUARDRAIL =====
+    // ===== CROSS-VALIDATION GUARDRAIL (applied BEFORE scoring) =====
     // The strict-substring sentiment analyzer is the most conservative truth signal.
-    // If sentiment says the brand was never mentioned (across ALL valid responses),
-    // clamp the overall score and rebuild per-provider/per-result mention flags so the
-    // scorecard, sentiment, recommendation, and matrix sections cannot disagree.
+    // If sentiment says the brand was never mentioned across ALL valid responses,
+    // reset mention flags so the funnel cannot count phantom mentions.
+    const preGuardrailMentioned = validResults.filter(r => r.brandMentioned).length;
     const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
-    if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
-      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Clamping score and resetting mention flags to match sentiment truth.`);
+    if (validResults.length > 0 && sentimentMentionCount === 0 && preGuardrailMentioned > 0) {
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${preGuardrailMentioned} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
       for (const r of allResults) {
         r.brandMentioned = false;
         r.score = 0;
         r.recommendationStrength = 'absent';
         r.brandPosition = null;
       }
-      overallScore = Math.min(overallScore, 12);
     }
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), sentimentMentions: ${sentimentMentionCount}, final: ${overallScore}`);
+    const verifiedMentions = validResults.filter(r => r.brandMentioned);
+    const verifiedMentionCount = verifiedMentions.length;
+
+    // 1) Mention Coverage Score — 0..40
+    const mentionRate = validResults.length > 0 ? verifiedMentionCount / validResults.length : 0;
+    const mentionCoverageScore = mentionRate * 40;
+
+    // 2) Prompt Coverage Score — 0..20
+    const promptsWithMention = new Set<string>();
+    const allPromptsSet = new Set<string>();
+    for (const r of validResults) {
+      allPromptsSet.add(r.prompt);
+      if (r.brandMentioned) promptsWithMention.add(r.prompt);
+    }
+    const totalPrompts = allPromptsSet.size;
+    const promptCoverage = totalPrompts > 0 ? promptsWithMention.size / totalPrompts : 0;
+    const promptCoverageScore = promptCoverage * 20;
+
+    // 3) Provider Coverage Score — 0..15
+    const providersWithMention = new Set<string>();
+    const allProvidersSet = new Set<string>();
+    for (const r of validResults) {
+      allProvidersSet.add(r.provider);
+      if (r.brandMentioned) providersWithMention.add(r.provider);
+    }
+    const totalProviders = allProvidersSet.size;
+    const providerCoverage = totalProviders > 0 ? providersWithMention.size / totalProviders : 0;
+    const providerCoverageScore = providerCoverage * 15;
+
+    // 4) Mention Quality Score — 0..15, with coverage gate so quality cannot inflate
+    //    low-visibility brands. Gate reaches full strength at mentionRate >= 25%.
+    const avgQuality = verifiedMentionCount > 0
+      ? verifiedMentions.reduce((sum, r) => sum + r.score, 0) / verifiedMentionCount
+      : 0; // r.score is 0..100
+    const rawQualityScore = (avgQuality / 100) * 15;
+    const qualityGate = Math.min(1, mentionRate / 0.25);
+    const qualityScore = rawQualityScore * qualityGate;
+
+    // 5) Competitive Share of Voice Score — 0..10
+    const shareOfVoice = computeShareOfVoice(validResults);
+    const sovDenominator = shareOfVoice.brandMentions + shareOfVoice.competitorMentions;
+    const sov = sovDenominator > 0 ? shareOfVoice.brandMentions / sovDenominator : 0;
+    const shareOfVoiceScore = sov * 10;
+
+    // Diagnostic only — NOT added to overall score
+    const categoryVisibility = computeCategoryVisibility(allResults);
+
+    let overallScore = Math.round(
+      mentionCoverageScore +
+      promptCoverageScore +
+      providerCoverageScore +
+      qualityScore +
+      shareOfVoiceScore
+    );
+    overallScore = Math.max(0, Math.min(100, overallScore));
+
+    // Hard floor: zero verified mentions => zero score.
+    if (verifiedMentionCount === 0) {
+      overallScore = 0;
+    }
+
+    // Legacy variable retained for downstream payload compatibility
+    const baseScore = Math.round(mentionCoverageScore + promptCoverageScore + providerCoverageScore);
+
+    console.log(`[AutoReport] Visibility Funnel — mentionCoverage: ${mentionCoverageScore.toFixed(1)}/40 (rate=${(mentionRate*100).toFixed(0)}%), promptCoverage: ${promptCoverageScore.toFixed(1)}/20 (${promptsWithMention.size}/${totalPrompts}), providerCoverage: ${providerCoverageScore.toFixed(1)}/15 (${providersWithMention.size}/${totalProviders}), quality: ${qualityScore.toFixed(1)}/15 (raw=${rawQualityScore.toFixed(1)}, gate=${qualityGate.toFixed(2)}, avgQ=${avgQuality.toFixed(1)}), sov: ${shareOfVoiceScore.toFixed(1)}/10 (sov=${sov.toFixed(2)}), category(diagnostic): ${categoryVisibility.label}, final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
@@ -3920,9 +3967,15 @@ serve(async (req) => {
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
             scoreBreakdown: {
-              base: baseScore,
-              categoryAdjustment: categoryVisibility.adjustment,
-              shareOfVoiceBonus: sovBonus,
+              model: 'visibility_funnel_v1',
+              mentionCoverage: Number(mentionCoverageScore.toFixed(2)),
+              promptCoverage: Number(promptCoverageScore.toFixed(2)),
+              providerCoverage: Number(providerCoverageScore.toFixed(2)),
+              quality: Number(qualityScore.toFixed(2)),
+              qualityRaw: Number(rawQualityScore.toFixed(2)),
+              qualityGate: Number(qualityGate.toFixed(2)),
+              shareOfVoice: Number(shareOfVoiceScore.toFixed(2)),
+              base: baseScore, // legacy: coverage-only sum
               final: overallScore,
             },
             categoryVisibility: {
