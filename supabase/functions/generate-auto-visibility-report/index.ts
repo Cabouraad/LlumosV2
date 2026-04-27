@@ -569,15 +569,44 @@ const WEAK_SINGLE_TOKEN_ALIASES = new Set([
   'and', 'the', 'of', 'for',
 ]);
 
+/**
+ * Collapse adjacent duplicated words inside a single name.
+ * Fixes artifacts like "Gibson Dunn Dunn & Crutcher" → "Gibson Dunn & Crutcher"
+ * which arise when two overlapping fragments of the same firm name get joined.
+ * Comparison is case-insensitive and punctuation-tolerant.
+ */
+function collapseAdjacentDuplicateWords(name: string): string {
+  if (!name) return name;
+  const tokens = name.split(/(\s+)/); // keep whitespace tokens to preserve spacing
+  const out: string[] = [];
+  let lastWordKey = '';
+  for (const tok of tokens) {
+    if (/^\s+$/.test(tok)) {
+      out.push(tok);
+      continue;
+    }
+    const key = tok.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (key && key === lastWordKey) {
+      // Drop this duplicate word AND the trailing whitespace pushed before it.
+      if (out.length && /^\s+$/.test(out[out.length - 1])) out.pop();
+      continue;
+    }
+    out.push(tok);
+    if (key) lastWordKey = key;
+  }
+  return out.join('').replace(/\s+/g, ' ').trim();
+}
+
 function dedupeBrandNames(names: string[]): string[] {
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const name of names) {
     if (typeof name !== 'string') continue;
-    const normalized = normalizeEntityName(name);
+    const cleaned = collapseAdjacentDuplicateWords(name.trim());
+    const normalized = normalizeEntityName(cleaned);
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
-    deduped.push(name.trim());
+    deduped.push(cleaned);
   }
   return deduped;
 }
