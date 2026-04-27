@@ -569,15 +569,44 @@ const WEAK_SINGLE_TOKEN_ALIASES = new Set([
   'and', 'the', 'of', 'for',
 ]);
 
+/**
+ * Collapse adjacent duplicated words inside a single name.
+ * Fixes artifacts like "Gibson Dunn Dunn & Crutcher" → "Gibson Dunn & Crutcher"
+ * which arise when two overlapping fragments of the same firm name get joined.
+ * Comparison is case-insensitive and punctuation-tolerant.
+ */
+function collapseAdjacentDuplicateWords(name: string): string {
+  if (!name) return name;
+  const tokens = name.split(/(\s+)/); // keep whitespace tokens to preserve spacing
+  const out: string[] = [];
+  let lastWordKey = '';
+  for (const tok of tokens) {
+    if (/^\s+$/.test(tok)) {
+      out.push(tok);
+      continue;
+    }
+    const key = tok.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (key && key === lastWordKey) {
+      // Drop this duplicate word AND the trailing whitespace pushed before it.
+      if (out.length && /^\s+$/.test(out[out.length - 1])) out.pop();
+      continue;
+    }
+    out.push(tok);
+    if (key) lastWordKey = key;
+  }
+  return out.join('').replace(/\s+/g, ' ').trim();
+}
+
 function dedupeBrandNames(names: string[]): string[] {
   const seen = new Set<string>();
   const deduped: string[] = [];
   for (const name of names) {
     if (typeof name !== 'string') continue;
-    const normalized = normalizeEntityName(name);
+    const cleaned = collapseAdjacentDuplicateWords(name.trim());
+    const normalized = normalizeEntityName(cleaned);
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
-    deduped.push(name.trim());
+    deduped.push(cleaned);
   }
   return deduped;
 }
@@ -2725,16 +2754,33 @@ async function generatePDF(
     pg.drawRectangle({ x: x, y: y - size / 2, width: size, height: size, color: color, borderColor: white, borderWidth: 1 });
   }
 
+  // NOTE: When this helper triggers a page break it MUST mutate the caller's page
+  // reference. We use a shared `pageRef` object so callers stay in sync with the
+  // page actually being drawn on. Previously, reassigning the local `pg` parameter
+  // caused subsequent caller writes to land on the OLD (full) page, producing
+  // overlapping text and what looked like duplicated footer/SMBTeam text.
   function drawWrappedText(pg: any, text: string, x: number, y: number, opts: { size: number; font: any; color: any; maxChars?: number; lineSpacing?: number }): number {
     const lines = wrapText(text, opts.maxChars || 90);
     const spacing = opts.lineSpacing || (opts.size + 4);
     for (const line of lines) {
-      if (y < 50) { pg = newPage(); y = H - 60; }
+      if (y < 50) {
+        const np = newPage();
+        // Sync caller's outer `page` variable via the shared ref (set just below).
+        pageRef.page = np;
+        pg = np;
+        y = H - 60;
+      }
       pg.drawText(line, { x, y, size: opts.size, font: opts.font, color: opts.color });
       y -= spacing;
     }
+    // Keep the ref in sync with whatever page we ended on.
+    pageRef.page = pg;
     return y;
   }
+
+  // Shared page reference — callers should read `pageRef.page` after calling
+  // drawWrappedText if they want to know which page is currently active.
+  const pageRef: { page: any } = { page: null as any };
 
   // ====================== PAGE 1: COVER ======================
   let page = pdfDoc.addPage([W, H]);
@@ -3157,7 +3203,7 @@ async function generatePDF(
   const consPctW = helveticaBold.widthOfTextAtSize(consPctText, 28);
   page.drawText(consistency.label, { x: M + 15 + consPctW, y: y + 2, size: 11, font: helveticaBold, color: dark });
   y -= 18;
-  y = drawWrappedText(page, consistency.detail, M + 15 + consPctW, y, { size: 9, font: helvetica, color: mid, maxChars: 60, lineSpacing: 13 });
+  y = drawWrappedText(page, consistency.detail, M + 15 + consPctW, y, { size: 9, font: helvetica, color: mid, maxChars: 60, lineSpacing: 13 }); page = pageRef.page || page;
 
   // ====================== COMPETITOR HEAD-TO-HEAD ======================
   const h2h = buildHeadToHeadMatrix(results, domain);
@@ -3235,7 +3281,7 @@ async function generatePDF(
 
     for (let i = 0; i < maxCols; i++) {
       const truncPrompt = h2h.prompts[i].length > 80 ? h2h.prompts[i].substring(0, 78) + '...' : h2h.prompts[i];
-      y = drawWrappedText(page, `P${i + 1}: ${truncPrompt}`, M + 5, y, { size: 8, font: helvetica, color: mid, maxChars: 95, lineSpacing: 11 });
+      y = drawWrappedText(page, `P${i + 1}: ${truncPrompt}`, M + 5, y, { size: 8, font: helvetica, color: mid, maxChars: 95, lineSpacing: 11 }); page = pageRef.page || page;
       y -= 4;
     }
   }
@@ -3308,17 +3354,17 @@ async function generatePDF(
       const isNoOverview = rawResp.startsWith('No AI Overview');
       const isError = rawResp.startsWith('Error') || rawResp.startsWith('Provider not');
       if (isError) {
-        y = drawWrappedText(page, `(${rawResp})`, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y = drawWrappedText(page, `(${rawResp})`, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       } else if (isNoOverview || rawResp.length === 0) {
         const placeholder = r.provider.toLowerCase().includes('google')
           ? '(Google did not return an AI Overview for this query — Google AI Overviews are only generated for ~30–40% of searches.)'
           : '(No content returned for this query.)';
-        y = drawWrappedText(page, placeholder, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y = drawWrappedText(page, placeholder, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       } else {
         const rawExcerpt = rawResp.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (rawResp.length > 300 ? '...' : '');
-        y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: mid, maxChars: 88, lineSpacing: 11 });
+        y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: mid, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       }
 
@@ -3326,7 +3372,7 @@ async function generatePDF(
       if (r.competitors.length > 0) {
         if (y < 60) { page = newPage(); y = H - 60; }
         const compText = `Competitors: ${r.competitors.join(', ')}`;
-        y = drawWrappedText(page, compText, M + 14, y, { size: 8, font: helveticaBold, color: navy, maxChars: 88, lineSpacing: 11 });
+        y = drawWrappedText(page, compText, M + 14, y, { size: 8, font: helveticaBold, color: navy, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       }
 
@@ -3434,7 +3480,7 @@ async function generatePDF(
     'Scores reflect presence, recommendation strength, and competitive crowding',
     'A 0 visibility score means no verified brand mention was found in the audited responses',
   ]) {
-    y = drawWrappedText(page, `•  ${bullet}`, M + 10, y, { size: 8.5, font: helvetica, color: mid, maxChars: 84, lineSpacing: 12 });
+    y = drawWrappedText(page, `•  ${bullet}`, M + 10, y, { size: 8.5, font: helvetica, color: mid, maxChars: 84, lineSpacing: 12 }); page = pageRef.page || page;
     y -= 2;
   }
 
