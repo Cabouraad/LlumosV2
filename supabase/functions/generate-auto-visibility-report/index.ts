@@ -122,7 +122,7 @@ export interface CompetitorRecommendationEvent {
   evidenceSnippet: string;
 }
 
-interface ProviderResult {
+export interface ProviderResult {
   provider: string;
   prompt: string;
   response: string;
