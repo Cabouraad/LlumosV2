@@ -3381,42 +3381,112 @@ async function generatePDF(
   y -= Math.ceil(providerEntries.length / 2) * (provCardH + 12) + 10;
 
   // ====================== COMPETITOR LANDSCAPE ======================
-  if (y < 200) { page = newPage(); y = H - 10; }
+  if (y < 220) { page = newPage(); y = H - 10; }
 
-  y = drawSubsectionHeader(page, 'Competitor Landscape', y);
+  // Build classification-aware lookup so each row in the existing landscape
+  // can show its competitor type. Falls back gracefully if classification is empty.
+  const classificationByCanon = new Map<string, ClassifiedCompetitor>();
+  for (const cc of classifiedCompetitors) classificationByCanon.set(cc.canonical, cc);
 
-  if (sortedCompetitors.length > 0) {
-    const hasResearchOnlyCompetitors = sortedCompetitors.some(([, count]) => count === 0);
-    page.drawText(
-      hasResearchOnlyCompetitors
-        ? 'Brands identified across AI responses and validated market research for this category:'
-        : 'Brands mentioned by AI when your audience searches for relevant topics:',
-      { x: M + 5, y, size: 9, font: helveticaOblique, color: light }
-    );
+  const aiMentionedClassified = classifiedCompetitors.filter(c => c.source === 'ai_mentioned' && c.type !== 'Irrelevant / Excluded');
+  const researchBackedClassified = classifiedCompetitors.filter(c => c.source === 'research_backed' && c.type !== 'Irrelevant / Excluded');
+
+  y = drawSubsectionHeader(page, 'Competitors Mentioned by AI', y);
+  if (aiMentionedClassified.length > 0) {
+    page.drawText('Entities AI assistants actually named in their answers:', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
     y -= 18;
 
-    for (const [name, count] of sortedCompetitors) {
+    const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
+    for (const cc of sortedAi) {
       if (y < 60) { page = newPage(); y = H - 60; }
-
-      // Competitor card row
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
-      page.drawText(name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
-
-      const cBarW = count > 0 ? Math.min(160, (count / Math.max(validResults.length, 1)) * 200) : 0;
+      page.drawText(cc.name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
+      // Type badge
+      page.drawText(`[${cc.type}]`, { x: M + 200, y: y - 12, size: 7, font: helveticaBold, color: mid });
+      // Mention count bar
+      const cBarW = Math.min(120, (cc.mentionCount / Math.max(validResults.length, 1)) * 160);
       if (cBarW > 0) {
-        page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
+        page.drawRectangle({ x: M + contentW - 160, y: y - 14, width: cBarW, height: 10, color: navy });
       }
-      page.drawText(
-        count > 0 ? `${count}x mentioned` : 'research-backed competitor',
-        { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid }
-      );
-
+      page.drawText(`${cc.mentionCount}x mentioned`, {
+        x: M + contentW - 160 + cBarW + 4, y: y - 12, size: 8, font: helvetica, color: mid,
+      });
       y -= 24;
     }
   } else {
     y = drawCalloutBox(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', y);
   }
+
+  // Research-backed competitors — shown SEPARATELY, never blended into AI-mentioned counts.
+  if (researchBackedClassified.length > 0) {
+    if (y < 120) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'Research-Backed Competitors (not seen in AI responses)', y);
+    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Excluded from Share of Voice.', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
+    y -= 18;
+    for (const cc of researchBackedClassified) {
+      if (y < 60) { page = newPage(); y = H - 60; }
+      page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
+      page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: amber });
+      page.drawText(cc.name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
+      page.drawText(`[${cc.type}]`, { x: M + 200, y: y - 12, size: 7, font: helveticaBold, color: mid });
+      page.drawText('research-backed only', { x: M + contentW - 110, y: y - 12, size: 8, font: helvetica, color: mid });
+      y -= 24;
+    }
+  }
+
+  // ====================== COMPETITOR TYPES FOUND ======================
+  if (classifiedCompetitors.length > 0) {
+    if (y < 200) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'Competitor Types Found', y);
+    page.drawText('Entities grouped by type so the landscape is not misleading (e.g. ADR providers and software platforms are not direct law-firm competitors).', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
+    y -= 18;
+
+    const typeOrder: CompetitorType[] = [
+      'Direct Competitor',
+      'Local or Boutique Competitor',
+      'Large Firm / Enterprise Competitor',
+      'ADR Provider',
+      'Software Platform',
+      'Marketplace / Directory',
+      'Adjacent Service Provider',
+      'Irrelevant / Excluded',
+    ];
+    const grouped = new Map<CompetitorType, ClassifiedCompetitor[]>();
+    for (const cc of classifiedCompetitors) {
+      if (cc.type === 'Irrelevant / Excluded') continue;
+      const arr = grouped.get(cc.type) || [];
+      arr.push(cc);
+      grouped.set(cc.type, arr);
+    }
+
+    for (const t of typeOrder) {
+      const arr = grouped.get(t);
+      if (!arr || arr.length === 0) continue;
+      if (y < 80) { page = newPage(); y = H - 60; }
+      // Type heading row
+      page.drawRectangle({ x: M, y: y - 16, width: contentW, height: 18, color: navy });
+      page.drawText(`${t}  (${arr.length})`, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
+      y -= 22;
+      // Members — wrap as comma-separated list
+      const aiNames = arr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
+      const researchNames = arr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
+      const lines = wrapText([...aiNames, ...researchNames].join(', '), 95);
+      for (const ln of lines) {
+        if (y < 50) { page = newPage(); y = H - 60; }
+        page.drawText(ln, { x: M + 10, y: y - 8, size: 9, font: helvetica, color: dark });
+        y -= 12;
+      }
+      y -= 6;
+    }
+  }
+
 
   // ====================== CONTENT GAP OPPORTUNITIES ======================
   if (contentGaps.length > 0) {
