@@ -100,10 +100,6 @@ interface ProviderResult {
   sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
   recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
   brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
-  // Brand identity carried alongside the response so brand-adjacent helpers (sentiment,
-  // positive-context scoring) can use the actual primary name + aliases instead of guessing.
-  brandName?: string;
-  brandAliases?: string[];
 }
 
 // Only exclude platforms/channels/directories/AI models that are NEVER competitors
@@ -1804,14 +1800,12 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    result.brandName = brandProfile.primaryName;
-    result.brandAliases = brandProfile.aliases;
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
-    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
+    result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
-    result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] ChatGPT error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -1860,14 +1854,12 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
 
     const data = await response.json();
     result.response = data.choices[0]?.message?.content || '';
-    result.brandName = brandProfile.primaryName;
-    result.brandAliases = brandProfile.aliases;
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
-    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
+    result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
-    result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Perplexity error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -1926,14 +1918,12 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
 
     const data = await response.json();
     result.response = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
-    result.brandName = brandProfile.primaryName;
-    result.brandAliases = brandProfile.aliases;
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
-    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
+    result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
-    result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Claude error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -2007,14 +1997,12 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
       result.response = aiOverview.snippet || aiOverview.text || '';
     }
 
-    result.brandName = brandProfile.primaryName;
-    result.brandAliases = brandProfile.aliases;
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
-    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
+    result.score = calculateProviderScore(result);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
-    result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -2054,209 +2042,32 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
 }
 
 /**
- * Brand-adjacent context detector.
- *
- * Returns whether positive/negative sentiment terms appear near a verified brand mention,
- * along with which terms matched and the snippet they came from. "Near" = same sentence,
- * same bullet/list item, OR within 20 words of the brand mention. Headings, intros,
- * competitor descriptions, disclaimers, citations, and footers are NOT counted unless
- * they explicitly contain the brand name itself.
+ * Analyze sentiment of brand mention in response
  */
-const BRAND_POSITIVE_TERMS = [
-  'best', 'top', 'leading', 'recommend', 'recommended', 'recommends', 'excellent', 'great',
-  'outstanding', 'trusted', 'popular', 'highly rated', 'highly-rated', 'well known', 'well-known',
-  'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive',
-  'ideal', 'go-to', 'go to', 'expert', 'experienced', 'skilled', 'award-winning', 'award winning',
-  'gold standard', 'first choice', 'top pick', 'top-tier', 'top tier',
-];
-const BRAND_NEGATIVE_TERMS = [
-  'worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints',
-  'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated',
-  'unreliable', 'questionable', 'subpar', 'inferior', 'mediocre', 'overrated',
-];
+function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
+  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
 
-interface BrandAdjacentContext {
-  positiveContext: boolean;
-  negativeContext: boolean;
-  matchedTerms: string[];
-  evidenceSnippet: string;
-  // Diagnostic: where the brand was found, used to detect disclaimer/citation/footer-only mentions.
-  brandOnlyInBoilerplate: boolean;
-}
+  const text = response.toLowerCase();
+  const brandIdx = text.indexOf(brandName.toLowerCase());
+  // Look at ~300 chars around the brand mention
+  const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
 
-function escapeForRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
+  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated'];
+  // Note: 'however', 'but', 'although' removed - these are common transition words, not sentiment indicators
 
-function buildBrandAliasList(brandName: string, aliases?: string[]): string[] {
-  const list = new Set<string>();
-  const add = (v?: string) => {
-    if (!v) return;
-    const t = v.trim();
-    if (t.length >= 3) list.add(t.toLowerCase());
-  };
-  add(brandName);
-  if (brandName) add(brandName.replace(/\s+/g, ''));
-  for (const a of aliases || []) add(a);
-  return Array.from(list);
-}
+  let positiveScore = 0;
+  let negativeScore = 0;
 
-function findAllBrandSpans(textLower: string, aliasesLower: string[]): Array<{ start: number; end: number }> {
-  const spans: Array<{ start: number; end: number }> = [];
-  for (const alias of aliasesLower) {
-    const escaped = escapeForRegex(alias);
-    // Word-boundary-ish: avoid mid-word matches for short aliases
-    const pattern = alias.length < 4
-      ? new RegExp(`\\b${escaped}\\b`, 'g')
-      : new RegExp(`(?:^|[\\s,;:(/"'\\[])(${escaped})(?=[\\s,;:)/"'\\].'!?]|$)`, 'g');
-    let m: RegExpExecArray | null;
-    while ((m = pattern.exec(textLower)) !== null) {
-      const matchText = (m[1] ?? m[0]);
-      const start = m.index + (m[0].length - matchText.length);
-      spans.push({ start, end: start + matchText.length });
-      if (m.index === pattern.lastIndex) pattern.lastIndex++;
-    }
+  for (const term of positiveTerms) {
+    if (context.includes(term)) positiveScore++;
   }
-  return spans.sort((a, b) => a.start - b.start);
-}
-
-function splitSentencesWithOffsets(text: string): Array<{ start: number; end: number; text: string }> {
-  const out: Array<{ start: number; end: number; text: string }> = [];
-  // Split on sentence-enders OR newlines (treat each line/bullet as its own unit)
-  const re = /[^.!?\n\r]+[.!?]+|[^.!?\n\r]+(?=\n|$)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    out.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
-  }
-  return out;
-}
-
-function isBoilerplateLine(line: string): boolean {
-  const t = line.trim().toLowerCase();
-  if (!t) return true;
-  // Disclaimers / citations / footers
-  if (/^(disclaimer|note|footer|references?|sources?|citations?|see also|further reading)\b/.test(t)) return true;
-  if (/^\[\d+\]/.test(t)) return true; // pure citation line "[1] ..."
-  if (/^https?:\/\//.test(t)) return true; // bare URL line
-  return false;
-}
-
-function getBrandAdjacentContext(
-  responseText: string,
-  brandName: string,
-  aliases?: string[],
-): BrandAdjacentContext {
-  const empty: BrandAdjacentContext = {
-    positiveContext: false,
-    negativeContext: false,
-    matchedTerms: [],
-    evidenceSnippet: '',
-    brandOnlyInBoilerplate: false,
-  };
-  if (!responseText || !brandName) return empty;
-
-  const aliasList = buildBrandAliasList(brandName, aliases);
-  if (aliasList.length === 0) return empty;
-
-  const textLower = responseText.toLowerCase();
-  const brandSpans = findAllBrandSpans(textLower, aliasList);
-  if (brandSpans.length === 0) return empty;
-
-  const sentences = splitSentencesWithOffsets(responseText);
-  const matchedTerms = new Set<string>();
-  let positive = false;
-  let negative = false;
-  let evidence = '';
-
-  // Boilerplate detection: every line containing the brand is disclaimer/citation/footer/URL only
-  let allBrandLinesAreBoilerplate = true;
-  const lines = responseText.split(/\r?\n/);
-  let lineOffset = 0;
-  for (const line of lines) {
-    const lineStart = lineOffset;
-    const lineEnd = lineOffset + line.length;
-    const hasBrand = brandSpans.some(s => s.start >= lineStart && s.end <= lineEnd);
-    if (hasBrand && !isBoilerplateLine(line)) {
-      allBrandLinesAreBoilerplate = false;
-    }
-    lineOffset = lineEnd + 1; // +1 for the newline
+  for (const term of negativeTerms) {
+    if (context.includes(term)) negativeScore++;
   }
 
-  // Build evaluation windows around each brand mention
-  const windows: string[] = [];
-  for (const span of brandSpans) {
-    // 1. The sentence containing the mention
-    const sentence = sentences.find(s => span.start >= s.start && span.end <= s.end);
-    if (sentence) windows.push(sentence.text);
-
-    // 2. Same line/bullet
-    const lineStart = responseText.lastIndexOf('\n', span.start - 1) + 1;
-    const lineEndIdx = responseText.indexOf('\n', span.end);
-    const line = responseText.slice(lineStart, lineEndIdx === -1 ? responseText.length : lineEndIdx);
-    if (line && line !== sentence?.text) windows.push(line);
-
-    // 3. ±20-word window around the mention
-    const before = responseText.slice(0, span.start).split(/\s+/).slice(-20).join(' ');
-    const after = responseText.slice(span.end).split(/\s+/).slice(0, 20).join(' ');
-    windows.push(`${before} ${responseText.slice(span.start, span.end)} ${after}`);
-  }
-
-  for (const win of windows) {
-    const lower = win.toLowerCase();
-    for (const term of BRAND_POSITIVE_TERMS) {
-      const re = new RegExp(`\\b${escapeForRegex(term)}\\b`, 'i');
-      if (re.test(lower)) {
-        positive = true;
-        matchedTerms.add(term);
-        if (!evidence) evidence = win.trim().slice(0, 240);
-      }
-    }
-    for (const term of BRAND_NEGATIVE_TERMS) {
-      const re = new RegExp(`\\b${escapeForRegex(term)}\\b`, 'i');
-      if (re.test(lower)) {
-        negative = true;
-        matchedTerms.add(term);
-        if (!evidence) evidence = win.trim().slice(0, 240);
-      }
-    }
-  }
-
-  return {
-    positiveContext: positive,
-    negativeContext: negative,
-    matchedTerms: Array.from(matchedTerms),
-    evidenceSnippet: evidence,
-    brandOnlyInBoilerplate: allBrandLinesAreBoilerplate,
-  };
-}
-
-/**
- * Analyze sentiment of brand mention in response.
- * Now strictly brand-adjacent — generic positive/negative words elsewhere are ignored.
- */
-function analyzeSentiment(
-  response: string,
-  brandName: string,
-  aliases?: string[],
-): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
-  if (!response || !brandName) return 'not_mentioned';
-  const ctx = getBrandAdjacentContext(response, brandName, aliases);
-  // If no brand spans were found, getBrandAdjacentContext returns the empty default.
-  // Use the same substring fallback as brandMentionedInText to decide "not_mentioned".
-  if (!ctx.evidenceSnippet && !ctx.positiveContext && !ctx.negativeContext) {
-    const aliasList = buildBrandAliasList(brandName, aliases);
-    const text = response.toLowerCase();
-    const found = aliasList.some(a => text.includes(a));
-    if (!found) return 'not_mentioned';
-    return 'neutral';
-  }
-  if (ctx.positiveContext && !ctx.negativeContext) return 'positive';
-  if (ctx.negativeContext && !ctx.positiveContext) return 'negative';
-  if (ctx.positiveContext && ctx.negativeContext) {
-    // Mixed — bias on count of matched terms
-    const pos = ctx.matchedTerms.filter(t => BRAND_POSITIVE_TERMS.includes(t)).length;
-    const neg = ctx.matchedTerms.filter(t => BRAND_NEGATIVE_TERMS.includes(t)).length;
-    if (pos > neg + 1) return 'positive';
-    if (neg > pos + 1) return 'negative';
-  }
+  if (positiveScore > negativeScore + 1) return 'positive';
+  if (negativeScore > positiveScore + 1) return 'negative';
   return 'neutral';
 }
 
@@ -2470,195 +2281,101 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 }
 
 /**
- * Per-response visibility score (0..100).
+ * Calculate visibility score for a provider result.
  *
- * New funnel-aligned model:
- *   absent      -> 0
- *   mentioned   -> base 15  (named, but not framed as a provider/option)
- *   considered  -> base 35  (listed as one of several options/firms/providers/alternatives)
- *   recommended -> base 60  (AI clearly recommends/suggests/endorses the brand)
- *   preferred   -> base 80  (ranked highly / one of the best/top / placed above competitors)
- *
- * Modifiers:
- *   +10 top-1, +7 top-3, +4 top-5
- *   +5 positive context within ~80 chars of a brand mention (brand-adjacent only)
- *   +5 source/citation-backed mention (URL or [n] cite near brand, or domain referenced)
- * Cap at 100.
+ * Rebalanced to better reflect the response signal:
+ * - Mentioned at all: 45 (raised from 35 — being named at all is the hardest threshold to cross)
+ * - Strong recommendation: +25, Moderate: +15, Weak: +5
+ * - Position bonus: top-3 +15, top-5 +8, otherwise +4 if mentioned (don't over-penalize unknown position)
+ * - Share-of-voice bonus within prompt: up to +10 when brand outshines competitors in the same response
+ * - Positive context terms: +2 each (capped at +8)
  */
-function classifyMentionStatus(result: ProviderResult): 'absent' | 'mentioned' | 'considered' | 'recommended' | 'preferred' {
-  if (!result.brandMentioned) return 'absent';
-  const text = (result.response || '').toLowerCase();
-
-  // "preferred": ranked highest / best / top pick / above competitors
-  const preferredPatterns = [
-    /\b(best|top|#?\s*1|number\s+one|leading|premier|most\s+(trusted|recommended|reputable))\b/,
-    /\b(stands?\s+out|outperforms?|ahead\s+of|above\s+(the\s+)?(rest|competitors))\b/,
-    /\b(our\s+top\s+pick|editor'?s\s+choice|gold\s+standard)\b/,
-  ];
-  // "recommended": clearly suggested/endorsed
-  const recommendedPatterns = [
-    /\b(recommend(ed|s|ation)?|suggest(ed|s)?|endors(e|ed|es)|good\s+choice|great\s+choice|solid\s+choice|worth\s+considering|we\s+like)\b/,
-  ];
-  // "considered": listed as one of several options/firms/providers/alternatives
-  const consideredPatterns = [
-    /\b(options?|alternatives?|providers?|vendors?|firms?|companies|choices|candidates)\b/,
-    /\b(such\s+as|including|for\s+example|e\.g\.,?|like|among\s+(them|others))\b/,
-    /^\s*[-*\d+\.\)]/m, // list-style formatting present
-  ];
-
-  // Find brand mention positions to keep the classification brand-adjacent
-  const brandTokens = collectBrandTokens(result);
-  const brandHits = findBrandHitIndices(text, brandTokens);
-
-  const nearAnyBrand = (re: RegExp): boolean => {
-    if (brandHits.length === 0) {
-      // Fall back to whole-response presence — but only used when we already know brandMentioned=true
-      return re.test(text);
-    }
-    for (const idx of brandHits) {
-      const window = text.slice(Math.max(0, idx - 120), Math.min(text.length, idx + 120));
-      if (re.test(window)) return true;
-    }
-    return false;
-  };
-
-  if (preferredPatterns.some(re => nearAnyBrand(re))) return 'preferred';
-  if (recommendedPatterns.some(re => nearAnyBrand(re))) return 'recommended';
-  if (consideredPatterns.some(re => nearAnyBrand(re))) return 'considered';
-  return 'mentioned';
-}
-
-function collectBrandTokens(result: ProviderResult): string[] {
-  // Best effort: derive tokens from existing signals. The brand string itself isn't on the
-  // ProviderResult, but the response text + competitor list let us recover likely brand
-  // anchors. Falls back to scanning the whole response if nothing better is available.
-  const tokens: string[] = [];
-  const competitors = new Set((result.competitors || []).map(c => c.toLowerCase()));
-  // Heuristic: any capitalized multi-word phrase that is NOT a competitor is a candidate brand anchor.
-  const matches = (result.response || '').match(/\b([A-Z][A-Za-z0-9&.\-]{1,}(?:\s+[A-Z][A-Za-z0-9&.\-]{1,}){0,3})\b/g) || [];
-  for (const m of matches) {
-    const lower = m.toLowerCase();
-    if (competitors.has(lower)) continue;
-    if (lower.length < 3) continue;
-    tokens.push(lower);
-  }
-  return tokens;
-}
-
-function findBrandHitIndices(textLower: string, brandTokens: string[]): number[] {
-  const indices: number[] = [];
-  const seen = new Set<number>();
-  for (const tok of brandTokens) {
-    let from = 0;
-    while (true) {
-      const i = textLower.indexOf(tok, from);
-      if (i < 0) break;
-      if (!seen.has(i)) { indices.push(i); seen.add(i); }
-      from = i + tok.length;
-      if (indices.length > 25) return indices;
-    }
-  }
-  return indices;
-}
-
-function hasSourceBackedMention(result: ProviderResult): boolean {
-  const text = result.response || '';
-  // Numeric citations like [1], [12]
-  if (/\[\d+\]/.test(text)) return true;
-  // Inline URLs
-  if (/https?:\/\/[^\s)]+/i.test(text)) return true;
-  // Markdown links
-  if (/\]\((https?:[^)]+)\)/i.test(text)) return true;
-  // "according to" / "source:" cues
-  if (/\b(according\s+to|source:|cited\s+by|as\s+reported\s+by)\b/i.test(text)) return true;
-  return false;
-}
-
 function calculateProviderScore(result: ProviderResult): number {
   if (!result.brandMentioned) return 0;
 
-  // Brand-adjacent context: drives positive bonus, negative penalty, and boilerplate downgrade.
-  const adjCtx = result.brandName
-    ? getBrandAdjacentContext(result.response || '', result.brandName, result.brandAliases)
-    : { positiveContext: false, negativeContext: false, matchedTerms: [], evidenceSnippet: '', brandOnlyInBoilerplate: false };
+  let score = 45;
 
-  let status = classifyMentionStatus(result);
+  if (result.recommendationStrength === 'strong') score += 25;
+  else if (result.recommendationStrength === 'moderate') score += 15;
+  else score += 5;
 
-  // If the brand only appears in disclaimers, citations, footers, or unrelated lists,
-  // it cannot be classified as recommended/preferred — downgrade to "mentioned".
-  if (adjCtx.brandOnlyInBoilerplate && (status === 'recommended' || status === 'preferred' || status === 'considered')) {
-    status = 'mentioned';
+  if (result.brandPosition !== null && result.brandPosition <= 3) score += 15;
+  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 8;
+  else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
+
+  // Share of voice within this single response: brand vs competitors named in the same answer
+  const competitorCount = result.competitors?.length || 0;
+  const totalNamed = competitorCount + 1; // +1 for the brand itself
+  const sov = 1 / totalNamed;
+  score += Math.round(sov * 10); // up to +10 when brand is the only one named
+
+  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
+  let posBonus = 0;
+  const lower = result.response.toLowerCase();
+  for (const term of positiveTerms) {
+    if (lower.includes(term)) posBonus += 2;
   }
+  score += Math.min(posBonus, 8);
 
-  let score: number;
-  switch (status) {
-    case 'preferred':   score = 80; break;
-    case 'recommended': score = 60; break;
-    case 'considered':  score = 35; break;
-    case 'mentioned':   score = 15; break;
-    default:            return 0;
-  }
-
-  // Position modifiers (brandPosition is 1-based)
-  if (result.brandPosition !== null && result.brandPosition !== undefined) {
-    if (result.brandPosition === 1) score += 10;
-    else if (result.brandPosition <= 3) score += 7;
-    else if (result.brandPosition <= 5) score += 4;
-  }
-
-  // Brand-adjacent positive context (NOT generic positives elsewhere in the response)
-  if (adjCtx.positiveContext) score += 5;
-
-  // Source / citation-backed
-  if (hasSourceBackedMention(result)) score += 5;
-
-  // Brand-adjacent negative context reduces mention quality
-  if (adjCtx.negativeContext) score -= 10;
-
-  return Math.max(0, Math.min(score, 100));
+  return Math.min(score, 100);
 }
 
 /**
  * Category visibility diagnostic (D).
  * Tells us whether 0 mentions are because the brand is invisible, or because the
  * AI categorically doesn't surface ANY brand-style answer for this category.
+ *
+ * IMPORTANT: This is purely a diagnostic. It MUST NOT contribute points to the
+ * AI Visibility Score. The `adjustment` field is retained at 0 for shape
+ * compatibility with existing PDF/persistence call sites.
  */
 function computeCategoryVisibility(results: ProviderResult[]): {
   coverage: number;
   label: 'Active Category' | 'Sparse Category' | 'Invisible Category';
   adjustment: number;
   detail: string;
+  interpretation: string;
 } {
   const valid = results.filter(
     r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
   );
   if (valid.length === 0) {
-    return { coverage: 0, label: 'Invisible Category', adjustment: 0, detail: 'No valid AI responses to evaluate.' };
+    return {
+      coverage: 0,
+      label: 'Invisible Category',
+      adjustment: 0,
+      detail: 'No valid AI responses to evaluate.',
+      interpretation: 'No AI responses were available, so category difficulty cannot be assessed.',
+    };
   }
   const withAnyBrand = valid.filter(r => r.brandMentioned || (r.competitors && r.competitors.length > 0)).length;
   const coverage = withAnyBrand / valid.length;
+  const pct = Math.round(coverage * 100);
 
   if (coverage >= 0.6) {
     return {
       coverage,
       label: 'Active Category',
       adjustment: 0,
-      detail: `AI search engines name specific brands in ${Math.round(coverage * 100)}% of these queries — this is a competitive, brand-aware category.`,
+      detail: `AI search engines name specific brands in ${pct}% of these queries — this is a competitive, brand-aware category.`,
+      interpretation: 'AI platforms regularly name specific brands for this query set, so visibility is earned by being one of the brands they choose to name.',
     };
   }
   if (coverage >= 0.25) {
     return {
       coverage,
       label: 'Sparse Category',
-      adjustment: 5,
-      detail: `AI search engines name specific brands in only ${Math.round(coverage * 100)}% of these queries. Brand visibility is harder to earn here, so any mention counts more.`,
+      adjustment: 0,
+      detail: `AI search engines name specific brands in only ${pct}% of these queries.`,
+      interpretation: 'AI platforms inconsistently name brands for this query set. Visibility is harder to earn here, but the category context does not add points to your score.',
     };
   }
   return {
     coverage,
     label: 'Invisible Category',
-    adjustment: 10,
-    detail: `AI search engines almost never name specific brands for these queries (${Math.round(coverage * 100)}% coverage). Low scores often reflect the entire category being absent, not just your brand.`,
+    adjustment: 0,
+    detail: `AI search engines almost never name specific brands for these queries (${pct}% coverage).`,
+    interpretation: 'AI platforms rarely name specific brands for this query set, which means you have an opportunity to define the category — but you do not receive visibility points unless your brand is actually mentioned.',
   };
 }
 
@@ -2831,38 +2548,49 @@ function generateExecutiveSummary(
   industryBenchmark: { industry: string; benchmark: number }
 ): string[] {
   const summary: string[] = [];
-  
+
+  // Verified mention count is the source of truth for the "0/100" wording.
+  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+  const mentionedResults = validResults.filter(r => r.brandMentioned);
+  const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+  const verifiedMentionCount = mentionedResults.length;
+
   // Score interpretation
-  if (overallScore >= 70) {
+  if (verifiedMentionCount === 0) {
+    summary.push(`${domain} has 0/100 AI visibility — your brand was not verified in any AI response across the queries we tested.`);
+    summary.push('Category difficulty is reported separately below and explains the market context, not your score. Visibility points are only awarded when your brand is actually named.');
+  } else if (overallScore >= 70) {
     summary.push(`${domain} has strong AI visibility with a score of ${overallScore}/100.`);
   } else if (overallScore >= 40) {
     summary.push(`${domain} has moderate AI visibility (${overallScore}/100) with room for improvement.`);
   } else {
     summary.push(`${domain} has low AI visibility (${overallScore}/100) and is missing significant opportunities.`);
   }
-  
-  // Benchmark comparison
-  const diff = overallScore - industryBenchmark.benchmark;
-  if (diff >= 10) {
-    summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
-  } else if (diff <= -10) {
-    summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
-  } else {
-    summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+
+  // Benchmark comparison — skip when there are no verified mentions; the score is 0
+  // by definition and a benchmark delta would be misleading.
+  if (verifiedMentionCount > 0) {
+    const diff = overallScore - industryBenchmark.benchmark;
+    if (diff >= 10) {
+      summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
+    } else if (diff <= -10) {
+      summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+    } else {
+      summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+    }
   }
-  
+
   // Provider insights
-  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-  const mentionRate = validResults.length > 0 ? validResults.filter(r => r.brandMentioned).length / validResults.length : 0;
-  
-  if (mentionRate >= 0.7) {
+  if (verifiedMentionCount === 0) {
+    summary.push('AI models did not mention your brand in any of the relevant queries we tested.');
+  } else if (mentionRate >= 0.7) {
     summary.push(`AI models mention your brand in ${Math.round(mentionRate * 100)}% of relevant queries.`);
   } else if (mentionRate >= 0.4) {
     summary.push(`Your brand appears in ${Math.round(mentionRate * 100)}% of queries - competitors may be capturing the rest.`);
   } else {
     summary.push(`Critical: Only ${Math.round(mentionRate * 100)}% of AI queries mention your brand.`);
   }
-  
+
   return summary;
 }
 
@@ -2875,7 +2603,7 @@ async function generatePDF(
   overallScore: number,
   results: ProviderResult[],
   businessContext: string = '',
-  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
+  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string; interpretation?: string },
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
   refinedCompetitors: string[] = [],
 ): Promise<Uint8Array> {
@@ -3231,13 +2959,14 @@ async function generatePDF(
     : `Your score is ${Math.abs(bDiff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`;
   y = drawCalloutBox(page, bText, y, bDiff >= 0 ? green : red);
 
-  // Category visibility diagnostic (D) — clarifies whether low scores are due to
-  // invisible brand or invisible category.
+  // Category visibility diagnostic — explains the market context. NOT part of the score.
   if (categoryDiagnostic) {
     const catColor =
       categoryDiagnostic.label === 'Active Category' ? green :
       categoryDiagnostic.label === 'Sparse Category' ? amber : red;
-    const catText = `Category Coverage: ${categoryDiagnostic.label}. ${categoryDiagnostic.detail}`;
+    const pct = Math.round((categoryDiagnostic.coverage || 0) * 100);
+    const interp = categoryDiagnostic.interpretation || categoryDiagnostic.detail;
+    const catText = `Category Difficulty: ${categoryDiagnostic.label}   |   Category Coverage: ${pct}%\nInterpretation: ${interp}`;
     y = drawCalloutBox(page, catText, y, catColor);
   }
 
@@ -4104,30 +3833,42 @@ serve(async (req) => {
       }
     }
 
-    // Re-extract competitors and re-detect brand mentions with refined list, then re-score.
+    // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
-      result.brandName = brandProfile.primaryName;
-      result.brandAliases = brandProfile.aliases;
       result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
-      result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
-      result.score = calculateProviderScore(result);
     }
 
-    // Step 3: Calculate overall score using the Visibility Funnel model.
-    // Components: Mention Coverage (40) + Prompt Coverage (20) + Provider Coverage (15)
-    //           + Mention Quality (15, gated by coverage) + Share of Voice (10) = 100.
-    // Category difficulty is NOT added to the score — kept as a separate diagnostic.
+    // Step 3: Calculate overall AI Visibility Score.
+    // Category difficulty is a SEPARATE diagnostic and never adds points to the score.
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-    // ===== CROSS-VALIDATION GUARDRAIL (applied BEFORE scoring) =====
+    // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
+    const mentionedResults = validResults.filter(r => r.brandMentioned);
+    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+    const avgQuality = mentionedResults.length > 0
+      ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
+      : 0;
+    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
+    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
+
+    // Diagnostic only — NOT added to overall score.
+    const categoryVisibility = computeCategoryVisibility(allResults);
+    const shareOfVoice = computeShareOfVoice(validResults);
+
+    // Share of Voice bonus: up to +10 when brand dominates the conversation.
+    const sovBonus = Math.round(shareOfVoice.sov * 10);
+
+    let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
+
+    // ===== CROSS-VALIDATION GUARDRAIL =====
     // The strict-substring sentiment analyzer is the most conservative truth signal.
-    // If sentiment says the brand was never mentioned across ALL valid responses,
-    // reset mention flags so the funnel cannot count phantom mentions.
-    const preGuardrailMentioned = validResults.filter(r => r.brandMentioned).length;
+    // If sentiment says the brand was never mentioned (across ALL valid responses),
+    // reset per-result mention flags so the scorecard, sentiment, recommendation,
+    // and matrix sections cannot disagree.
     const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
-    if (validResults.length > 0 && sentimentMentionCount === 0 && preGuardrailMentioned > 0) {
-      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${preGuardrailMentioned} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
+    if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
       for (const r of allResults) {
         r.brandMentioned = false;
         r.score = 0;
@@ -4136,71 +3877,14 @@ serve(async (req) => {
       }
     }
 
-    const verifiedMentions = validResults.filter(r => r.brandMentioned);
-    const verifiedMentionCount = verifiedMentions.length;
-
-    // 1) Mention Coverage Score — 0..40
-    const mentionRate = validResults.length > 0 ? verifiedMentionCount / validResults.length : 0;
-    const mentionCoverageScore = mentionRate * 40;
-
-    // 2) Prompt Coverage Score — 0..20
-    const promptsWithMention = new Set<string>();
-    const allPromptsSet = new Set<string>();
-    for (const r of validResults) {
-      allPromptsSet.add(r.prompt);
-      if (r.brandMentioned) promptsWithMention.add(r.prompt);
-    }
-    const totalPrompts = allPromptsSet.size;
-    const promptCoverage = totalPrompts > 0 ? promptsWithMention.size / totalPrompts : 0;
-    const promptCoverageScore = promptCoverage * 20;
-
-    // 3) Provider Coverage Score — 0..15
-    const providersWithMention = new Set<string>();
-    const allProvidersSet = new Set<string>();
-    for (const r of validResults) {
-      allProvidersSet.add(r.provider);
-      if (r.brandMentioned) providersWithMention.add(r.provider);
-    }
-    const totalProviders = allProvidersSet.size;
-    const providerCoverage = totalProviders > 0 ? providersWithMention.size / totalProviders : 0;
-    const providerCoverageScore = providerCoverage * 15;
-
-    // 4) Mention Quality Score — 0..15, with coverage gate so quality cannot inflate
-    //    low-visibility brands. Gate reaches full strength at mentionRate >= 25%.
-    const avgQuality = verifiedMentionCount > 0
-      ? verifiedMentions.reduce((sum, r) => sum + r.score, 0) / verifiedMentionCount
-      : 0; // r.score is 0..100
-    const rawQualityScore = (avgQuality / 100) * 15;
-    const qualityGate = Math.min(1, mentionRate / 0.25);
-    const qualityScore = rawQualityScore * qualityGate;
-
-    // 5) Competitive Share of Voice Score — 0..10
-    const shareOfVoice = computeShareOfVoice(validResults);
-    const sovDenominator = shareOfVoice.brandMentions + shareOfVoice.competitorMentions;
-    const sov = sovDenominator > 0 ? shareOfVoice.brandMentions / sovDenominator : 0;
-    const shareOfVoiceScore = sov * 10;
-
-    // Diagnostic only — NOT added to overall score
-    const categoryVisibility = computeCategoryVisibility(allResults);
-
-    let overallScore = Math.round(
-      mentionCoverageScore +
-      promptCoverageScore +
-      providerCoverageScore +
-      qualityScore +
-      shareOfVoiceScore
-    );
-    overallScore = Math.max(0, Math.min(100, overallScore));
-
-    // Hard floor: zero verified mentions => zero score.
+    // Hard floor: zero verified brand mentions => 0/100. Category difficulty cannot
+    // lift the score; it is reported as a separate diagnostic only.
+    const verifiedMentionCount = validResults.filter(r => r.brandMentioned).length;
     if (verifiedMentionCount === 0) {
       overallScore = 0;
     }
 
-    // Legacy variable retained for downstream payload compatibility
-    const baseScore = Math.round(mentionCoverageScore + promptCoverageScore + providerCoverageScore);
-
-    console.log(`[AutoReport] Visibility Funnel — mentionCoverage: ${mentionCoverageScore.toFixed(1)}/40 (rate=${(mentionRate*100).toFixed(0)}%), promptCoverage: ${promptCoverageScore.toFixed(1)}/20 (${promptsWithMention.size}/${totalPrompts}), providerCoverage: ${providerCoverageScore.toFixed(1)}/15 (${providersWithMention.size}/${totalProviders}), quality: ${qualityScore.toFixed(1)}/15 (raw=${rawQualityScore.toFixed(1)}, gate=${qualityGate.toFixed(2)}, avgQ=${avgQuality.toFixed(1)}), sov: ${shareOfVoiceScore.toFixed(1)}/10 (sov=${sov.toFixed(2)}), category(diagnostic): ${categoryVisibility.label}, final: ${overallScore}`);
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
@@ -4269,21 +3953,16 @@ serve(async (req) => {
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
             scoreBreakdown: {
-              model: 'visibility_funnel_v1',
-              mentionCoverage: Number(mentionCoverageScore.toFixed(2)),
-              promptCoverage: Number(promptCoverageScore.toFixed(2)),
-              providerCoverage: Number(providerCoverageScore.toFixed(2)),
-              quality: Number(qualityScore.toFixed(2)),
-              qualityRaw: Number(rawQualityScore.toFixed(2)),
-              qualityGate: Number(qualityGate.toFixed(2)),
-              shareOfVoice: Number(shareOfVoiceScore.toFixed(2)),
-              base: baseScore, // legacy: coverage-only sum
+              base: baseScore,
+              shareOfVoiceBonus: sovBonus,
               final: overallScore,
+              note: 'Category difficulty is a separate diagnostic and does not contribute to the AI Visibility Score.',
             },
             categoryVisibility: {
               coverage: Number(categoryVisibility.coverage.toFixed(2)),
               label: categoryVisibility.label,
               detail: categoryVisibility.detail,
+              interpretation: categoryVisibility.interpretation,
             },
             shareOfVoice: {
               ratio: Number(shareOfVoice.sov.toFixed(2)),
