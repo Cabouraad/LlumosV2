@@ -2548,38 +2548,49 @@ function generateExecutiveSummary(
   industryBenchmark: { industry: string; benchmark: number }
 ): string[] {
   const summary: string[] = [];
-  
+
+  // Verified mention count is the source of truth for the "0/100" wording.
+  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
+  const mentionedResults = validResults.filter(r => r.brandMentioned);
+  const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+  const verifiedMentionCount = mentionedResults.length;
+
   // Score interpretation
-  if (overallScore >= 70) {
+  if (verifiedMentionCount === 0) {
+    summary.push(`${domain} has 0/100 AI visibility — your brand was not verified in any AI response across the queries we tested.`);
+    summary.push('Category difficulty is reported separately below and explains the market context, not your score. Visibility points are only awarded when your brand is actually named.');
+  } else if (overallScore >= 70) {
     summary.push(`${domain} has strong AI visibility with a score of ${overallScore}/100.`);
   } else if (overallScore >= 40) {
     summary.push(`${domain} has moderate AI visibility (${overallScore}/100) with room for improvement.`);
   } else {
     summary.push(`${domain} has low AI visibility (${overallScore}/100) and is missing significant opportunities.`);
   }
-  
-  // Benchmark comparison
-  const diff = overallScore - industryBenchmark.benchmark;
-  if (diff >= 10) {
-    summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
-  } else if (diff <= -10) {
-    summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
-  } else {
-    summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+
+  // Benchmark comparison — skip when there are no verified mentions; the score is 0
+  // by definition and a benchmark delta would be misleading.
+  if (verifiedMentionCount > 0) {
+    const diff = overallScore - industryBenchmark.benchmark;
+    if (diff >= 10) {
+      summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
+    } else if (diff <= -10) {
+      summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+    } else {
+      summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+    }
   }
-  
+
   // Provider insights
-  const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-  const mentionRate = validResults.length > 0 ? validResults.filter(r => r.brandMentioned).length / validResults.length : 0;
-  
-  if (mentionRate >= 0.7) {
+  if (verifiedMentionCount === 0) {
+    summary.push('AI models did not mention your brand in any of the relevant queries we tested.');
+  } else if (mentionRate >= 0.7) {
     summary.push(`AI models mention your brand in ${Math.round(mentionRate * 100)}% of relevant queries.`);
   } else if (mentionRate >= 0.4) {
     summary.push(`Your brand appears in ${Math.round(mentionRate * 100)}% of queries - competitors may be capturing the rest.`);
   } else {
     summary.push(`Critical: Only ${Math.round(mentionRate * 100)}% of AI queries mention your brand.`);
   }
-  
+
   return summary;
 }
 
