@@ -4295,7 +4295,7 @@ serve(async (req) => {
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
