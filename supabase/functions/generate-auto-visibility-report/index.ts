@@ -5567,6 +5567,17 @@ serve(async (req) => {
     }
     console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
 
+    // Admin-only entity extraction debug trace (gated by debug=true).
+    let entityDebug: EntityDebugTrace | null = null;
+    if (debugMode) {
+      try {
+        entityDebug = buildEntityDebugTrace(validResults, brandProfile, domain, promptIdFor);
+        console.log(`[AutoReport][DEBUG] entityDebug: rawMatches=${entityDebug.summary.totalRawMatches} canonical=${entityDebug.summary.totalCanonicalEntities} mentioned=${entityDebug.summary.totalAiMentioned} recommended=${entityDebug.summary.totalRecommendationEvents} excluded=${entityDebug.summary.totalExcluded} reasons=${JSON.stringify(entityDebug.summary.excludedByReason)}`);
+      } catch (debugErr: any) {
+        console.error('[AutoReport][DEBUG] buildEntityDebugTrace failed:', debugErr?.message);
+      }
+    }
+
     // ===== Single source of truth for the AI Visibility Score =====
     // All five components (Mention Coverage, Prompt Coverage, Provider Coverage,
     // Mention Quality, Competitive SoV) and the zero-mention + single-mention
