@@ -4207,10 +4207,58 @@ serve(async (req) => {
 
     // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
-    const shareOfVoice = computeShareOfVoice(validResults);
+
+    // Classify every entity we know about (AI-mentioned + research-backed) into a competitor type.
+    // Industry inference drives law-firm-aware rules (e.g. ADR providers and software are NOT direct competitors).
+    const reportIndustry = inferReportIndustry(businessContext, prompts);
+    const aiMentionedCounts = new Map<string, number>(); // canonical -> count
+    const aiMentionedDisplay = new Map<string, string>(); // canonical -> first-seen display name
+    for (const r of validResults) {
+      for (const c of r.competitors || []) {
+        const canon = c.toLowerCase().trim();
+        if (!canon) continue;
+        aiMentionedCounts.set(canon, (aiMentionedCounts.get(canon) || 0) + 1);
+        if (!aiMentionedDisplay.has(canon)) aiMentionedDisplay.set(canon, c);
+      }
+    }
+    const classifiedCompetitors: ClassifiedCompetitor[] = [];
+    const seenCanon = new Set<string>();
+    for (const [canon, count] of aiMentionedCounts.entries()) {
+      seenCanon.add(canon);
+      const display = aiMentionedDisplay.get(canon) || canon;
+      const { type, reason } = classifyEntity(display, reportIndustry);
+      classifiedCompetitors.push({
+        name: display, canonical: canon, type, source: 'ai_mentioned', mentionCount: count, reason,
+      });
+    }
+    for (const c of refinedCompetitorCandidates) {
+      const canon = c.toLowerCase().trim();
+      if (!canon || seenCanon.has(canon)) continue;
+      seenCanon.add(canon);
+      const { type, reason } = classifyEntity(c, reportIndustry);
+      classifiedCompetitors.push({
+        name: c, canonical: canon, type, source: 'research_backed', mentionCount: 0, reason,
+      });
+    }
+    const classificationLookup = new Map<string, CompetitorType>();
+    for (const cc of classifiedCompetitors) classificationLookup.set(cc.canonical, cc.type);
+    const classifyByName = (name: string): CompetitorType => {
+      const t = classificationLookup.get(name.toLowerCase().trim());
+      if (t) return t;
+      return classifyEntity(name, reportIndustry).type;
+    };
+
+    // SoV uses AI-mentioned RECOMMENDATION EVENTS only — research-backed competitors are excluded.
+    const shareOfVoice = computeShareOfVoice(validResults, {
+      excludedCompetitorTypes: new Set<CompetitorType>(['Irrelevant / Excluded']),
+      classify: classifyByName,
+    });
+
+    console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
     // Share of Voice bonus: up to +10 when brand dominates the conversation.
     const sovBonus = Math.round(shareOfVoice.sov * 10);
+
 
     let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
 
