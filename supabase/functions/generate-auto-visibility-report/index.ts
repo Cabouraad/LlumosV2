@@ -3670,9 +3670,17 @@ serve(async (req) => {
 
     // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    const baseScore = validResults.length > 0
-      ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
+
+    // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
+    // This avoids the prior issue where a brand mentioned strongly in 3/8 responses scored ~25 because
+    // the 5 zeros dragged the simple average down.
+    const mentionedResults = validResults.filter(r => r.brandMentioned);
+    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+    const avgQuality = mentionedResults.length > 0
+      ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
+    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
+    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
 
     const categoryVisibility = computeCategoryVisibility(allResults);
     const shareOfVoice = computeShareOfVoice(validResults);
@@ -3682,7 +3690,7 @@ serve(async (req) => {
 
     const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
 
-    console.log(`[AutoReport] Score breakdown — base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
