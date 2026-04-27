@@ -4517,9 +4517,18 @@ async function generatePDF(
 
       // Wrap recommendation text to estimate card height
       const recLines = wrapText(gap.recommendation, 95);
-      const competitorLine = gap.competitorsWinning.length > 0
-        ? `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`
-        : 'No clear competitor winning yet — first-mover opportunity.';
+      // Three-state competitor line:
+      //   1. Recommendation events present → "Competitors winning here: ..."
+      //   2. Background mentions only      → "Entities mentioned here: ... No clear recommendation leader was detected."
+      //   3. No entities at all            → genuine first-mover opportunity
+      let competitorLine: string;
+      if (gap.competitorsWinning.length > 0) {
+        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`;
+      } else if (gap.entitiesMentioned && gap.entitiesMentioned.length > 0) {
+        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 4).join(', ')}. No clear recommendation leader was detected.`;
+      } else {
+        competitorLine = 'No clear competitor winning yet — first-mover opportunity.';
+      }
       const compLines = wrapText(competitorLine, 95);
       const providerLine = `Missing on: ${gap.providers.map(p => p === 'openai' ? 'ChatGPT' : p === 'perplexity' ? 'Perplexity' : p === 'google' ? 'Google AIO' : p).join(', ')}`;
 
