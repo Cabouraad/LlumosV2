@@ -623,16 +623,22 @@ function brandMentionedInText(text: string, brandProfile: BrandProfile): boolean
   }
 
   return false;
-}
+
+function hasBrandLikeShape(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length < 2) return false;
+  if (/\./.test(trimmed)) return true;
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const hasCapital = words.some(w => /^[A-Z]/.test(w));
+    const allCommon = words.every(w => COMMON_ENGLISH_WORDS.has(w.toLowerCase()));
+    return hasCapital && !allCommon;
+  }
+  if (COMMON_ENGLISH_WORDS.has(trimmed.toLowerCase())) return false;
   if (GENERIC_COMPETITOR_TERMS.has(trimmed.toLowerCase())) return false;
-  // Internal caps (e.g., "HubSpot", "LawRank")
   if (/[a-z][A-Z]/.test(trimmed)) return true;
-  // Short all-caps acronym (e.g., "SAP", "IBM")
   if (/^[A-Z]{2,6}$/.test(trimmed)) return true;
-  // Contains digits mixed with letters (e.g., "G2", "360i")
   if (/\d/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) return true;
-  // Capitalized word 5+ chars — only if it looks "brand-like" (not a common word)
-  // We already filtered common words above, so remaining 5+ char capitalized words are likely brands
   if (/^[A-Z][a-z]{4,}/.test(trimmed)) return true;
   return false;
 }
