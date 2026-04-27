@@ -2046,32 +2046,209 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
 }
 
 /**
- * Analyze sentiment of brand mention in response
+ * Brand-adjacent context detector.
+ *
+ * Returns whether positive/negative sentiment terms appear near a verified brand mention,
+ * along with which terms matched and the snippet they came from. "Near" = same sentence,
+ * same bullet/list item, OR within 20 words of the brand mention. Headings, intros,
+ * competitor descriptions, disclaimers, citations, and footers are NOT counted unless
+ * they explicitly contain the brand name itself.
  */
-function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
-  if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
+const BRAND_POSITIVE_TERMS = [
+  'best', 'top', 'leading', 'recommend', 'recommended', 'recommends', 'excellent', 'great',
+  'outstanding', 'trusted', 'popular', 'highly rated', 'highly-rated', 'well known', 'well-known',
+  'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive',
+  'ideal', 'go-to', 'go to', 'expert', 'experienced', 'skilled', 'award-winning', 'award winning',
+  'gold standard', 'first choice', 'top pick', 'top-tier', 'top tier',
+];
+const BRAND_NEGATIVE_TERMS = [
+  'worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints',
+  'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated',
+  'unreliable', 'questionable', 'subpar', 'inferior', 'mediocre', 'overrated',
+];
 
-  const text = response.toLowerCase();
-  const brandIdx = text.indexOf(brandName.toLowerCase());
-  // Look at ~300 chars around the brand mention
-  const context = text.substring(Math.max(0, brandIdx - 150), Math.min(text.length, brandIdx + brandName.length + 150));
+interface BrandAdjacentContext {
+  positiveContext: boolean;
+  negativeContext: boolean;
+  matchedTerms: string[];
+  evidenceSnippet: string;
+  // Diagnostic: where the brand was found, used to detect disclaimer/citation/footer-only mentions.
+  brandOnlyInBoilerplate: boolean;
+}
 
-  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'outstanding', 'trusted', 'popular', 'highly rated', 'well-known', 'reputable', 'premier', 'innovative', 'preferred', 'standout', 'notable', 'strong', 'impressive', 'ideal'];
-  const negativeTerms = ['worst', 'poor', 'avoid', 'limited', 'lacking', 'expensive', 'overpriced', 'complaints', 'issues', 'problems', 'drawback', 'downside', 'criticism', 'disappointing', 'outdated'];
-  // Note: 'however', 'but', 'although' removed - these are common transition words, not sentiment indicators
+function escapeForRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-  let positiveScore = 0;
-  let negativeScore = 0;
+function buildBrandAliasList(brandName: string, aliases?: string[]): string[] {
+  const list = new Set<string>();
+  const add = (v?: string) => {
+    if (!v) return;
+    const t = v.trim();
+    if (t.length >= 3) list.add(t.toLowerCase());
+  };
+  add(brandName);
+  if (brandName) add(brandName.replace(/\s+/g, ''));
+  for (const a of aliases || []) add(a);
+  return Array.from(list);
+}
 
-  for (const term of positiveTerms) {
-    if (context.includes(term)) positiveScore++;
+function findAllBrandSpans(textLower: string, aliasesLower: string[]): Array<{ start: number; end: number }> {
+  const spans: Array<{ start: number; end: number }> = [];
+  for (const alias of aliasesLower) {
+    const escaped = escapeForRegex(alias);
+    // Word-boundary-ish: avoid mid-word matches for short aliases
+    const pattern = alias.length < 4
+      ? new RegExp(`\\b${escaped}\\b`, 'g')
+      : new RegExp(`(?:^|[\\s,;:(/"'\\[])(${escaped})(?=[\\s,;:)/"'\\].'!?]|$)`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(textLower)) !== null) {
+      const matchText = (m[1] ?? m[0]);
+      const start = m.index + (m[0].length - matchText.length);
+      spans.push({ start, end: start + matchText.length });
+      if (m.index === pattern.lastIndex) pattern.lastIndex++;
+    }
   }
-  for (const term of negativeTerms) {
-    if (context.includes(term)) negativeScore++;
+  return spans.sort((a, b) => a.start - b.start);
+}
+
+function splitSentencesWithOffsets(text: string): Array<{ start: number; end: number; text: string }> {
+  const out: Array<{ start: number; end: number; text: string }> = [];
+  // Split on sentence-enders OR newlines (treat each line/bullet as its own unit)
+  const re = /[^.!?\n\r]+[.!?]+|[^.!?\n\r]+(?=\n|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    out.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+  }
+  return out;
+}
+
+function isBoilerplateLine(line: string): boolean {
+  const t = line.trim().toLowerCase();
+  if (!t) return true;
+  // Disclaimers / citations / footers
+  if (/^(disclaimer|note|footer|references?|sources?|citations?|see also|further reading)\b/.test(t)) return true;
+  if (/^\[\d+\]/.test(t)) return true; // pure citation line "[1] ..."
+  if (/^https?:\/\//.test(t)) return true; // bare URL line
+  return false;
+}
+
+function getBrandAdjacentContext(
+  responseText: string,
+  brandName: string,
+  aliases?: string[],
+): BrandAdjacentContext {
+  const empty: BrandAdjacentContext = {
+    positiveContext: false,
+    negativeContext: false,
+    matchedTerms: [],
+    evidenceSnippet: '',
+    brandOnlyInBoilerplate: false,
+  };
+  if (!responseText || !brandName) return empty;
+
+  const aliasList = buildBrandAliasList(brandName, aliases);
+  if (aliasList.length === 0) return empty;
+
+  const textLower = responseText.toLowerCase();
+  const brandSpans = findAllBrandSpans(textLower, aliasList);
+  if (brandSpans.length === 0) return empty;
+
+  const sentences = splitSentencesWithOffsets(responseText);
+  const matchedTerms = new Set<string>();
+  let positive = false;
+  let negative = false;
+  let evidence = '';
+
+  // Boilerplate detection: every line containing the brand is disclaimer/citation/footer/URL only
+  let allBrandLinesAreBoilerplate = true;
+  const lines = responseText.split(/\r?\n/);
+  let lineOffset = 0;
+  for (const line of lines) {
+    const lineStart = lineOffset;
+    const lineEnd = lineOffset + line.length;
+    const hasBrand = brandSpans.some(s => s.start >= lineStart && s.end <= lineEnd);
+    if (hasBrand && !isBoilerplateLine(line)) {
+      allBrandLinesAreBoilerplate = false;
+    }
+    lineOffset = lineEnd + 1; // +1 for the newline
   }
 
-  if (positiveScore > negativeScore + 1) return 'positive';
-  if (negativeScore > positiveScore + 1) return 'negative';
+  // Build evaluation windows around each brand mention
+  const windows: string[] = [];
+  for (const span of brandSpans) {
+    // 1. The sentence containing the mention
+    const sentence = sentences.find(s => span.start >= s.start && span.end <= s.end);
+    if (sentence) windows.push(sentence.text);
+
+    // 2. Same line/bullet
+    const lineStart = responseText.lastIndexOf('\n', span.start - 1) + 1;
+    const lineEndIdx = responseText.indexOf('\n', span.end);
+    const line = responseText.slice(lineStart, lineEndIdx === -1 ? responseText.length : lineEndIdx);
+    if (line && line !== sentence?.text) windows.push(line);
+
+    // 3. ±20-word window around the mention
+    const before = responseText.slice(0, span.start).split(/\s+/).slice(-20).join(' ');
+    const after = responseText.slice(span.end).split(/\s+/).slice(0, 20).join(' ');
+    windows.push(`${before} ${responseText.slice(span.start, span.end)} ${after}`);
+  }
+
+  for (const win of windows) {
+    const lower = win.toLowerCase();
+    for (const term of BRAND_POSITIVE_TERMS) {
+      const re = new RegExp(`\\b${escapeForRegex(term)}\\b`, 'i');
+      if (re.test(lower)) {
+        positive = true;
+        matchedTerms.add(term);
+        if (!evidence) evidence = win.trim().slice(0, 240);
+      }
+    }
+    for (const term of BRAND_NEGATIVE_TERMS) {
+      const re = new RegExp(`\\b${escapeForRegex(term)}\\b`, 'i');
+      if (re.test(lower)) {
+        negative = true;
+        matchedTerms.add(term);
+        if (!evidence) evidence = win.trim().slice(0, 240);
+      }
+    }
+  }
+
+  return {
+    positiveContext: positive,
+    negativeContext: negative,
+    matchedTerms: Array.from(matchedTerms),
+    evidenceSnippet: evidence,
+    brandOnlyInBoilerplate: allBrandLinesAreBoilerplate,
+  };
+}
+
+/**
+ * Analyze sentiment of brand mention in response.
+ * Now strictly brand-adjacent — generic positive/negative words elsewhere are ignored.
+ */
+function analyzeSentiment(
+  response: string,
+  brandName: string,
+  aliases?: string[],
+): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
+  if (!response || !brandName) return 'not_mentioned';
+  const ctx = getBrandAdjacentContext(response, brandName, aliases);
+  // If no brand spans were found, getBrandAdjacentContext returns the empty default.
+  // Use the same substring fallback as brandMentionedInText to decide "not_mentioned".
+  if (!ctx.evidenceSnippet && !ctx.positiveContext && !ctx.negativeContext) {
+    const aliasList = buildBrandAliasList(brandName, aliases);
+    const text = response.toLowerCase();
+    const found = aliasList.some(a => text.includes(a));
+    if (!found) return 'not_mentioned';
+    return 'neutral';
+  }
+  if (ctx.positiveContext && !ctx.negativeContext) return 'positive';
+  if (ctx.negativeContext && !ctx.positiveContext) return 'negative';
+  if (ctx.positiveContext && ctx.negativeContext) {
+    // Mixed — bias on count of matched terms
+    const pos = ctx.matchedTerms.filter(t => BRAND_POSITIVE_TERMS.includes(t)).length;
+    const neg = ctx.matchedTerms.filter(t => BRAND_NEGATIVE_TERMS.includes(t)).length;
+    if (pos > neg + 1) return 'positive';
+    if (neg > pos + 1) return 'negative';
+  }
   return 'neutral';
 }
 
