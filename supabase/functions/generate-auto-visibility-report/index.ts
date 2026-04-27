@@ -2380,19 +2380,197 @@ function computeCategoryVisibility(results: ProviderResult[]): {
 }
 
 /**
- * Share of Voice — fraction of all brand mentions that are YOUR brand.
+ * Competitor type taxonomy. Used to make the competitor landscape less misleading
+ * (e.g. don't lump JAMS, an ADR provider, in with actual law firms).
  */
-function computeShareOfVoice(results: ProviderResult[]): { sov: number; brandMentions: number; competitorMentions: number } {
-  let brandMentions = 0;
-  let competitorMentions = 0;
-  for (const r of results) {
-    if (r.brandMentioned) brandMentions += 1;
-    competitorMentions += (r.competitors?.length || 0);
-  }
-  const total = brandMentions + competitorMentions;
-  const sov = total === 0 ? 0 : brandMentions / total;
-  return { sov, brandMentions, competitorMentions };
+type CompetitorType =
+  | 'Direct Competitor'
+  | 'Large Firm / Enterprise Competitor'
+  | 'Local or Boutique Competitor'
+  | 'Marketplace / Directory'
+  | 'Software Platform'
+  | 'ADR Provider'
+  | 'Adjacent Service Provider'
+  | 'Irrelevant / Excluded';
+
+interface ClassifiedCompetitor {
+  name: string;
+  canonical: string;          // lowercased dedupe key
+  type: CompetitorType;
+  source: 'ai_mentioned' | 'research_backed';
+  mentionCount: number;       // 0 if research_backed only
+  reason?: string;            // short note explaining classification
 }
+
+/**
+ * Best-effort industry inference for the report. Used to switch competitor
+ * classification rules (e.g. law-firm reports treat ADR + software differently).
+ */
+function inferReportIndustry(businessContext: string, prompts: string[] = []): 'legal' | 'saas' | 'ecommerce' | 'agency' | 'general' {
+  const blob = (businessContext + '\n' + prompts.join('\n')).toLowerCase();
+  if (/\b(law\s*firm|attorney|attorneys|lawyer|lawyers|litigation|paralegal|counsel|legal services|personal injury|family law|estate planning|criminal defense)\b/.test(blob)) {
+    return 'legal';
+  }
+  if (/\b(saas|software|platform|api|crm|erp|developer|cloud|app)\b/.test(blob)) return 'saas';
+  if (/\b(ecommerce|e-commerce|shopify|store|dtc|d2c|retail|brand)\b/.test(blob)) return 'ecommerce';
+  if (/\b(agency|marketing agency|consultancy|consulting firm)\b/.test(blob)) return 'agency';
+  return 'general';
+}
+
+// Curated lookups for entities that consistently get miscategorized.
+const KNOWN_ADR_PROVIDERS = new Set([
+  'jams', 'aaa', 'american arbitration association', 'cpr', 'cpr institute',
+  'icc', 'international chamber of commerce', 'finra', 'icdr', 'judicate west',
+  'arbitration resolution services', 'ars', 'ncdr', 'mediate.com', 'fedarb',
+]);
+
+const KNOWN_LEGAL_DIRECTORIES = new Set([
+  'avvo', 'findlaw', 'justia', 'lawyers.com', 'lawyers com', 'martindale',
+  'martindale-hubbell', 'martindale hubbell', 'nolo', 'martindale-nolo',
+  'super lawyers', 'superlawyers', 'lawinfo', 'best lawyers', 'chambers',
+  'chambers and partners', 'legal500', 'legal 500', 'lawyer.com',
+]);
+
+const KNOWN_LEGAL_SOFTWARE = new Set([
+  'clio', 'mycase', 'practicepanther', 'practice panther', 'smokeball',
+  'rocket matter', 'lawpay', 'casetext', 'lex machina', 'westlaw', 'lexisnexis',
+  'lexis nexis', 'lexis', 'fastcase', 'thomson reuters', 'bloomberg law',
+  'filevine', 'litify', 'centerbase', 'cosmolex', 'zola suite', 'leap',
+]);
+
+const LARGE_NATIONAL_LAW_FIRMS = new Set([
+  'morgan & morgan', 'morgan and morgan', 'jacoby & meyers', 'jacoby and meyers',
+  'cellino law', 'cellino & barnes', 'sokolove law', 'parker waichman',
+  'weitz & luxenberg', 'weitz and luxenberg', 'baker mckenzie', 'baker & mckenzie',
+  'kirkland & ellis', 'kirkland and ellis', 'latham & watkins', 'dla piper',
+  'jones day', 'sidley austin', 'skadden', 'gibson dunn', 'white & case',
+  'allen overy', 'allen & overy', 'clifford chance', 'norton rose fulbright',
+  'mayer brown', 'hogan lovells', 'reed smith', 'greenberg traurig',
+]);
+
+const ADJACENT_SERVICE_KEYWORDS = [
+  'insurance', 'consultant', 'consulting', 'mediator', 'expert witness',
+  'process server', 'court reporter', 'investigator', 'accountant', 'cpa',
+];
+
+const SOFTWARE_KEYWORDS = [
+  'software', 'platform', 'app', 'tool', 'tools', 'saas', 'system',
+  'crm', 'cms', 'api', 'cloud', 'analytics',
+];
+
+const DIRECTORY_KEYWORDS = [
+  'directory', 'marketplace', 'listing', 'reviews', 'review site', 'rankings',
+];
+
+const LARGE_FIRM_NAME_HINTS = [
+  // Ampersand or multi-partner naming patterns common in big firms
+  /\s&\s/, /\s+and\s+/i,
+];
+
+function classifyEntity(
+  rawName: string,
+  industry: 'legal' | 'saas' | 'ecommerce' | 'agency' | 'general',
+  context?: { promptText?: string }
+): { type: CompetitorType; reason: string } {
+  const name = rawName.trim();
+  const lower = name.toLowerCase();
+  const promptLower = (context?.promptText || '').toLowerCase();
+  const promptAsksForSoftware = /\b(software|platform|app|tool|tools|saas|crm|system)\b/.test(promptLower);
+
+  if (!name || name.length < 2) return { type: 'Irrelevant / Excluded', reason: 'too short' };
+
+  // Curated lookups (highest priority)
+  if (KNOWN_ADR_PROVIDERS.has(lower)) return { type: 'ADR Provider', reason: 'known ADR provider' };
+  if (KNOWN_LEGAL_DIRECTORIES.has(lower)) return { type: 'Marketplace / Directory', reason: 'known legal directory' };
+  if (KNOWN_LEGAL_SOFTWARE.has(lower)) {
+    // For law firm reports, software is NOT a direct competitor unless prompt asks for software.
+    if (industry === 'legal' && !promptAsksForSoftware) {
+      return { type: 'Software Platform', reason: 'legal software (not a law-firm competitor)' };
+    }
+    return { type: 'Software Platform', reason: 'known legal-tech software' };
+  }
+  if (LARGE_NATIONAL_LAW_FIRMS.has(lower)) {
+    return { type: 'Large Firm / Enterprise Competitor', reason: 'known large/national law firm' };
+  }
+
+  // Heuristic keyword checks
+  if (DIRECTORY_KEYWORDS.some(k => lower.includes(k))) {
+    return { type: 'Marketplace / Directory', reason: 'directory/marketplace keyword' };
+  }
+  if (SOFTWARE_KEYWORDS.some(k => lower.includes(k))) {
+    if (industry === 'legal' && !promptAsksForSoftware) {
+      return { type: 'Software Platform', reason: 'software keyword (not law-firm competitor)' };
+    }
+    return { type: 'Software Platform', reason: 'software keyword' };
+  }
+  if (ADJACENT_SERVICE_KEYWORDS.some(k => lower.includes(k))) {
+    return { type: 'Adjacent Service Provider', reason: 'adjacent service keyword' };
+  }
+
+  if (industry === 'legal') {
+    const looksLikeFirm = /\b(law|legal|attorneys?|lawyers?|llp|pllc|p\.c\.|pc|firm|associates|& associates)\b/i.test(name);
+    if (looksLikeFirm) {
+      // Multi-partner naming usually = large firm
+      if (LARGE_FIRM_NAME_HINTS.some(rx => rx.test(name)) && /[A-Z][a-z]+\s*[&,]\s*[A-Z]/.test(name)) {
+        return { type: 'Large Firm / Enterprise Competitor', reason: 'multi-partner law firm naming' };
+      }
+      return { type: 'Local or Boutique Competitor', reason: 'law-firm naming pattern' };
+    }
+    // Generic org with no legal signal in a legal report — adjacent at best.
+    return { type: 'Adjacent Service Provider', reason: 'no clear legal signal' };
+  }
+
+  // Non-legal industries: default to Direct Competitor.
+  return { type: 'Direct Competitor', reason: 'default classification' };
+}
+
+/**
+ * Share of Voice — based on AI-mentioned RECOMMENDATION EVENTS only.
+ * Research-backed competitors that never appeared in any AI response are excluded.
+ *
+ *   sov = brandRecommendationEvents / (brandRecommendationEvents + competitorRecommendationEvents)
+ *
+ * A "recommendation event" is a valid AI response where the entity was named
+ * (and for the brand, framed at minimum as a moderate/strong recommendation).
+ * Backwards-compat fields `brandMentions` / `competitorMentions` are kept but
+ * now mirror the recommendation-event counts.
+ */
+function computeShareOfVoice(
+  results: ProviderResult[],
+  options?: { excludedCompetitorTypes?: Set<CompetitorType>; classify?: (name: string) => CompetitorType }
+): { sov: number; brandMentions: number; competitorMentions: number; brandRecommendationEvents: number; competitorRecommendationEvents: number } {
+  let brandRecommendationEvents = 0;
+  let competitorRecommendationEvents = 0;
+  const excluded = options?.excludedCompetitorTypes ?? new Set<CompetitorType>(['Irrelevant / Excluded']);
+
+  for (const r of results) {
+    if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
+      brandRecommendationEvents += 1;
+    }
+    // Per-response competitor recommendation event: the response NAMED at least one competitor.
+    // Research-backed entities are not in r.competitors (extractCompetitors only keeps names found in the text),
+    // so they are naturally excluded here.
+    const namedCompetitors = (r.competitors || []).filter(c => {
+      if (!options?.classify) return true;
+      const t = options.classify(c);
+      return !excluded.has(t);
+    });
+    if (namedCompetitors.length > 0) {
+      competitorRecommendationEvents += 1;
+    }
+  }
+
+  const total = brandRecommendationEvents + competitorRecommendationEvents;
+  const sov = total === 0 ? 0 : brandRecommendationEvents / total;
+  return {
+    sov,
+    brandMentions: brandRecommendationEvents,
+    competitorMentions: competitorRecommendationEvents,
+    brandRecommendationEvents,
+    competitorRecommendationEvents,
+  };
+}
+
 
 /**
  * AI Opportunity Score — answers "How much room is there to win visibility in this category?"
@@ -2739,6 +2917,7 @@ async function generatePDF(
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
   refinedCompetitors: string[] = [],
   aiOpportunity?: { score: number; label: string; breakdown: any },
+  classifiedCompetitors: ClassifiedCompetitor[] = [],
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -3202,42 +3381,112 @@ async function generatePDF(
   y -= Math.ceil(providerEntries.length / 2) * (provCardH + 12) + 10;
 
   // ====================== COMPETITOR LANDSCAPE ======================
-  if (y < 200) { page = newPage(); y = H - 10; }
+  if (y < 220) { page = newPage(); y = H - 10; }
 
-  y = drawSubsectionHeader(page, 'Competitor Landscape', y);
+  // Build classification-aware lookup so each row in the existing landscape
+  // can show its competitor type. Falls back gracefully if classification is empty.
+  const classificationByCanon = new Map<string, ClassifiedCompetitor>();
+  for (const cc of classifiedCompetitors) classificationByCanon.set(cc.canonical, cc);
 
-  if (sortedCompetitors.length > 0) {
-    const hasResearchOnlyCompetitors = sortedCompetitors.some(([, count]) => count === 0);
-    page.drawText(
-      hasResearchOnlyCompetitors
-        ? 'Brands identified across AI responses and validated market research for this category:'
-        : 'Brands mentioned by AI when your audience searches for relevant topics:',
-      { x: M + 5, y, size: 9, font: helveticaOblique, color: light }
-    );
+  const aiMentionedClassified = classifiedCompetitors.filter(c => c.source === 'ai_mentioned' && c.type !== 'Irrelevant / Excluded');
+  const researchBackedClassified = classifiedCompetitors.filter(c => c.source === 'research_backed' && c.type !== 'Irrelevant / Excluded');
+
+  y = drawSubsectionHeader(page, 'Competitors Mentioned by AI', y);
+  if (aiMentionedClassified.length > 0) {
+    page.drawText('Entities AI assistants actually named in their answers:', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
     y -= 18;
 
-    for (const [name, count] of sortedCompetitors) {
+    const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
+    for (const cc of sortedAi) {
       if (y < 60) { page = newPage(); y = H - 60; }
-
-      // Competitor card row
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
-      page.drawText(name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
-
-      const cBarW = count > 0 ? Math.min(160, (count / Math.max(validResults.length, 1)) * 200) : 0;
+      page.drawText(cc.name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
+      // Type badge
+      page.drawText(`[${cc.type}]`, { x: M + 200, y: y - 12, size: 7, font: helveticaBold, color: mid });
+      // Mention count bar
+      const cBarW = Math.min(120, (cc.mentionCount / Math.max(validResults.length, 1)) * 160);
       if (cBarW > 0) {
-        page.drawRectangle({ x: M + 200, y: y - 14, width: cBarW, height: 10, color: navy });
+        page.drawRectangle({ x: M + contentW - 160, y: y - 14, width: cBarW, height: 10, color: navy });
       }
-      page.drawText(
-        count > 0 ? `${count}x mentioned` : 'research-backed competitor',
-        { x: M + 205 + cBarW, y: y - 12, size: 8, font: helvetica, color: mid }
-      );
-
+      page.drawText(`${cc.mentionCount}x mentioned`, {
+        x: M + contentW - 160 + cBarW + 4, y: y - 12, size: 8, font: helvetica, color: mid,
+      });
       y -= 24;
     }
   } else {
     y = drawCalloutBox(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', y);
   }
+
+  // Research-backed competitors — shown SEPARATELY, never blended into AI-mentioned counts.
+  if (researchBackedClassified.length > 0) {
+    if (y < 120) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'Research-Backed Competitors (not seen in AI responses)', y);
+    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Excluded from Share of Voice.', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
+    y -= 18;
+    for (const cc of researchBackedClassified) {
+      if (y < 60) { page = newPage(); y = H - 60; }
+      page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
+      page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: amber });
+      page.drawText(cc.name, { x: M + 10, y: y - 12, size: 10, font: helveticaBold, color: dark });
+      page.drawText(`[${cc.type}]`, { x: M + 200, y: y - 12, size: 7, font: helveticaBold, color: mid });
+      page.drawText('research-backed only', { x: M + contentW - 110, y: y - 12, size: 8, font: helvetica, color: mid });
+      y -= 24;
+    }
+  }
+
+  // ====================== COMPETITOR TYPES FOUND ======================
+  if (classifiedCompetitors.length > 0) {
+    if (y < 200) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'Competitor Types Found', y);
+    page.drawText('Entities grouped by type so the landscape is not misleading (e.g. ADR providers and software platforms are not direct law-firm competitors).', {
+      x: M + 5, y, size: 9, font: helveticaOblique, color: light,
+    });
+    y -= 18;
+
+    const typeOrder: CompetitorType[] = [
+      'Direct Competitor',
+      'Local or Boutique Competitor',
+      'Large Firm / Enterprise Competitor',
+      'ADR Provider',
+      'Software Platform',
+      'Marketplace / Directory',
+      'Adjacent Service Provider',
+      'Irrelevant / Excluded',
+    ];
+    const grouped = new Map<CompetitorType, ClassifiedCompetitor[]>();
+    for (const cc of classifiedCompetitors) {
+      if (cc.type === 'Irrelevant / Excluded') continue;
+      const arr = grouped.get(cc.type) || [];
+      arr.push(cc);
+      grouped.set(cc.type, arr);
+    }
+
+    for (const t of typeOrder) {
+      const arr = grouped.get(t);
+      if (!arr || arr.length === 0) continue;
+      if (y < 80) { page = newPage(); y = H - 60; }
+      // Type heading row
+      page.drawRectangle({ x: M, y: y - 16, width: contentW, height: 18, color: navy });
+      page.drawText(`${t}  (${arr.length})`, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
+      y -= 22;
+      // Members — wrap as comma-separated list
+      const aiNames = arr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
+      const researchNames = arr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
+      const lines = wrapText([...aiNames, ...researchNames].join(', '), 95);
+      for (const ln of lines) {
+        if (y < 50) { page = newPage(); y = H - 60; }
+        page.drawText(ln, { x: M + 10, y: y - 8, size: 9, font: helvetica, color: dark });
+        y -= 12;
+      }
+      y -= 6;
+    }
+  }
+
 
   // ====================== CONTENT GAP OPPORTUNITIES ======================
   if (contentGaps.length > 0) {
@@ -4029,10 +4278,58 @@ serve(async (req) => {
 
     // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
-    const shareOfVoice = computeShareOfVoice(validResults);
+
+    // Classify every entity we know about (AI-mentioned + research-backed) into a competitor type.
+    // Industry inference drives law-firm-aware rules (e.g. ADR providers and software are NOT direct competitors).
+    const reportIndustry = inferReportIndustry(businessContext, prompts);
+    const aiMentionedCounts = new Map<string, number>(); // canonical -> count
+    const aiMentionedDisplay = new Map<string, string>(); // canonical -> first-seen display name
+    for (const r of validResults) {
+      for (const c of r.competitors || []) {
+        const canon = c.toLowerCase().trim();
+        if (!canon) continue;
+        aiMentionedCounts.set(canon, (aiMentionedCounts.get(canon) || 0) + 1);
+        if (!aiMentionedDisplay.has(canon)) aiMentionedDisplay.set(canon, c);
+      }
+    }
+    const classifiedCompetitors: ClassifiedCompetitor[] = [];
+    const seenCanon = new Set<string>();
+    for (const [canon, count] of aiMentionedCounts.entries()) {
+      seenCanon.add(canon);
+      const display = aiMentionedDisplay.get(canon) || canon;
+      const { type, reason } = classifyEntity(display, reportIndustry);
+      classifiedCompetitors.push({
+        name: display, canonical: canon, type, source: 'ai_mentioned', mentionCount: count, reason,
+      });
+    }
+    for (const c of refinedCompetitorCandidates) {
+      const canon = c.toLowerCase().trim();
+      if (!canon || seenCanon.has(canon)) continue;
+      seenCanon.add(canon);
+      const { type, reason } = classifyEntity(c, reportIndustry);
+      classifiedCompetitors.push({
+        name: c, canonical: canon, type, source: 'research_backed', mentionCount: 0, reason,
+      });
+    }
+    const classificationLookup = new Map<string, CompetitorType>();
+    for (const cc of classifiedCompetitors) classificationLookup.set(cc.canonical, cc.type);
+    const classifyByName = (name: string): CompetitorType => {
+      const t = classificationLookup.get(name.toLowerCase().trim());
+      if (t) return t;
+      return classifyEntity(name, reportIndustry).type;
+    };
+
+    // SoV uses AI-mentioned RECOMMENDATION EVENTS only — research-backed competitors are excluded.
+    const shareOfVoice = computeShareOfVoice(validResults, {
+      excludedCompetitorTypes: new Set<CompetitorType>(['Irrelevant / Excluded']),
+      classify: classifyByName,
+    });
+
+    console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
     // Share of Voice bonus: up to +10 when brand dominates the conversation.
     const sovBonus = Math.round(shareOfVoice.sov * 10);
+
 
     let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
 
@@ -4068,7 +4365,7 @@ serve(async (req) => {
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
@@ -4148,6 +4445,9 @@ serve(async (req) => {
               ratio: Number(shareOfVoice.sov.toFixed(2)),
               brandMentions: shareOfVoice.brandMentions,
               competitorMentions: shareOfVoice.competitorMentions,
+              brandRecommendationEvents: shareOfVoice.brandRecommendationEvents,
+              competitorRecommendationEvents: shareOfVoice.competitorRecommendationEvents,
+              note: 'SoV is computed from AI-mentioned recommendation events only. Research-backed competitors are excluded.',
             },
             aiOpportunity: {
               score: aiOpportunity.score,
@@ -4155,6 +4455,15 @@ serve(async (req) => {
               breakdown: aiOpportunity.breakdown,
               note: 'AI Opportunity Score is separate from AI Visibility Score and is never blended into it.',
             },
+            reportIndustry,
+            classifiedCompetitors: classifiedCompetitors.map(c => ({
+              name: c.name, type: c.type, source: c.source, mentionCount: c.mentionCount,
+            })),
+            competitorTypeCounts: classifiedCompetitors.reduce((acc, c) => {
+              if (c.type === 'Irrelevant / Excluded') return acc;
+              acc[c.type] = (acc[c.type] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>),
           },
         });
       if (insertError) {
