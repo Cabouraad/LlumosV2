@@ -2242,7 +2242,154 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
 }
 
 /**
- * Analyze sentiment of brand mention in response
+ * Classify HOW an entity is mentioned in the response.
+ *
+ *   preferred   — entity is ranked #1 / "best" / "top choice" / "go with"
+ *   recommended — explicit "recommend / suggest / I'd go with / consider X"
+ *                 within ~80 chars of the entity
+ *   listed      — appears as a numbered/bulleted list item, or after a
+ *                 trigger phrase like "such as / include / options include /
+ *                 alternatives / consider / try / firms include"
+ *   named       — referenced in body prose only (background, citation, footnote)
+ *
+ * The classifier is intentionally conservative: when in doubt, returns 'named'.
+ * Only 'listed' / 'recommended' / 'preferred' count as recommendation events.
+ */
+function classifyEntityMentionStatus(entity: string, response: string): EntityMentionStatus {
+  if (!entity || !response) return 'named';
+  const lower = response.toLowerCase();
+  const eLower = entity.toLowerCase();
+  if (!lower.includes(eLower)) return 'named';
+
+  let escaped: string;
+  try {
+    escaped = escapeRegExp(eLower);
+  } catch {
+    return 'named';
+  }
+
+  // PREFERRED: ranked #1 / explicitly the top pick
+  const preferredPatterns: RegExp[] = [
+    new RegExp(`(?:^|\\n)\\s*(?:#?\\s*)?1[.):\\-\\s][^\\n]{0,160}${escaped}`, 'i'),
+    new RegExp(`${escaped}[^.\\n]{0,80}(?:is the best|is recommended|stands out|top choice|#1|number one|leading choice|go-to|gold standard)`, 'i'),
+    new RegExp(`(?:best|top pick|first choice|go with|our pick|standout)[^.\\n]{0,80}${escaped}`, 'i'),
+  ];
+  for (const p of preferredPatterns) {
+    try { if (p.test(lower)) return 'preferred'; } catch { /* ignore */ }
+  }
+
+  // RECOMMENDED: explicit recommendation language near the entity
+  const recommendedPatterns: RegExp[] = [
+    new RegExp(`(?:recommend|recommended|suggest|i['’]?d go with|consider|notable|reputable|well[- ]regarded|highly regarded|trusted)[^.\\n]{0,80}${escaped}`, 'i'),
+    new RegExp(`${escaped}[^.\\n]{0,80}(?:is (?:a |an )?(?:strong|solid|excellent|great|good|reputable|reliable|trusted|leading)|comes (?:highly )?recommended)`, 'i'),
+  ];
+  for (const p of recommendedPatterns) {
+    try { if (p.test(lower)) return 'recommended'; } catch { /* ignore */ }
+  }
+
+  // LISTED: appears in a numbered/bulleted list, OR follows a "such as / include" trigger
+  // Look for the line containing the entity and check if it begins with a list marker.
+  const lines = response.split('\n');
+  for (const line of lines) {
+    if (!line.toLowerCase().includes(eLower)) continue;
+    if (/^\s*(?:\d+[.)]|[-•*▪▸])\s+/.test(line)) return 'listed';
+  }
+
+  const triggerListPatterns: RegExp[] = [
+    new RegExp(`(?:include|includes|including|options?(?:\\s+include)?|such as|alternatives?(?:\\s+(?:include|are))?|firms?\\s+(?:include|like|such as)|companies?\\s+(?:include|like|such as)|platforms?\\s+(?:include|like)|try|consider)\\s*[:\\-]?[^.\\n]{0,260}${escaped}`, 'i'),
+  ];
+  for (const p of triggerListPatterns) {
+    try { if (p.test(lower)) return 'listed'; } catch { /* ignore */ }
+  }
+
+  return 'named';
+}
+
+/**
+ * Build the per-result map of canonical entity → mention status, plus the
+ * strict subset of entities that count as recommendation events
+ * (status ∈ {listed, recommended, preferred}).
+ */
+function classifyEntityMentions(
+  entities: string[],
+  response: string,
+): { statuses: Record<string, EntityMentionStatus>; recommended: string[] } {
+  const statuses: Record<string, EntityMentionStatus> = {};
+  const recommended: string[] = [];
+  const seenRec = new Set<string>();
+  for (const e of entities) {
+    const canon = e.toLowerCase().trim();
+    if (!canon) continue;
+    const status = classifyEntityMentionStatus(e, response);
+    statuses[canon] = status;
+    if (status !== 'named' && !seenRec.has(canon)) {
+      seenRec.add(canon);
+      recommended.push(e);
+    }
+  }
+  return { statuses, recommended };
+}
+
+/**
+ * Pull a short ±80-char evidence snippet around the first mention of `entity`
+ * in `response`. Used by aiMentionedEntities + competitorRecommendationEvents.
+ */
+function buildEvidenceSnippet(entity: string, response: string, radius = 80): string {
+  if (!entity || !response) return '';
+  const lower = response.toLowerCase();
+  const idx = lower.indexOf(entity.toLowerCase());
+  if (idx < 0) return '';
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(response.length, idx + entity.length + radius);
+  let snippet = response.slice(start, end).replace(/\s+/g, ' ').trim();
+  if (start > 0) snippet = '…' + snippet;
+  if (end < response.length) snippet = snippet + '…';
+  return snippet;
+}
+
+/**
+ * Count occurrences of entity in response (case-insensitive, word-boundary safe).
+ */
+function countEntityMentions(entity: string, response: string): number {
+  if (!entity || !response) return 0;
+  try {
+    const re = new RegExp(`\\b${escapeRegExp(entity.toLowerCase())}\\b`, 'gi');
+    return (response.match(re) || []).length;
+  } catch {
+    const lower = response.toLowerCase();
+    const target = entity.toLowerCase();
+    let count = 0;
+    let i = 0;
+    while ((i = lower.indexOf(target, i)) !== -1) { count++; i += target.length; }
+    return count;
+  }
+}
+
+/**
+ * Detect 1-based position of an arbitrary entity inside a numbered/bulleted
+ * list in the response. Mirrors detectBrandPosition() but for any entity.
+ */
+function detectEntityPosition(entity: string, response: string): number | null {
+  if (!entity || !response) return null;
+  const lower = entity.toLowerCase();
+  const lines = response.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase().trim();
+    if (!line.includes(lower)) continue;
+    const numMatch = line.match(/^(?:#?\s*)?(\d+)[.):\-\s]/);
+    if (numMatch) return parseInt(numMatch[1]);
+    if (/^[-•*▪▸]/.test(line)) {
+      let pos = 0;
+      for (let j = 0; j <= i; j++) {
+        if (/^[-•*▪▸]/.test(lines[j].trim())) pos++;
+      }
+      return pos;
+    }
+  }
+  return null;
+}
+
+
  */
 function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
   if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
