@@ -2682,7 +2682,9 @@ function calculateProviderScore(result: ProviderResult): number {
   else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
 
   // Share of voice within this single response: brand vs competitors named in the same answer
-  const competitorCount = result.competitors?.length || 0;
+  // Use recommendation events (not background mentions) so the brand isn't
+  // penalized when the AI merely name-checks unrelated entities in passing.
+  const competitorCount = result.recommendedEntities?.length || 0;
   const totalNamed = competitorCount + 1; // +1 for the brand itself
   const sov = 1 / totalNamed;
   score += Math.round(sov * 10); // up to +10 when brand is the only one named
