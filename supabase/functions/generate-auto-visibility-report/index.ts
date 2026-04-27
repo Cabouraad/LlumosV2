@@ -4590,6 +4590,10 @@ serve(async (req) => {
               acc[c.type] = (acc[c.type] || 0) + 1;
               return acc;
             }, {} as Record<string, number>),
+            promptIntents: prompts.map((p) => {
+              const info = classifyPromptIntent(p);
+              return { prompt: p, intent: info.intent, weight: info.weight, priority: info.priority };
+            }),
           },
         });
       if (insertError) {
