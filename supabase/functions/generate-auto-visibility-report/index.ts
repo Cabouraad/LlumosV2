@@ -91,12 +91,53 @@ interface HomepageSignals {
   brandCandidates: string[];
 }
 
+// Mention status taxonomy:
+//   named       — entity is referenced in passing (descriptive sentence, citation, footnote)
+//   listed      — entity appears as a bulleted/numbered list item or in a "such as / include" list
+//   recommended — AI explicitly recommends, suggests, or names entity as a top option
+//   preferred   — AI ranks entity #1 / "best" / "go with" / "top choice"
+export type EntityMentionStatus = 'named' | 'listed' | 'recommended' | 'preferred';
+
+export interface AIMentionedEntity {
+  entityName: string;
+  canonicalName: string;
+  provider: string;
+  promptId: string;
+  promptText: string;
+  entityType: string;
+  mentionCount: number;
+  evidenceSnippet: string;
+  mentionStatus: EntityMentionStatus;
+}
+
+export interface CompetitorRecommendationEvent {
+  entityName: string;
+  canonicalName: string;
+  provider: string;
+  promptId: string;
+  promptText: string;
+  entityType: string;
+  recommendationStrength: 'strong' | 'moderate' | 'weak';
+  position: number | null;
+  evidenceSnippet: string;
+}
+
 interface ProviderResult {
   provider: string;
   prompt: string;
   response: string;
   brandMentioned: boolean;
+  // ALL organizations/firms/services/etc. named anywhere in the response.
+  // Powers: "Competitors Mentioned by AI", Competitor Types Found, Detailed
+  // competitor landscape, Entity discovery.
   competitors: string[];
+  // Strict subset of competitors whose mention pattern indicates the AI is
+  // listing / suggesting / recommending / preferring them as an answer to the
+  // prompt. Powers: Share of Voice, Head-to-Head Matrix, Content Gap
+  // "competitors winning here", AI Opportunity Score competitor gap.
+  recommendedEntities: string[];
+  // Per-entity mention status, keyed by canonical (lowercase) name.
+  entityMentionStatus: Record<string, EntityMentionStatus>;
   score: number;
   sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
   recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
@@ -1771,6 +1812,8 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
     response: '',
     brandMentioned: false,
     competitors: [],
+    recommendedEntities: [],
+    entityMentionStatus: {},
     score: 0,
     sentiment: 'not_mentioned',
     recommendationStrength: 'absent',
@@ -1804,6 +1847,11 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1826,6 +1874,8 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
     response: '',
     brandMentioned: false,
     competitors: [],
+    recommendedEntities: [],
+    entityMentionStatus: {},
     score: 0,
     sentiment: 'not_mentioned',
     recommendationStrength: 'absent',
@@ -1858,6 +1908,11 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1880,6 +1935,8 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
     response: '',
     brandMentioned: false,
     competitors: [],
+    recommendedEntities: [],
+    entityMentionStatus: {},
     score: 0,
     sentiment: 'not_mentioned',
     recommendationStrength: 'absent',
@@ -1922,6 +1979,11 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
     result.response = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1944,6 +2006,8 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
     response: '',
     brandMentioned: false,
     competitors: [],
+    recommendedEntities: [],
+    entityMentionStatus: {},
     score: 0,
     sentiment: 'not_mentioned',
     recommendationStrength: 'absent',
@@ -2001,6 +2065,11 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
 
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -2199,6 +2268,155 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
 
   return Array.from(seen.values());
 }
+
+/**
+ * Classify HOW an entity is mentioned in the response.
+ *
+ *   preferred   — entity is ranked #1 / "best" / "top choice" / "go with"
+ *   recommended — explicit "recommend / suggest / I'd go with / consider X"
+ *                 within ~80 chars of the entity
+ *   listed      — appears as a numbered/bulleted list item, or after a
+ *                 trigger phrase like "such as / include / options include /
+ *                 alternatives / consider / try / firms include"
+ *   named       — referenced in body prose only (background, citation, footnote)
+ *
+ * The classifier is intentionally conservative: when in doubt, returns 'named'.
+ * Only 'listed' / 'recommended' / 'preferred' count as recommendation events.
+ */
+function classifyEntityMentionStatus(entity: string, response: string): EntityMentionStatus {
+  if (!entity || !response) return 'named';
+  const lower = response.toLowerCase();
+  const eLower = entity.toLowerCase();
+  if (!lower.includes(eLower)) return 'named';
+
+  let escaped: string;
+  try {
+    escaped = escapeRegExp(eLower);
+  } catch {
+    return 'named';
+  }
+
+  // PREFERRED: ranked #1 / explicitly the top pick
+  const preferredPatterns: RegExp[] = [
+    new RegExp(`(?:^|\\n)\\s*(?:#?\\s*)?1[.):\\-\\s][^\\n]{0,160}${escaped}`, 'i'),
+    new RegExp(`${escaped}[^.\\n]{0,80}(?:is the best|is recommended|stands out|top choice|#1|number one|leading choice|go-to|gold standard)`, 'i'),
+    new RegExp(`(?:best|top pick|first choice|go with|our pick|standout)[^.\\n]{0,80}${escaped}`, 'i'),
+  ];
+  for (const p of preferredPatterns) {
+    try { if (p.test(lower)) return 'preferred'; } catch { /* ignore */ }
+  }
+
+  // RECOMMENDED: explicit recommendation language near the entity
+  const recommendedPatterns: RegExp[] = [
+    new RegExp(`(?:recommend|recommended|suggest|i['’]?d go with|consider|notable|reputable|well[- ]regarded|highly regarded|trusted)[^.\\n]{0,80}${escaped}`, 'i'),
+    new RegExp(`${escaped}[^.\\n]{0,80}(?:is (?:a |an )?(?:strong|solid|excellent|great|good|reputable|reliable|trusted|leading)|comes (?:highly )?recommended)`, 'i'),
+  ];
+  for (const p of recommendedPatterns) {
+    try { if (p.test(lower)) return 'recommended'; } catch { /* ignore */ }
+  }
+
+  // LISTED: appears in a numbered/bulleted list, OR follows a "such as / include" trigger
+  // Look for the line containing the entity and check if it begins with a list marker.
+  const lines = response.split('\n');
+  for (const line of lines) {
+    if (!line.toLowerCase().includes(eLower)) continue;
+    if (/^\s*(?:\d+[.)]|[-•*▪▸])\s+/.test(line)) return 'listed';
+  }
+
+  const triggerListPatterns: RegExp[] = [
+    new RegExp(`(?:include|includes|including|options?(?:\\s+include)?|such as|alternatives?(?:\\s+(?:include|are))?|firms?\\s+(?:include|like|such as)|companies?\\s+(?:include|like|such as)|platforms?\\s+(?:include|like)|try|consider)\\s*[:\\-]?[^.\\n]{0,260}${escaped}`, 'i'),
+  ];
+  for (const p of triggerListPatterns) {
+    try { if (p.test(lower)) return 'listed'; } catch { /* ignore */ }
+  }
+
+  return 'named';
+}
+
+/**
+ * Build the per-result map of canonical entity → mention status, plus the
+ * strict subset of entities that count as recommendation events
+ * (status ∈ {listed, recommended, preferred}).
+ */
+function classifyEntityMentions(
+  entities: string[],
+  response: string,
+): { statuses: Record<string, EntityMentionStatus>; recommended: string[] } {
+  const statuses: Record<string, EntityMentionStatus> = {};
+  const recommended: string[] = [];
+  const seenRec = new Set<string>();
+  for (const e of entities) {
+    const canon = e.toLowerCase().trim();
+    if (!canon) continue;
+    const status = classifyEntityMentionStatus(e, response);
+    statuses[canon] = status;
+    if (status !== 'named' && !seenRec.has(canon)) {
+      seenRec.add(canon);
+      recommended.push(e);
+    }
+  }
+  return { statuses, recommended };
+}
+
+/**
+ * Pull a short ±80-char evidence snippet around the first mention of `entity`
+ * in `response`. Used by aiMentionedEntities + competitorRecommendationEvents.
+ */
+function buildEvidenceSnippet(entity: string, response: string, radius = 80): string {
+  if (!entity || !response) return '';
+  const lower = response.toLowerCase();
+  const idx = lower.indexOf(entity.toLowerCase());
+  if (idx < 0) return '';
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(response.length, idx + entity.length + radius);
+  let snippet = response.slice(start, end).replace(/\s+/g, ' ').trim();
+  if (start > 0) snippet = '…' + snippet;
+  if (end < response.length) snippet = snippet + '…';
+  return snippet;
+}
+
+/**
+ * Count occurrences of entity in response (case-insensitive, word-boundary safe).
+ */
+function countEntityMentions(entity: string, response: string): number {
+  if (!entity || !response) return 0;
+  try {
+    const re = new RegExp(`\\b${escapeRegExp(entity.toLowerCase())}\\b`, 'gi');
+    return (response.match(re) || []).length;
+  } catch {
+    const lower = response.toLowerCase();
+    const target = entity.toLowerCase();
+    let count = 0;
+    let i = 0;
+    while ((i = lower.indexOf(target, i)) !== -1) { count++; i += target.length; }
+    return count;
+  }
+}
+
+/**
+ * Detect 1-based position of an arbitrary entity inside a numbered/bulleted
+ * list in the response. Mirrors detectBrandPosition() but for any entity.
+ */
+function detectEntityPosition(entity: string, response: string): number | null {
+  if (!entity || !response) return null;
+  const lower = entity.toLowerCase();
+  const lines = response.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toLowerCase().trim();
+    if (!line.includes(lower)) continue;
+    const numMatch = line.match(/^(?:#?\s*)?(\d+)[.):\-\s]/);
+    if (numMatch) return parseInt(numMatch[1]);
+    if (/^[-•*▪▸]/.test(line)) {
+      let pos = 0;
+      for (let j = 0; j <= i; j++) {
+        if (/^[-•*▪▸]/.test(lines[j].trim())) pos++;
+      }
+      return pos;
+    }
+  }
+  return null;
+}
+
 
 /**
  * Analyze sentiment of brand mention in response
@@ -2410,7 +2628,10 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
       promptTexts.push(result.prompt);
     }
 
-    for (const competitor of result.competitors) {
+    // Head-to-Head Matrix uses RECOMMENDATION EVENTS only — entities the AI
+    // actually listed/recommended/preferred. Background-mention entities are
+    // surfaced separately in the Competitor Landscape section.
+    for (const competitor of result.recommendedEntities || []) {
       allCompetitors.add(competitor);
       competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
     }
@@ -2432,7 +2653,7 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 
     for (const competitor of competitors) {
       if (!matrix[competitor]) matrix[competitor] = {};
-      matrix[competitor][prompt] = validResults.some((result) => result.competitors.includes(competitor));
+      matrix[competitor][prompt] = validResults.some((result) => (result.recommendedEntities || []).includes(competitor));
     }
   }
 
@@ -2463,7 +2684,9 @@ function calculateProviderScore(result: ProviderResult): number {
   else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
 
   // Share of voice within this single response: brand vs competitors named in the same answer
-  const competitorCount = result.competitors?.length || 0;
+  // Use recommendation events (not background mentions) so the brand isn't
+  // penalized when the AI merely name-checks unrelated entities in passing.
+  const competitorCount = result.recommendedEntities?.length || 0;
   const totalNamed = competitorCount + 1; // +1 for the brand itself
   const sov = 1 / totalNamed;
   score += Math.round(sov * 10); // up to +10 when brand is the only one named
@@ -2709,7 +2932,9 @@ function computeShareOfVoice(
     // Per-response competitor recommendation event: the response NAMED at least one competitor.
     // Research-backed entities are not in r.competitors (extractCompetitors only keeps names found in the text),
     // so they are naturally excluded here.
-    const namedCompetitors = (r.competitors || []).filter(c => {
+    // SoV uses RECOMMENDATION EVENTS only (entities the AI listed/recommended/preferred),
+    // never background mentions. Keeps SoV conservative even as we capture more entities.
+    const namedCompetitors = (r.recommendedEntities || []).filter(c => {
       if (!options?.classify) return true;
       const t = options.classify(c);
       return !excluded.has(t);
@@ -2879,9 +3104,10 @@ function computeAIOpportunityScore(
     if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
       brandRecommendationEvents += 1;
     }
-    // Treat any response that names competitors as a competitor-recommendation event,
-    // because in practice these AI answers are framing competitors as options/recommendations.
-    if (r.competitors && r.competitors.length > 0) {
+    // Competitor gap counts only RECOMMENDATION EVENTS — entities the AI
+    // listed/recommended/preferred. Background mentions don't represent a
+    // visibility threat for the brand.
+    if (r.recommendedEntities && r.recommendedEntities.length > 0) {
       competitorRecommendationEvents += 1;
     }
   }
@@ -3075,7 +3301,7 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
     const existing = gapsByPrompt.get(key);
     if (existing) {
       if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
-      for (const c of missed.competitors) {
+      for (const c of (missed.recommendedEntities || [])) {
         if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
       }
     } else {
@@ -3083,7 +3309,7 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
-        competitorsWinning: [...missed.competitors],
+        competitorsWinning: [...(missed.recommendedEntities || [])],
         recommendation: '',
         intent: intentInfo.intent,
         intentWeight: intentInfo.weight,
@@ -4715,6 +4941,11 @@ serve(async (req) => {
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
       result.competitors = extractCompetitors(result.response, brandProfile, refinedCompetitorCandidates);
+      {
+        const __cls = classifyEntityMentions(result.competitors, result.response);
+        result.recommendedEntities = __cls.recommended;
+        result.entityMentionStatus = __cls.statuses;
+      }
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
@@ -4791,6 +5022,70 @@ serve(async (req) => {
     });
 
     console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
+
+    // ===== Build aiMentionedEntities + competitorRecommendationEvents =====
+    // aiMentionedEntities  → every named org/firm/service/etc. (powers the
+    //                        Detailed Competitor Landscape, Competitors Mentioned
+    //                        by AI, Competitor Types Found, Entity Discovery).
+    // competitorRecommendationEvents → strict subset where the AI listed /
+    //                        recommended / preferred the entity (powers SoV,
+    //                        Head-to-Head Matrix, Content Gap "competitors
+    //                        winning here", AI Opportunity competitor gap).
+    const aiMentionedEntities: AIMentionedEntity[] = [];
+    const competitorRecommendationEvents: CompetitorRecommendationEvent[] = [];
+    let promptIdCounter = 0;
+    const promptIdMap = new Map<string, string>();
+    const promptIdFor = (promptText: string): string => {
+      const existing = promptIdMap.get(promptText);
+      if (existing) return existing;
+      promptIdCounter += 1;
+      const id = `p${promptIdCounter}`;
+      promptIdMap.set(promptText, id);
+      return id;
+    };
+    for (const r of validResults) {
+      const promptId = promptIdFor(r.prompt);
+      for (const entity of r.competitors || []) {
+        const canonical = entity.toLowerCase().trim();
+        if (!canonical) continue;
+        const status = (r.entityMentionStatus && r.entityMentionStatus[canonical]) || 'named';
+        const entityType = classifyByName(entity);
+        const evidence = buildEvidenceSnippet(entity, r.response);
+        const mentionCount = countEntityMentions(entity, r.response);
+        aiMentionedEntities.push({
+          entityName: entity,
+          canonicalName: canonical,
+          provider: r.provider,
+          promptId,
+          promptText: r.prompt,
+          entityType,
+          mentionCount,
+          evidenceSnippet: evidence,
+          mentionStatus: status,
+        });
+
+        if (status === 'listed' || status === 'recommended' || status === 'preferred') {
+          // Map mention status → recommendation strength.
+          //   preferred   → strong
+          //   recommended → moderate
+          //   listed      → weak
+          const recommendationStrength: 'strong' | 'moderate' | 'weak' =
+            status === 'preferred' ? 'strong' : status === 'recommended' ? 'moderate' : 'weak';
+          competitorRecommendationEvents.push({
+            entityName: entity,
+            canonicalName: canonical,
+            provider: r.provider,
+            promptId,
+            promptText: r.prompt,
+            entityType,
+            recommendationStrength,
+            position: detectEntityPosition(entity, r.response),
+            evidenceSnippet: evidence,
+          });
+        }
+      }
+    }
+    console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
 
     // ===== Single source of truth for the AI Visibility Score =====
     // All five components (Mention Coverage, Prompt Coverage, Provider Coverage,
@@ -4927,6 +5222,17 @@ serve(async (req) => {
               const info = classifyPromptIntent(p);
               return { prompt: p, intent: info.intent, weight: info.weight, priority: info.priority };
             }),
+            // Two separate arrays so the report can show ALL named entities
+            // while keeping Share of Voice / Head-to-Head / Content Gap
+            // conservative (recommendation events only).
+            aiMentionedEntities: aiMentionedEntities.slice(0, 1000),
+            competitorRecommendationEvents: competitorRecommendationEvents.slice(0, 500),
+            entityCounts: {
+              aiMentionedTotal: aiMentionedEntities.length,
+              aiMentionedUnique: new Set(aiMentionedEntities.map(e => e.canonicalName)).size,
+              recommendationEventsTotal: competitorRecommendationEvents.length,
+              recommendationEventsUnique: new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size,
+            },
           },
         });
       if (insertError) {
