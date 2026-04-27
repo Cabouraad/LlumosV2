@@ -271,7 +271,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeEntityName(value: string | null | undefined): string {
+export function normalizeEntityName(value: string | null | undefined): string {
   if (typeof value !== 'string' || !value) return '';
   return value
     .toLowerCase()
@@ -375,7 +375,7 @@ function entityLookupKey(value: string): string {
     .trim();
 }
 
-function canonicalizeEntityName(raw: string | null | undefined): string {
+export function canonicalizeEntityName(raw: string | null | undefined): string {
   if (typeof raw !== 'string') return '';
   let value = raw.trim();
   if (!value) return '';
@@ -570,7 +570,7 @@ async function fetchHomepageSignals(domain: string): Promise<HomepageSignals> {
   return { context: '', brandCandidates: [] };
 }
 
-function buildBrandProfile(
+export function buildBrandProfile(
   domain: string,
   businessContext: string,
   homepageSignals: HomepageSignals,
@@ -2408,7 +2408,7 @@ function extractAllOrgEntitiesFromText(
  *      still surface in the report.
  *   3. Deduplicate by normalized name and exclude the brand itself.
  */
-function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
+export function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
   if (!text) return [];
 
   const seen = new Map<string, string>();
@@ -2523,7 +2523,7 @@ function classifyEntityMentionStatus(entity: string, response: string): EntityMe
  * strict subset of entities that count as recommendation events
  * (status ∈ {listed, recommended, preferred}).
  */
-function classifyEntityMentions(
+export function classifyEntityMentions(
   entities: string[],
   response: string,
 ): { statuses: Record<string, EntityMentionStatus>; recommended: string[] } {
@@ -2796,7 +2796,7 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
  * Build competitor head-to-head matrix
  * Returns: { promptText -> { competitorName -> mentioned:boolean } }
  */
-function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
+export function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
   prompts: string[];
   competitors: string[];
   matrix: Record<string, Record<string, boolean>>;
@@ -3102,7 +3102,7 @@ function classifyEntity(
  * Backwards-compat fields `brandMentions` / `competitorMentions` are kept but
  * now mirror the recommendation-event counts.
  */
-function computeShareOfVoice(
+export function computeShareOfVoice(
   results: ProviderResult[],
   options?: { excludedCompetitorTypes?: Set<CompetitorType>; classify?: (name: string) => CompetitorType }
 ): { sov: number; brandMentions: number; competitorMentions: number; brandRecommendationEvents: number; competitorRecommendationEvents: number } {
@@ -3251,7 +3251,7 @@ function isHighIntentPrompt(prompt: string): boolean {
   return intent === 'High Commercial Intent' || intent === 'Provider Search Intent';
 }
 
-function computeAIOpportunityScore(
+export function computeAIOpportunityScore(
   results: ProviderResult[],
   categoryCoverage: number,
 ): {
@@ -3475,7 +3475,7 @@ function buildGapRecommendation(prompt: string, competitorsWinning: string[]): s
   return `${competitorPhrase} Create a focused page answering this exact query — H1 matching the question, FAQ schema, and authoritative backlinks from industry publications.`;
 }
 
-function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
+export function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
   const gapsByPrompt = new Map<string, ContentGap>();
 
   for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
