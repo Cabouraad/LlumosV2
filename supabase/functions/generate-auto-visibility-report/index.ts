@@ -5762,6 +5762,8 @@ serve(async (req) => {
         aiOpportunityScore: aiOpportunity.score,
         aiOpportunityLabel: aiOpportunity.label,
         emailSent,
+        // Admin-only debug trace — only present when caller passed debug=true.
+        ...(entityDebug ? { entityDebug: { rows: entityDebug.rows.slice(0, 2000), summary: entityDebug.summary } } : {}),
       },
     };
 
