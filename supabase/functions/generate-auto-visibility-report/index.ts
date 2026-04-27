@@ -2853,6 +2853,9 @@ interface ContentGap {
   providers: string[];           // which AI platforms returned this gap
   competitorsWinning: string[];  // who is currently being recommended instead
   recommendation: string;        // specific action the brand should take
+  intent: PromptIntent;
+  intentWeight: number;
+  priority: 'High' | 'Medium' | 'Low';
 }
 
 function buildGapRecommendation(prompt: string, competitorsWinning: string[]): string {
