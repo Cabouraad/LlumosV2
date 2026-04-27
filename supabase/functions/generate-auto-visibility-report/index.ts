@@ -2377,9 +2377,16 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
     const candidateClean = candidate.trim();
     if (!candidateClean || candidateClean.length < 2) return;
     if (isSelfBrandCandidate(candidateClean, brandProfile)) return;
-    const key = normalizeEntityName(candidateClean);
+    // Canonicalize so domain forms, abbreviations, punctuation/suffix variants
+    // all collapse to one preferred display name across the report.
+    const canonical = canonicalizeEntityName(candidateClean) || candidateClean;
+    if (isSelfBrandCandidate(canonical, brandProfile)) return;
+    const key = normalizeEntityName(canonical);
     if (!key) return;
-    if (!seen.has(key)) seen.set(key, candidateClean);
+    // Prefer the longer / more complete display when we see the same key twice
+    // (e.g., "JAMS" beats "jamsadr.com"; "Gibson Dunn & Crutcher LLP" beats "Gibson Dunn").
+    const existing = seen.get(key);
+    if (!existing || canonical.length > existing.length) seen.set(key, canonical);
   };
 
   // 1. Curated allowlist matches (word-boundary safe)
