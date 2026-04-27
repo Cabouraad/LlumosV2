@@ -2324,43 +2324,58 @@ function calculateProviderScore(result: ProviderResult): number {
  * Category visibility diagnostic (D).
  * Tells us whether 0 mentions are because the brand is invisible, or because the
  * AI categorically doesn't surface ANY brand-style answer for this category.
+ *
+ * IMPORTANT: This is purely a diagnostic. It MUST NOT contribute points to the
+ * AI Visibility Score. The `adjustment` field is retained at 0 for shape
+ * compatibility with existing PDF/persistence call sites.
  */
 function computeCategoryVisibility(results: ProviderResult[]): {
   coverage: number;
   label: 'Active Category' | 'Sparse Category' | 'Invisible Category';
   adjustment: number;
   detail: string;
+  interpretation: string;
 } {
   const valid = results.filter(
     r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
   );
   if (valid.length === 0) {
-    return { coverage: 0, label: 'Invisible Category', adjustment: 0, detail: 'No valid AI responses to evaluate.' };
+    return {
+      coverage: 0,
+      label: 'Invisible Category',
+      adjustment: 0,
+      detail: 'No valid AI responses to evaluate.',
+      interpretation: 'No AI responses were available, so category difficulty cannot be assessed.',
+    };
   }
   const withAnyBrand = valid.filter(r => r.brandMentioned || (r.competitors && r.competitors.length > 0)).length;
   const coverage = withAnyBrand / valid.length;
+  const pct = Math.round(coverage * 100);
 
   if (coverage >= 0.6) {
     return {
       coverage,
       label: 'Active Category',
       adjustment: 0,
-      detail: `AI search engines name specific brands in ${Math.round(coverage * 100)}% of these queries — this is a competitive, brand-aware category.`,
+      detail: `AI search engines name specific brands in ${pct}% of these queries — this is a competitive, brand-aware category.`,
+      interpretation: 'AI platforms regularly name specific brands for this query set, so visibility is earned by being one of the brands they choose to name.',
     };
   }
   if (coverage >= 0.25) {
     return {
       coverage,
       label: 'Sparse Category',
-      adjustment: 5,
-      detail: `AI search engines name specific brands in only ${Math.round(coverage * 100)}% of these queries. Brand visibility is harder to earn here, so any mention counts more.`,
+      adjustment: 0,
+      detail: `AI search engines name specific brands in only ${pct}% of these queries.`,
+      interpretation: 'AI platforms inconsistently name brands for this query set. Visibility is harder to earn here, but the category context does not add points to your score.',
     };
   }
   return {
     coverage,
     label: 'Invisible Category',
-    adjustment: 10,
-    detail: `AI search engines almost never name specific brands for these queries (${Math.round(coverage * 100)}% coverage). Low scores often reflect the entire category being absent, not just your brand.`,
+    adjustment: 0,
+    detail: `AI search engines almost never name specific brands for these queries (${pct}% coverage).`,
+    interpretation: 'AI platforms rarely name specific brands for this query set, which means you have an opportunity to define the category — but you do not receive visibility points unless your brand is actually mentioned.',
   };
 }
 
