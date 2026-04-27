@@ -623,6 +623,7 @@ function brandMentionedInText(text: string, brandProfile: BrandProfile): boolean
   }
 
   return false;
+}
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
