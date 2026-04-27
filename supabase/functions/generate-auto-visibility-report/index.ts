@@ -4445,6 +4445,9 @@ serve(async (req) => {
               ratio: Number(shareOfVoice.sov.toFixed(2)),
               brandMentions: shareOfVoice.brandMentions,
               competitorMentions: shareOfVoice.competitorMentions,
+              brandRecommendationEvents: shareOfVoice.brandRecommendationEvents,
+              competitorRecommendationEvents: shareOfVoice.competitorRecommendationEvents,
+              note: 'SoV is computed from AI-mentioned recommendation events only. Research-backed competitors are excluded.',
             },
             aiOpportunity: {
               score: aiOpportunity.score,
@@ -4452,6 +4455,15 @@ serve(async (req) => {
               breakdown: aiOpportunity.breakdown,
               note: 'AI Opportunity Score is separate from AI Visibility Score and is never blended into it.',
             },
+            reportIndustry,
+            classifiedCompetitors: classifiedCompetitors.map(c => ({
+              name: c.name, type: c.type, source: c.source, mentionCount: c.mentionCount,
+            })),
+            competitorTypeCounts: classifiedCompetitors.reduce((acc, c) => {
+              if (c.type === 'Irrelevant / Excluded') return acc;
+              acc[c.type] = (acc[c.type] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>),
           },
         });
       if (insertError) {
