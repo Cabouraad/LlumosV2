@@ -2930,7 +2930,9 @@ function computeShareOfVoice(
     // Per-response competitor recommendation event: the response NAMED at least one competitor.
     // Research-backed entities are not in r.competitors (extractCompetitors only keeps names found in the text),
     // so they are naturally excluded here.
-    const namedCompetitors = (r.competitors || []).filter(c => {
+    // SoV uses RECOMMENDATION EVENTS only (entities the AI listed/recommended/preferred),
+    // never background mentions. Keeps SoV conservative even as we capture more entities.
+    const namedCompetitors = (r.recommendedEntities || []).filter(c => {
       if (!options?.classify) return true;
       const t = options.classify(c);
       return !excluded.has(t);
