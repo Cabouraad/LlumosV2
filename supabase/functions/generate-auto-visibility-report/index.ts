@@ -3394,10 +3394,11 @@ async function generatePDF(
   const barY2 = y - scoreCardH + 10;
   const barW2 = contentW - 28;
   page.drawRectangle({ x: M + 14, y: barY2, width: barW2, height: 8, color: rgb(0.15, 0.25, 0.35) });
-  // Segmented bar aligned with label thresholds: red (<40) | amber (40-69) | green (>=70)
-  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.4, height: 8, color: red });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.4, y: barY2, width: barW2 * 0.3, height: 8, color: amber });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.7, y: barY2, width: barW2 * 0.3, height: 8, color: green });
+  // Segmented bar aligned with the 6-band visibility model:
+  // red 0–24 (Invisible/Critical) | amber 25–64 (Weak/Emerging) | green 65–100 (Competitive/Dominant)
+  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.25, height: 8, color: red });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.25, y: barY2, width: barW2 * 0.40, height: 8, color: amber });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.65, y: barY2, width: barW2 * 0.35, height: 8, color: green });
   // Score marker
   const markerX = M + 14 + (overallScore / 100) * barW2;
   page.drawRectangle({ x: markerX - 2, y: barY2 - 4, width: 4, height: 16, color: white });
