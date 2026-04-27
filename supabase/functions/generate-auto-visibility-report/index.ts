@@ -83,6 +83,7 @@ interface ReportRequest {
 interface BrandProfile {
   primaryName: string;
   aliases: string[];
+  domain?: string;
 }
 
 interface HomepageSignals {
