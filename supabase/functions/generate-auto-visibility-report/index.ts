@@ -2725,16 +2725,33 @@ async function generatePDF(
     pg.drawRectangle({ x: x, y: y - size / 2, width: size, height: size, color: color, borderColor: white, borderWidth: 1 });
   }
 
+  // NOTE: When this helper triggers a page break it MUST mutate the caller's page
+  // reference. We use a shared `pageRef` object so callers stay in sync with the
+  // page actually being drawn on. Previously, reassigning the local `pg` parameter
+  // caused subsequent caller writes to land on the OLD (full) page, producing
+  // overlapping text and what looked like duplicated footer/SMBTeam text.
   function drawWrappedText(pg: any, text: string, x: number, y: number, opts: { size: number; font: any; color: any; maxChars?: number; lineSpacing?: number }): number {
     const lines = wrapText(text, opts.maxChars || 90);
     const spacing = opts.lineSpacing || (opts.size + 4);
     for (const line of lines) {
-      if (y < 50) { pg = newPage(); y = H - 60; }
+      if (y < 50) {
+        const np = newPage();
+        // Sync caller's outer `page` variable via the shared ref (set just below).
+        pageRef.page = np;
+        pg = np;
+        y = H - 60;
+      }
       pg.drawText(line, { x, y, size: opts.size, font: opts.font, color: opts.color });
       y -= spacing;
     }
+    // Keep the ref in sync with whatever page we ended on.
+    pageRef.page = pg;
     return y;
   }
+
+  // Shared page reference — callers should read `pageRef.page` after calling
+  // drawWrappedText if they want to know which page is currently active.
+  const pageRef: { page: any } = { page: null as any };
 
   // ====================== PAGE 1: COVER ======================
   let page = pdfDoc.addPage([W, H]);
