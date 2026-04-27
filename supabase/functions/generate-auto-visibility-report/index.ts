@@ -4149,6 +4149,12 @@ serve(async (req) => {
               brandMentions: shareOfVoice.brandMentions,
               competitorMentions: shareOfVoice.competitorMentions,
             },
+            aiOpportunity: {
+              score: aiOpportunity.score,
+              label: aiOpportunity.label,
+              breakdown: aiOpportunity.breakdown,
+              note: 'AI Opportunity Score is separate from AI Visibility Score and is never blended into it.',
+            },
           },
         });
       if (insertError) {
