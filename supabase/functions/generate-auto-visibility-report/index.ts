@@ -2052,6 +2052,10 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     };
   }
 
+  // Group by prompt and measure agreement across providers per prompt.
+  // "Agreement" = all providers for that prompt either all-mention or all-omit.
+  // We then weight by visibility so a brand that's invisible everywhere doesn't get
+  // credit for "agreement on absence".
   const promptGroups = new Map<string, ProviderResult[]>();
   for (const result of validResults) {
     const arr = promptGroups.get(result.prompt) || [];
@@ -2059,47 +2063,53 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     promptGroups.set(result.prompt, arr);
   }
 
-  let totalPrompts = 0;
-  let consistentPrompts = 0;
+  let multiProviderPrompts = 0;
+  let agreementSum = 0; // 0..1 per prompt — fraction of providers that match the majority
+  let mentionPrompts = 0; // # prompts where brand was mentioned by at least one provider
 
   for (const [, group] of promptGroups) {
     if (group.length < 2) continue;
-    totalPrompts++;
+    multiProviderPrompts++;
 
-    const mentionedCount = group.filter((result) => result.brandMentioned).length;
-    // Only count as "consistent" if brand IS mentioned across all providers for that prompt
-    // Unanimous absence is NOT consistency — it's invisibility
-    if (mentionedCount === group.length) {
-      consistentPrompts++;
-    } else if (mentionedCount > 0 && mentionedCount < group.length) {
-      // Partial mention — inconsistent
-    } else {
-      // All absent — count as neutral (not consistent, not inconsistent)
+    const mentionedCount = group.filter((r) => r.brandMentioned).length;
+    if (mentionedCount > 0) mentionPrompts++;
+
+    // Per-prompt agreement: how strongly providers agree (1.0 = unanimous, 0.5 = split)
+    const majority = Math.max(mentionedCount, group.length - mentionedCount);
+    const agreement = majority / group.length;
+    // Only reward agreement when there's mention activity — agreement on absence is invisibility, not signal.
+    if (mentionedCount > 0) {
+      agreementSum += agreement;
     }
   }
 
-  if (totalPrompts === 0) {
-    return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
+  // Fallback: if no multi-provider overlap, score based purely on mention rate across providers.
+  if (multiProviderPrompts === 0) {
+    const score = Math.round(mentionRate * 100);
+    return {
+      score,
+      label: score >= 60 ? 'High Consistency' : score >= 30 ? 'Mixed Signals' : 'Low Consistency',
+      detail: `Brand was mentioned in ${totalMentions} of ${validResults.length} provider responses (${Math.round(mentionRate * 100)}% mention rate).`,
+    };
   }
 
-  // Weight by mention rate — can't have high consistency with low visibility
-  const rawConsistency = consistentPrompts / totalPrompts;
-  const score = Math.round(rawConsistency * mentionRate * 100);
+  // Combined score: agreement quality (when mentioned) blended with overall mention rate.
+  // - agreementScore rewards providers that consistently mention together.
+  // - mentionRate prevents a single mention with no overlap from claiming "high consistency".
+  const agreementScore = mentionPrompts > 0 ? agreementSum / multiProviderPrompts : 0;
+  const score = Math.round((agreementScore * 0.6 + mentionRate * 0.4) * 100);
+
   let label: string;
   let detail: string;
-
   if (score >= 60) {
     label = 'High Consistency';
-    detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
+    detail = `AI platforms agree about your brand on ${mentionPrompts} of ${multiProviderPrompts} overlapping prompts — a strong, reliable visibility signal.`;
   } else if (score >= 30) {
     label = 'Mixed Signals';
-    detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
-  } else if (totalMentions > 0) {
-    label = 'Low Consistency';
-    detail = `Your brand appeared in only ${totalMentions} of ${validResults.length} checks. Most AI platforms don't yet reference your brand consistently.`;
+    detail = `Brand mentioned in ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Some platforms mention you while others don't — visibility is fragile.`;
   } else {
-    label = 'Inconsistent';
-    detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
+    label = 'Low Consistency';
+    detail = `Brand appeared in only ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Most AI platforms don't yet reference your brand consistently.`;
   }
 
   return { score, label, detail };
@@ -2158,31 +2168,39 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 /**
  * Calculate visibility score for a provider result.
  *
- * Scoring rebalanced (A) to reduce the "presence cliff":
- * - Mentioned at all: 35 (was 50, but combined with stronger bonuses gives a softer curve
- *   while letting a single mention land in the 35-65 range instead of stranding at ~2/100 overall)
- * - Strong recommendation: +25, Moderate: +12, Weak: +0
- * - Position bonus: top-3 +20, top-5 +10
- * - Positive context terms: +3 each (capped at +12)
+ * Rebalanced to better reflect the response signal:
+ * - Mentioned at all: 45 (raised from 35 — being named at all is the hardest threshold to cross)
+ * - Strong recommendation: +25, Moderate: +15, Weak: +5
+ * - Position bonus: top-3 +15, top-5 +8, otherwise +4 if mentioned (don't over-penalize unknown position)
+ * - Share-of-voice bonus within prompt: up to +10 when brand outshines competitors in the same response
+ * - Positive context terms: +2 each (capped at +8)
  */
 function calculateProviderScore(result: ProviderResult): number {
   if (!result.brandMentioned) return 0;
 
-  let score = 35;
+  let score = 45;
 
   if (result.recommendationStrength === 'strong') score += 25;
-  else if (result.recommendationStrength === 'moderate') score += 12;
+  else if (result.recommendationStrength === 'moderate') score += 15;
+  else score += 5;
 
-  if (result.brandPosition !== null && result.brandPosition <= 3) score += 20;
-  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 10;
+  if (result.brandPosition !== null && result.brandPosition <= 3) score += 15;
+  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 8;
+  else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
+
+  // Share of voice within this single response: brand vs competitors named in the same answer
+  const competitorCount = result.competitors?.length || 0;
+  const totalNamed = competitorCount + 1; // +1 for the brand itself
+  const sov = 1 / totalNamed;
+  score += Math.round(sov * 10); // up to +10 when brand is the only one named
 
   const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
   let posBonus = 0;
   const lower = result.response.toLowerCase();
   for (const term of positiveTerms) {
-    if (lower.includes(term)) posBonus += 3;
+    if (lower.includes(term)) posBonus += 2;
   }
-  score += Math.min(posBonus, 12);
+  score += Math.min(posBonus, 8);
 
   return Math.min(score, 100);
 }
@@ -3652,9 +3670,17 @@ serve(async (req) => {
 
     // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
-    const baseScore = validResults.length > 0
-      ? Math.round(validResults.reduce((sum, r) => sum + r.score, 0) / validResults.length)
+
+    // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
+    // This avoids the prior issue where a brand mentioned strongly in 3/8 responses scored ~25 because
+    // the 5 zeros dragged the simple average down.
+    const mentionedResults = validResults.filter(r => r.brandMentioned);
+    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+    const avgQuality = mentionedResults.length > 0
+      ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
+    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
+    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
 
     const categoryVisibility = computeCategoryVisibility(allResults);
     const shareOfVoice = computeShareOfVoice(validResults);
@@ -3664,7 +3690,7 @@ serve(async (req) => {
 
     const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
 
-    console.log(`[AutoReport] Score breakdown — base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
