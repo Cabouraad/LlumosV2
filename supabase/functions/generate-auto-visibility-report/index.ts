@@ -3827,12 +3827,11 @@ serve(async (req) => {
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
-    // Step 3: Calculate overall score with category visibility (D) and Share of Voice (A)
+    // Step 3: Calculate overall AI Visibility Score.
+    // Category difficulty is a SEPARATE diagnostic and never adds points to the score.
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
     // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
-    // This avoids the prior issue where a brand mentioned strongly in 3/8 responses scored ~25 because
-    // the 5 zeros dragged the simple average down.
     const mentionedResults = validResults.filter(r => r.brandMentioned);
     const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
     const avgQuality = mentionedResults.length > 0
@@ -3841,32 +3840,39 @@ serve(async (req) => {
     // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
     const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
 
+    // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
     const shareOfVoice = computeShareOfVoice(validResults);
 
-    // Share of Voice bonus: up to +10 when brand dominates the conversation
+    // Share of Voice bonus: up to +10 when brand dominates the conversation.
     const sovBonus = Math.round(shareOfVoice.sov * 10);
 
-    let overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
+    let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
 
     // ===== CROSS-VALIDATION GUARDRAIL =====
     // The strict-substring sentiment analyzer is the most conservative truth signal.
     // If sentiment says the brand was never mentioned (across ALL valid responses),
-    // clamp the overall score and rebuild per-provider/per-result mention flags so the
-    // scorecard, sentiment, recommendation, and matrix sections cannot disagree.
+    // reset per-result mention flags so the scorecard, sentiment, recommendation,
+    // and matrix sections cannot disagree.
     const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
     if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
-      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Clamping score and resetting mention flags to match sentiment truth.`);
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
       for (const r of allResults) {
         r.brandMentioned = false;
         r.score = 0;
         r.recommendationStrength = 'absent';
         r.brandPosition = null;
       }
-      overallScore = Math.min(overallScore, 12);
     }
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), sentimentMentions: ${sentimentMentionCount}, final: ${overallScore}`);
+    // Hard floor: zero verified brand mentions => 0/100. Category difficulty cannot
+    // lift the score; it is reported as a separate diagnostic only.
+    const verifiedMentionCount = validResults.filter(r => r.brandMentioned).length;
+    if (verifiedMentionCount === 0) {
+      overallScore = 0;
+    }
+
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
