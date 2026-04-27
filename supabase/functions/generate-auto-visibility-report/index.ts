@@ -2603,7 +2603,7 @@ async function generatePDF(
   overallScore: number,
   results: ProviderResult[],
   businessContext: string = '',
-  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string },
+  categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string; interpretation?: string },
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
   refinedCompetitors: string[] = [],
 ): Promise<Uint8Array> {
