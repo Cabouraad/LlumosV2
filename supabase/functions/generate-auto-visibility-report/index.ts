@@ -3077,6 +3077,26 @@ async function generatePDF(
   refinedCompetitors: string[] = [],
   aiOpportunity?: { score: number; label: string; breakdown: any },
   classifiedCompetitors: ClassifiedCompetitor[] = [],
+  scoreBreakdown?: {
+    components: {
+      mentionCoverage:  { score: number; max: number };
+      promptCoverage:   { score: number; max: number };
+      providerCoverage: { score: number; max: number };
+      mentionQuality:   { score: number; max: number };
+      competitiveSov:   { score: number; max: number };
+    };
+    diagnostics: {
+      validResponses: number;
+      verifiedBrandMentions: number;
+      promptsCovered: string;
+      providersCovered: string;
+      competitorRecommendationEvents: number;
+      categoryCoverage: string;
+      categoryDifficulty: string;
+    };
+    finalScore: number;
+    note: string;
+  },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -3468,7 +3488,93 @@ async function generatePDF(
   }
   y -= 70;
 
+  // ===== AI Visibility Score Breakdown — transparent component scoring =====
+  if (scoreBreakdown) {
+    if (y < 240) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'AI Visibility Score Breakdown', y);
+
+    const c = scoreBreakdown.components;
+    const rows: Array<{ label: string; score: number; max: number }> = [
+      { label: 'Mention Coverage',          score: c.mentionCoverage.score,   max: c.mentionCoverage.max },
+      { label: 'Prompt Coverage',           score: c.promptCoverage.score,    max: c.promptCoverage.max },
+      { label: 'Provider Coverage',         score: c.providerCoverage.score,  max: c.providerCoverage.max },
+      { label: 'Mention Quality',           score: c.mentionQuality.score,    max: c.mentionQuality.max },
+      { label: 'Competitive Share of Voice',score: c.competitiveSov.score,    max: c.competitiveSov.max },
+    ];
+
+    const rowH = 18;
+    const tableH = rowH * (rows.length + 1) + 8;
+    // Outline
+    page.drawRectangle({ x: M, y: y - tableH, width: contentW, height: tableH, color: white, borderColor: faint, borderWidth: 0.5 });
+
+    // Header
+    page.drawRectangle({ x: M, y: y - rowH, width: contentW, height: rowH, color: navy });
+    page.drawText('Component', { x: M + 10, y: y - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText('Score', { x: M + contentW - 140, y: y - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText('Bar', { x: M + contentW - 90, y: y - 13, size: 9, font: helveticaBold, color: white });
+
+    // Rows
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const ry = y - rowH - i * rowH;
+      // Zebra stripe
+      if (i % 2 === 0) {
+        page.drawRectangle({ x: M, y: ry - rowH, width: contentW, height: rowH, color: gray });
+      }
+      page.drawText(r.label, { x: M + 10, y: ry - 13, size: 9, font: helvetica, color: dark });
+      page.drawText(`${r.score}/${r.max}`, { x: M + contentW - 140, y: ry - 13, size: 9, font: helveticaBold, color: dark });
+      // Mini bar (80px) representing share of max
+      const barXp = M + contentW - 90;
+      const barWp = 80;
+      page.drawRectangle({ x: barXp, y: ry - 12, width: barWp, height: 6, color: faint });
+      const ratio = r.max > 0 ? Math.max(0, Math.min(1, r.score / r.max)) : 0;
+      const barColor = ratio >= 0.7 ? green : ratio >= 0.4 ? amber : red;
+      if (ratio > 0) {
+        page.drawRectangle({ x: barXp, y: ry - 12, width: Math.max(1, barWp * ratio), height: 6, color: barColor });
+      }
+    }
+
+    // Final row
+    const fy = y - rowH - rows.length * rowH;
+    page.drawRectangle({ x: M, y: fy - rowH, width: contentW, height: rowH, color: navy });
+    page.drawText('Final AI Visibility Score', { x: M + 10, y: fy - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText(`${scoreBreakdown.finalScore}/100`, { x: M + contentW - 140, y: fy - 13, size: 10, font: helveticaBold, color: yellow });
+
+    y = fy - rowH - 10;
+
+    // Diagnostics row (4 + 3 layout)
+    const d = scoreBreakdown.diagnostics;
+    const diagItems: Array<{ label: string; value: string }> = [
+      { label: 'Valid Responses',                  value: `${d.validResponses}` },
+      { label: 'Verified Brand Mentions',          value: `${d.verifiedBrandMentions}` },
+      { label: 'Prompts Covered',                  value: d.promptsCovered },
+      { label: 'Providers Covered',                value: d.providersCovered },
+      { label: 'Competitor Recommendation Events', value: `${d.competitorRecommendationEvents}` },
+      { label: 'Category Coverage',                value: d.categoryCoverage },
+      { label: 'Category Difficulty',              value: d.categoryDifficulty },
+    ];
+    // Render as a 2-column compact list to keep within page width
+    const colW = (contentW - 8) / 2;
+    const rowsCount = Math.ceil(diagItems.length / 2);
+    const diagH = rowsCount * 16 + 8;
+    page.drawRectangle({ x: M, y: y - diagH, width: contentW, height: diagH, color: gray, borderColor: faint, borderWidth: 0.5 });
+    for (let i = 0; i < diagItems.length; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const dx = M + 10 + col * colW;
+      const dy = y - 14 - row * 16;
+      page.drawText(diagItems[i].label + ':', { x: dx, y: dy, size: 8, font: helveticaBold, color: mid });
+      const lblW = helveticaBold.widthOfTextAtSize(diagItems[i].label + ':', 8);
+      page.drawText(diagItems[i].value, { x: dx + lblW + 6, y: dy, size: 8, font: helvetica, color: dark });
+    }
+    y -= diagH + 8;
+
+    // Note callout
+    y = drawCalloutBox(page, scoreBreakdown.note, y, amber);
+  }
+
   // Executive Summary — assessment box
+  if (y < 180) { page = newPage(); y = H - 10; }
   y = drawSubsectionHeader(page, 'Executive Summary', y);
   const summaryText = execSummary.join(' ');
   y = drawAssessmentBox(page, summaryText, y);
@@ -4462,8 +4568,34 @@ serve(async (req) => {
     const avgQuality = mentionedResults.length > 0
       ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
-    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
-    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
+
+    // ===== Transparent score components (sum to 100) =====
+    // Mention Coverage (40): intent-weighted share of valid responses that mention the brand.
+    const mentionCoverageScore = Math.round(mentionRate * 40);
+
+    // Prompt Coverage (20): share of unique prompts where the brand was mentioned at least once.
+    const promptsWithBrand = new Set<string>();
+    const allPrompts = new Set<string>();
+    for (const r of validResults) {
+      allPrompts.add(r.prompt);
+      if (r.brandMentioned) promptsWithBrand.add(r.prompt);
+    }
+    const promptCoverageRatio = allPrompts.size > 0 ? promptsWithBrand.size / allPrompts.size : 0;
+    const promptCoverageScore = Math.round(promptCoverageRatio * 20);
+
+    // Provider Coverage (15): share of unique providers where the brand was mentioned at least once.
+    const providersWithBrand = new Set<string>();
+    const allProviders = new Set<string>();
+    for (const r of validResults) {
+      allProviders.add(r.provider);
+      if (r.brandMentioned) providersWithBrand.add(r.provider);
+    }
+    const providerCoverageRatio = allProviders.size > 0 ? providersWithBrand.size / allProviders.size : 0;
+    const providerCoverageScore = Math.round(providerCoverageRatio * 15);
+
+    // Mention Quality (15): per-response quality score average (0–100), scaled to 15.
+    const mentionQualityScore = Math.round((avgQuality / 100) * 15);
+
     console.log(`[AutoReport] Intent-weighted mention coverage: ${(mentionRate*100).toFixed(0)}% (raw=${mentionedResults.length}/${validResults.length})`);
 
 
@@ -4518,11 +4650,21 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
-    // Share of Voice bonus: up to +10 when brand dominates the conversation.
-    const sovBonus = Math.round(shareOfVoice.sov * 10);
+    // Competitive Share of Voice (10): brand recommendation events vs. competitors.
+    const competitiveSovScore = Math.round(shareOfVoice.sov * 10);
 
-
-    let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
+    // Final = sum of the 5 transparent components, capped at 100.
+    let overallScore = Math.max(
+      0,
+      Math.min(
+        100,
+        mentionCoverageScore +
+          promptCoverageScore +
+          providerCoverageScore +
+          mentionQualityScore +
+          competitiveSovScore,
+      ),
+    );
 
     // ===== CROSS-VALIDATION GUARDRAIL =====
     // The strict-substring sentiment analyzer is the most conservative truth signal.
@@ -4541,13 +4683,49 @@ serve(async (req) => {
     }
 
     // Hard floor: zero verified brand mentions => 0/100. Category difficulty cannot
-    // lift the score; it is reported as a separate diagnostic only.
+    // lift the score; it is reported as a separate diagnostic only. Every visibility
+    // component is also forced to 0 so the breakdown matches the headline.
     const verifiedMentionCount = validResults.filter(r => r.brandMentioned).length;
+    let mentionCoverageFinal = mentionCoverageScore;
+    let promptCoverageFinal = promptCoverageScore;
+    let providerCoverageFinal = providerCoverageScore;
+    let mentionQualityFinal = mentionQualityScore;
+    let competitiveSovFinal = competitiveSovScore;
     if (verifiedMentionCount === 0) {
       overallScore = 0;
+      mentionCoverageFinal = 0;
+      promptCoverageFinal = 0;
+      providerCoverageFinal = 0;
+      mentionQualityFinal = 0;
+      competitiveSovFinal = 0;
     }
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
+    // Bundle the breakdown for the PDF + persisted metadata. This is the single
+    // source of truth shown to prospects.
+    const scoreBreakdown = {
+      components: {
+        mentionCoverage:    { score: mentionCoverageFinal,   max: 40 },
+        promptCoverage:     { score: promptCoverageFinal,    max: 20 },
+        providerCoverage:   { score: providerCoverageFinal,  max: 15 },
+        mentionQuality:     { score: mentionQualityFinal,    max: 15 },
+        competitiveSov:     { score: competitiveSovFinal,    max: 10 },
+      },
+      diagnostics: {
+        validResponses: validResults.length,
+        verifiedBrandMentions: verifiedMentionCount,
+        promptsCovered: `${promptsWithBrand.size}/${allPrompts.size}`,
+        providersCovered: `${providersWithBrand.size}/${allProviders.size}`,
+        competitorRecommendationEvents: shareOfVoice.competitorRecommendationEvents,
+        categoryCoverage: `${Math.round((categoryVisibility.coverage || 0) * 100)}%`,
+        categoryDifficulty: categoryVisibility.label,
+      },
+      finalScore: overallScore,
+      note:
+        'Category Difficulty is not added to the AI Visibility Score. ' +
+        'It is shown separately to explain whether AI platforms are naming brands in this category at all.',
+    };
+
+    console.log(`[AutoReport] Score breakdown — mention:${mentionCoverageFinal}/40 prompt:${promptCoverageFinal}/20 provider:${providerCoverageFinal}/15 quality:${mentionQualityFinal}/15 sov:${competitiveSovFinal}/10 → final:${overallScore}/100 (verifiedMentions=${verifiedMentionCount}, sentimentMentions=${sentimentMentionCount}, category(diagnostic only)=${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%)`);
 
     // AI Opportunity Score — separate from AI Visibility Score. Answers:
     // "How much room is there to win visibility in this category?"
@@ -4556,7 +4734,7 @@ serve(async (req) => {
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors, scoreBreakdown);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
@@ -4620,12 +4798,7 @@ serve(async (req) => {
             emailSent,
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
-            scoreBreakdown: {
-              base: baseScore,
-              shareOfVoiceBonus: sovBonus,
-              final: overallScore,
-              note: 'Category difficulty is a separate diagnostic and does not contribute to the AI Visibility Score.',
-            },
+            scoreBreakdown,
             categoryVisibility: {
               coverage: Number(categoryVisibility.coverage.toFixed(2)),
               label: categoryVisibility.label,
