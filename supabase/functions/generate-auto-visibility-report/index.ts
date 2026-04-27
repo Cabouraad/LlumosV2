@@ -3488,7 +3488,93 @@ async function generatePDF(
   }
   y -= 70;
 
+  // ===== AI Visibility Score Breakdown — transparent component scoring =====
+  if (scoreBreakdown) {
+    if (y < 240) { page = newPage(); y = H - 10; }
+    y = drawSubsectionHeader(page, 'AI Visibility Score Breakdown', y);
+
+    const c = scoreBreakdown.components;
+    const rows: Array<{ label: string; score: number; max: number }> = [
+      { label: 'Mention Coverage',          score: c.mentionCoverage.score,   max: c.mentionCoverage.max },
+      { label: 'Prompt Coverage',           score: c.promptCoverage.score,    max: c.promptCoverage.max },
+      { label: 'Provider Coverage',         score: c.providerCoverage.score,  max: c.providerCoverage.max },
+      { label: 'Mention Quality',           score: c.mentionQuality.score,    max: c.mentionQuality.max },
+      { label: 'Competitive Share of Voice',score: c.competitiveSov.score,    max: c.competitiveSov.max },
+    ];
+
+    const rowH = 18;
+    const tableH = rowH * (rows.length + 1) + 8;
+    // Outline
+    page.drawRectangle({ x: M, y: y - tableH, width: contentW, height: tableH, color: white, borderColor: faint, borderWidth: 0.5 });
+
+    // Header
+    page.drawRectangle({ x: M, y: y - rowH, width: contentW, height: rowH, color: navy });
+    page.drawText('Component', { x: M + 10, y: y - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText('Score', { x: M + contentW - 140, y: y - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText('Bar', { x: M + contentW - 90, y: y - 13, size: 9, font: helveticaBold, color: white });
+
+    // Rows
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const ry = y - rowH - i * rowH;
+      // Zebra stripe
+      if (i % 2 === 0) {
+        page.drawRectangle({ x: M, y: ry - rowH, width: contentW, height: rowH, color: gray });
+      }
+      page.drawText(r.label, { x: M + 10, y: ry - 13, size: 9, font: helvetica, color: dark });
+      page.drawText(`${r.score}/${r.max}`, { x: M + contentW - 140, y: ry - 13, size: 9, font: helveticaBold, color: dark });
+      // Mini bar (80px) representing share of max
+      const barXp = M + contentW - 90;
+      const barWp = 80;
+      page.drawRectangle({ x: barXp, y: ry - 12, width: barWp, height: 6, color: faint });
+      const ratio = r.max > 0 ? Math.max(0, Math.min(1, r.score / r.max)) : 0;
+      const barColor = ratio >= 0.7 ? green : ratio >= 0.4 ? amber : red;
+      if (ratio > 0) {
+        page.drawRectangle({ x: barXp, y: ry - 12, width: Math.max(1, barWp * ratio), height: 6, color: barColor });
+      }
+    }
+
+    // Final row
+    const fy = y - rowH - rows.length * rowH;
+    page.drawRectangle({ x: M, y: fy - rowH, width: contentW, height: rowH, color: navy });
+    page.drawText('Final AI Visibility Score', { x: M + 10, y: fy - 13, size: 9, font: helveticaBold, color: white });
+    page.drawText(`${scoreBreakdown.finalScore}/100`, { x: M + contentW - 140, y: fy - 13, size: 10, font: helveticaBold, color: yellow });
+
+    y = fy - rowH - 10;
+
+    // Diagnostics row (4 + 3 layout)
+    const d = scoreBreakdown.diagnostics;
+    const diagItems: Array<{ label: string; value: string }> = [
+      { label: 'Valid Responses',                  value: `${d.validResponses}` },
+      { label: 'Verified Brand Mentions',          value: `${d.verifiedBrandMentions}` },
+      { label: 'Prompts Covered',                  value: d.promptsCovered },
+      { label: 'Providers Covered',                value: d.providersCovered },
+      { label: 'Competitor Recommendation Events', value: `${d.competitorRecommendationEvents}` },
+      { label: 'Category Coverage',                value: d.categoryCoverage },
+      { label: 'Category Difficulty',              value: d.categoryDifficulty },
+    ];
+    // Render as a 2-column compact list to keep within page width
+    const colW = (contentW - 8) / 2;
+    const rowsCount = Math.ceil(diagItems.length / 2);
+    const diagH = rowsCount * 16 + 8;
+    page.drawRectangle({ x: M, y: y - diagH, width: contentW, height: diagH, color: gray, borderColor: faint, borderWidth: 0.5 });
+    for (let i = 0; i < diagItems.length; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const dx = M + 10 + col * colW;
+      const dy = y - 14 - row * 16;
+      page.drawText(diagItems[i].label + ':', { x: dx, y: dy, size: 8, font: helveticaBold, color: mid });
+      const lblW = helveticaBold.widthOfTextAtSize(diagItems[i].label + ':', 8);
+      page.drawText(diagItems[i].value, { x: dx + lblW + 6, y: dy, size: 8, font: helvetica, color: dark });
+    }
+    y -= diagH + 8;
+
+    // Note callout
+    y = drawCalloutBox(page, scoreBreakdown.note, y, amber);
+  }
+
   // Executive Summary — assessment box
+  if (y < 180) { page = newPage(); y = H - 10; }
   y = drawSubsectionHeader(page, 'Executive Summary', y);
   const summaryText = execSummary.join(' ');
   y = drawAssessmentBox(page, summaryText, y);
