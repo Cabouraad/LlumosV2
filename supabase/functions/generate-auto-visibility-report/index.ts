@@ -78,19 +78,15 @@ interface ReportRequest {
    *  precedence over homepage-extracted candidates so we don't end up with
    *  bogus primary names like "Client Login" or "A. Holt". */
   companyName?: string;
-  /** Admin-only: when true, capture and persist a per-entity extraction debug
-   *  trace into metadata.entityDebug (visibility_report_requests + visibility_reports).
-   *  Adds no surface area to the prospect-facing PDF. */
-  debug?: boolean;
 }
 
-interface BrandProfile {
+export interface BrandProfile {
   primaryName: string;
   aliases: string[];
   domain?: string;
 }
 
-interface HomepageSignals {
+export interface HomepageSignals {
   context: string;
   brandCandidates: string[];
 }
@@ -126,7 +122,7 @@ export interface CompetitorRecommendationEvent {
   evidenceSnippet: string;
 }
 
-interface ProviderResult {
+export interface ProviderResult {
   provider: string;
   prompt: string;
   response: string;
@@ -275,7 +271,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeEntityName(value: string | null | undefined): string {
+export function normalizeEntityName(value: string | null | undefined): string {
   if (typeof value !== 'string' || !value) return '';
   return value
     .toLowerCase()
@@ -379,7 +375,7 @@ function entityLookupKey(value: string): string {
     .trim();
 }
 
-function canonicalizeEntityName(raw: string | null | undefined): string {
+export function canonicalizeEntityName(raw: string | null | undefined): string {
   if (typeof raw !== 'string') return '';
   let value = raw.trim();
   if (!value) return '';
@@ -574,7 +570,7 @@ async function fetchHomepageSignals(domain: string): Promise<HomepageSignals> {
   return { context: '', brandCandidates: [] };
 }
 
-function buildBrandProfile(
+export function buildBrandProfile(
   domain: string,
   businessContext: string,
   homepageSignals: HomepageSignals,
@@ -2412,7 +2408,7 @@ function extractAllOrgEntitiesFromText(
  *      still surface in the report.
  *   3. Deduplicate by normalized name and exclude the brand itself.
  */
-function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
+export function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
   if (!text) return [];
 
   const seen = new Map<string, string>();
@@ -2527,104 +2523,25 @@ function classifyEntityMentionStatus(entity: string, response: string): EntityMe
  * strict subset of entities that count as recommendation events
  * (status ∈ {listed, recommended, preferred}).
  */
-/**
- * Build a list of search variants for a canonical entity so we can locate it
- * in the raw AI response even when the response uses a shorter form
- * ("Gibson Dunn" vs canonical "Gibson Dunn & Crutcher LLP", "JAMS" vs
- * canonical "JAMS", "Bet Tzedek" vs "Bet Tzedek Legal Services").
- *
- * Variants tried (in order of specificity):
- *   1. The canonical itself
- *   2. Canonical with legal suffixes stripped ("Gibson Dunn & Crutcher")
- *   3. Canonical with parenthetical clarifications stripped
- *   4. All KNOWN_ENTITY_MAP keys that resolve to this canonical
- *      (covers domains, abbreviations, short forms)
- *   5. The first 2 words of the canonical, if multi-word ("Gibson Dunn",
- *      "Quinn Emanuel", "Munger Tolles", "Latham Watkins", "Farella Braun")
- */
-function entitySearchVariants(canonical: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const add = (v: string) => {
-    const t = (v || '').trim();
-    if (!t || t.length < 2) return;
-    const k = t.toLowerCase();
-    if (seen.has(k)) return;
-    seen.add(k);
-    out.push(t);
-  };
-
-  add(canonical);
-
-  // Strip legal suffix (LLP, LLC, Inc., PC, ...) for a looser match.
-  add(canonical.replace(LEGAL_SUFFIX_RE, ' ').replace(/\s+/g, ' ').trim());
-
-  // Strip trailing parenthetical clarifications.
-  add(canonical.replace(/\s*\([^)]*\)\s*$/g, '').trim());
-
-  // KNOWN_ENTITY_MAP reverse lookup: every key that resolves to this canonical.
-  for (const [key, value] of Object.entries(KNOWN_ENTITY_MAP)) {
-    if (value === canonical) add(key);
-  }
-
-  // First two words for multi-word firm names ("Gibson Dunn", "Quinn Emanuel").
-  const cleaned = canonical
-    .replace(LEGAL_SUFFIX_RE, ' ')
-    .replace(/[(),.]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const words = cleaned.split(' ').filter(Boolean);
-  if (words.length >= 2) add(`${words[0]} ${words[1]}`);
-
-  return out;
-}
-
-/**
- * Build the per-result map of canonical entity → mention status, plus the
- * strict subset of entities that count as recommendation events
- * (status ∈ {listed, recommended, preferred}).
- *
- * For each canonical entity we try its search variants against the response
- * and use the FIRST variant that's actually present, so a response saying
- * "Gibson Dunn" still classifies the canonical "Gibson Dunn & Crutcher LLP"
- * correctly (instead of always returning 'named' because the literal string
- * never appeared verbatim).
- */
-function classifyEntityMentions(
+export function classifyEntityMentions(
   entities: string[],
   response: string,
 ): { statuses: Record<string, EntityMentionStatus>; recommended: string[] } {
   const statuses: Record<string, EntityMentionStatus> = {};
   const recommended: string[] = [];
   const seenRec = new Set<string>();
-  const lowerResponse = response.toLowerCase();
   for (const e of entities) {
     const canon = e.toLowerCase().trim();
     if (!canon) continue;
-    // Pick the longest variant that actually appears in the response, so we
-    // classify based on the most specific form available.
-    let bestStatus: EntityMentionStatus = 'named';
-    const variants = entitySearchVariants(e).filter(v => lowerResponse.includes(v.toLowerCase()));
-    if (variants.length === 0) {
-      statuses[canon] = 'named';
-      continue;
-    }
-    for (const v of variants) {
-      const s = classifyEntityMentionStatus(v, response);
-      // Promote to the strongest status seen across variants.
-      if (s === 'preferred') { bestStatus = 'preferred'; break; }
-      if (s === 'recommended' && bestStatus !== 'preferred') bestStatus = 'recommended';
-      else if (s === 'listed' && bestStatus === 'named') bestStatus = 'listed';
-    }
-    statuses[canon] = bestStatus;
-    if (bestStatus !== 'named' && !seenRec.has(canon)) {
+    const status = classifyEntityMentionStatus(e, response);
+    statuses[canon] = status;
+    if (status !== 'named' && !seenRec.has(canon)) {
       seenRec.add(canon);
       recommended.push(e);
     }
   }
   return { statuses, recommended };
 }
-
 
 /**
  * Pull a short ±80-char evidence snippet around the first mention of `entity`
@@ -2879,20 +2796,16 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
  * Build competitor head-to-head matrix
  * Returns: { promptText -> { competitorName -> mentioned:boolean } }
  */
-function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
+export function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
   prompts: string[];
   competitors: string[];
   matrix: Record<string, Record<string, boolean>>;
   brandRow: Record<string, boolean>;
 } {
-  const allCompetitors = new Map<string, string>(); // canonKey -> display
+  const allCompetitors = new Set<string>();
   const competitorCounts = new Map<string, number>();
   const promptTexts: string[] = [];
   const promptSet = new Set<string>();
-
-  // Compare via normalized key so "Gibson Dunn" and "Gibson Dunn & Crutcher LLP"
-  // (or any minor casing/punctuation drift across providers) collapse to one row.
-  const canonKey = (s: string) => normalizeEntityName(s);
 
   for (const result of results) {
     if (!promptSet.has(result.prompt)) {
@@ -2904,17 +2817,13 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
     // actually listed/recommended/preferred. Background-mention entities are
     // surfaced separately in the Competitor Landscape section.
     for (const competitor of result.recommendedEntities || []) {
-      const key = canonKey(competitor);
-      if (!key) continue;
-      if (!allCompetitors.has(key)) allCompetitors.set(key, competitor);
-      // Prefer the longer display name (more complete canonical form).
-      else if (competitor.length > (allCompetitors.get(key) || '').length) allCompetitors.set(key, competitor);
-      competitorCounts.set(key, (competitorCounts.get(key) || 0) + 1);
+      allCompetitors.add(competitor);
+      competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
     }
   }
 
-  const competitors = Array.from(allCompetitors.values()).sort(
-    (a, b) => (competitorCounts.get(canonKey(b)) || 0) - (competitorCounts.get(canonKey(a)) || 0) || a.localeCompare(b)
+  const competitors = Array.from(allCompetitors).sort(
+    (a, b) => (competitorCounts.get(b) || 0) - (competitorCounts.get(a) || 0) || a.localeCompare(b)
   );
   const matrix: Record<string, Record<string, boolean>> = {};
   const brandRow: Record<string, boolean> = {};
@@ -2928,11 +2837,8 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
     brandRow[prompt] = validResults.some((result) => result.brandMentioned);
 
     for (const competitor of competitors) {
-      const compKey = canonKey(competitor);
       if (!matrix[competitor]) matrix[competitor] = {};
-      matrix[competitor][prompt] = validResults.some((result) =>
-        (result.recommendedEntities || []).some(re => canonKey(re) === compKey)
-      );
+      matrix[competitor][prompt] = validResults.some((result) => (result.recommendedEntities || []).includes(competitor));
     }
   }
 
@@ -3196,7 +3102,7 @@ function classifyEntity(
  * Backwards-compat fields `brandMentions` / `competitorMentions` are kept but
  * now mirror the recommendation-event counts.
  */
-function computeShareOfVoice(
+export function computeShareOfVoice(
   results: ProviderResult[],
   options?: { excludedCompetitorTypes?: Set<CompetitorType>; classify?: (name: string) => CompetitorType }
 ): { sov: number; brandMentions: number; competitorMentions: number; brandRecommendationEvents: number; competitorRecommendationEvents: number } {
@@ -3345,7 +3251,7 @@ function isHighIntentPrompt(prompt: string): boolean {
   return intent === 'High Commercial Intent' || intent === 'Provider Search Intent';
 }
 
-function computeAIOpportunityScore(
+export function computeAIOpportunityScore(
   results: ProviderResult[],
   categoryCoverage: number,
 ): {
@@ -3569,7 +3475,7 @@ function buildGapRecommendation(prompt: string, competitorsWinning: string[]): s
   return `${competitorPhrase} Create a focused page answering this exact query — H1 matching the question, FAQ schema, and authoritative backlinks from industry publications.`;
 }
 
-function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
+export function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
   const gapsByPrompt = new Map<string, ContentGap>();
 
   for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
@@ -3580,27 +3486,15 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
     const existing = gapsByPrompt.get(key);
     if (existing) {
       if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
-      const existingKeys = new Set(existing.competitorsWinning.map(c => normalizeEntityName(c)));
       for (const c of (missed.recommendedEntities || [])) {
-        const k = normalizeEntityName(c);
-        if (k && !existingKeys.has(k)) {
-          existing.competitorsWinning.push(c);
-          existingKeys.add(k);
-        }
+        if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
       }
     } else {
       const intentInfo = classifyPromptIntent(topic);
-      // Dedupe on first build too (in case the same provider response surfaces variants).
-      const seenKeys = new Set<string>();
-      const seeded: string[] = [];
-      for (const c of (missed.recommendedEntities || [])) {
-        const k = normalizeEntityName(c);
-        if (k && !seenKeys.has(k)) { seenKeys.add(k); seeded.push(c); }
-      }
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
-        competitorsWinning: seeded,
+        competitorsWinning: [...(missed.recommendedEntities || [])],
         recommendation: '',
         intent: intentInfo.intent,
         intentWeight: intentInfo.weight,
@@ -5045,198 +4939,9 @@ async function sendReportEmail(
   }
 }
 
-// ============================================================================
-// Admin-only entity extraction debug trace
-// ============================================================================
-//
-// When the caller passes { debug: true }, we capture a per-entity audit trail
-// for every prompt × provider response. The trace is persisted in
-// metadata.entityDebug on both visibility_report_requests and visibility_reports
-// so it can be inspected via SQL — it never reaches the prospect-facing PDF.
-//
-// For each raw entity match we record:
-//   - originalText           the literal candidate string before canonicalization
-//   - canonicalName          the canonical display name (or null if filtered out)
-//   - entityType             classifier output (firm, mediator, association, etc.)
-//   - mentionStatus          named | listed | recommended | preferred
-//   - position               1-based list position when detectable
-//   - evidenceSnippet        ±80 char excerpt around the first occurrence
-//   - includedInCompetitorLandscape   true if it survived to aiMentionedEntities
-//   - includedInShareOfVoice          true if it became a recommendation event
-//   - excludedReason         when excluded: client_brand | generic_term |
-//                            duplicate_alias | irrelevant_entity |
-//                            citation_or_source_only | location_only |
-//                            not_an_organization
-//
-// Plus rolled-up summary counts.
-interface EntityDebugRow {
-  promptId: string;
-  prompt: string;
-  provider: string;
-  originalText: string;
-  canonicalName: string | null;
-  entityType: string;
-  mentionStatus: 'named' | 'listed' | 'recommended' | 'preferred' | 'n/a';
-  position: number | null;
-  evidenceSnippet: string;
-  includedInCompetitorLandscape: boolean;
-  includedInShareOfVoice: boolean;
-  excludedReason?:
-    | 'client_brand'
-    | 'generic_term'
-    | 'duplicate_alias'
-    | 'irrelevant_entity'
-    | 'citation_or_source_only'
-    | 'location_only'
-    | 'not_an_organization';
-}
-
-interface EntityDebugTrace {
-  rows: EntityDebugRow[];
-  summary: {
-    totalRawMatches: number;
-    totalCanonicalEntities: number;
-    totalAiMentioned: number;
-    totalRecommendationEvents: number;
-    totalExcluded: number;
-    excludedByReason: Record<string, number>;
-  };
-}
-
-const LOCATION_TOKENS = new Set([
-  'los angeles', 'san francisco', 'new york', 'chicago', 'boston', 'seattle',
-  'california', 'texas', 'florida', 'washington', 'oregon', 'nevada',
-  'usa', 'united states', 'us', 'america', 'manhattan', 'brooklyn', 'queens',
-]);
-
-function classifyExcludedReason(
-  candidate: string,
-  brandProfile: BrandProfile,
-  domain: string,
-): EntityDebugRow['excludedReason'] {
-  const norm = normalizeEntityName(candidate);
-  if (!norm) return 'irrelevant_entity';
-  if (isSelfBrandCandidate(candidate, brandProfile, domain)) return 'client_brand';
-  if (NON_COMPETITOR_ENTITIES.has(norm)) return 'irrelevant_entity';
-  if (GENERIC_COMPETITOR_TERMS.has(norm)) return 'generic_term';
-  if (LOCATION_TOKENS.has(norm)) return 'location_only';
-  // Citation / source markers like "[1]", "1.", "see footnote"
-  if (/^(?:\[\d+\]|\(\d+\)|\d+\.?|footnote|source|see)$/i.test(candidate.trim())) {
-    return 'citation_or_source_only';
-  }
-  // No alphabetic content → not an organization
-  if (!/[a-zA-Z]/.test(candidate)) return 'not_an_organization';
-  // Single-word, all-lowercase, not in known map → likely not an org
-  if (!candidate.includes(' ') && candidate === candidate.toLowerCase() && !/^[a-z]{2,6}$/.test(candidate)) {
-    return 'not_an_organization';
-  }
-  return 'irrelevant_entity';
-}
-
-function buildEntityDebugTrace(
-  validResults: ProviderResult[],
-  brandProfile: BrandProfile,
-  domain: string,
-  promptIdFor: (prompt: string) => string,
-  classifyByName: (name: string) => string,
-): EntityDebugTrace {
-  const rows: EntityDebugRow[] = [];
-  const excludedByReason: Record<string, number> = {};
-  const seenCanonical = new Set<string>();
-  let totalRawMatches = 0;
-  let totalAiMentioned = 0;
-  let totalRecommendationEvents = 0;
-  let totalExcluded = 0;
-
-  for (const r of validResults) {
-    if (!r.response) continue;
-    const promptId = promptIdFor(r.prompt);
-
-    // Re-run the raw extractor so we can see what was found BEFORE filtering.
-    // extractAllOrgEntitiesFromText already applies self-brand exclusion +
-    // isLikelyCompetitorBrand, so anything r.competitors lacks but the text
-    // contains was filtered out — surface it as excluded.
-    const acceptedSet = new Set((r.competitors || []).map(c => normalizeEntityName(c)));
-    const acceptedDisplayByKey = new Map<string, string>();
-    for (const c of r.competitors || []) acceptedDisplayByKey.set(normalizeEntityName(c), c);
-
-    // Pull the broader candidate stream (pre-filter) by re-invoking the raw
-    // pattern matchers. We approximate by intersecting with a permissive
-    // domain/title-case sweep. This intentionally over-collects so excluded
-    // entities show up in the trace.
-    const rawCandidates = new Set<string>();
-    for (const m of r.response.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev|law|legal|gov|edu)\b/gi) || []) rawCandidates.add(m);
-    for (const m of r.response.match(/\b[A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){1,4}\b/g) || []) rawCandidates.add(m);
-    for (const m of r.response.match(/\b[A-Z]{2,6}\b/g) || []) rawCandidates.add(m);
-    // Also include everything we accepted (so accepted rows always appear).
-    for (const c of r.competitors || []) rawCandidates.add(c);
-
-    for (const candidate of rawCandidates) {
-      totalRawMatches++;
-      const key = normalizeEntityName(candidate);
-      if (!key) continue;
-
-      const accepted = acceptedSet.has(key);
-      const canonical = accepted ? canonicalizeEntityName(acceptedDisplayByKey.get(key) || candidate) : null;
-      const status: EntityDebugRow['mentionStatus'] = accepted
-        ? ((r.entityMentionStatus && r.entityMentionStatus[(canonical || candidate).toLowerCase()]) as any) || 'named'
-        : 'n/a';
-      const isRec = accepted && (status === 'listed' || status === 'recommended' || status === 'preferred');
-
-      const row: EntityDebugRow = {
-        promptId,
-        prompt: r.prompt,
-        provider: r.provider,
-        originalText: candidate,
-        canonicalName: canonical,
-        entityType: accepted ? classifyByName(canonical || candidate) : 'unknown',
-        mentionStatus: status,
-        position: accepted ? detectEntityPosition(canonical || candidate, r.response) : null,
-        evidenceSnippet: buildEvidenceSnippet(canonical || candidate, r.response),
-        includedInCompetitorLandscape: accepted,
-        includedInShareOfVoice: isRec,
-      };
-
-      if (!accepted) {
-        const reason = classifyExcludedReason(candidate, brandProfile, domain);
-        // Suppress duplicate-alias noise: if a longer accepted form already
-        // covers this fragment (e.g., "Gibson" when "Gibson Dunn & Crutcher"
-        // was accepted), tag as duplicate_alias.
-        let finalReason: EntityDebugRow['excludedReason'] = reason;
-        for (const acceptedKey of acceptedSet) {
-          if (acceptedKey && acceptedKey !== key && (acceptedKey.includes(key) || key.includes(acceptedKey))) {
-            finalReason = 'duplicate_alias';
-            break;
-          }
-        }
-        row.excludedReason = finalReason;
-        excludedByReason[finalReason || 'irrelevant_entity'] =
-          (excludedByReason[finalReason || 'irrelevant_entity'] || 0) + 1;
-        totalExcluded++;
-      } else {
-        totalAiMentioned++;
-        if (isRec) totalRecommendationEvents++;
-        if (canonical) seenCanonical.add(canonical.toLowerCase());
-      }
-
-      rows.push(row);
-    }
-  }
-
-  return {
-    rows,
-    summary: {
-      totalRawMatches,
-      totalCanonicalEntities: seenCanonical.size,
-      totalAiMentioned,
-      totalRecommendationEvents,
-      totalExcluded,
-      excludedByReason,
-    },
-  };
-}
-
-
+/**
+ * Main handler
+ */
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -5258,9 +4963,8 @@ serve(async (req) => {
     score = body.score;
     const callerRequestId = body.requestId || null;
     const companyNameOverride = (typeof body.companyName === 'string' ? body.companyName.trim() : '') || undefined;
-    const debugMode = body.debug === true;
 
-    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}${debugMode ? ' [DEBUG]' : ''}`);
+    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}`);
 
     // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
     const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -5568,17 +5272,6 @@ serve(async (req) => {
     }
     console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
 
-    // Admin-only entity extraction debug trace (gated by debug=true).
-    let entityDebug: EntityDebugTrace | null = null;
-    if (debugMode) {
-      try {
-        entityDebug = buildEntityDebugTrace(validResults, brandProfile, domain, promptIdFor, classifyByName);
-        console.log(`[AutoReport][DEBUG] entityDebug: rawMatches=${entityDebug.summary.totalRawMatches} canonical=${entityDebug.summary.totalCanonicalEntities} mentioned=${entityDebug.summary.totalAiMentioned} recommended=${entityDebug.summary.totalRecommendationEvents} excluded=${entityDebug.summary.totalExcluded} reasons=${JSON.stringify(entityDebug.summary.excludedByReason)}`);
-      } catch (debugErr: any) {
-        console.error('[AutoReport][DEBUG] buildEntityDebugTrace failed:', debugErr?.message);
-      }
-    }
-
     // ===== Single source of truth for the AI Visibility Score =====
     // All five components (Mention Coverage, Prompt Coverage, Provider Coverage,
     // Mention Quality, Competitive SoV) and the zero-mention + single-mention
@@ -5725,8 +5418,6 @@ serve(async (req) => {
               recommendationEventsTotal: competitorRecommendationEvents.length,
               recommendationEventsUnique: new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size,
             },
-            // Admin-only debug trace — only present when caller passed debug=true.
-            ...(entityDebug ? { entityDebug: { rows: entityDebug.rows.slice(0, 2000), summary: entityDebug.summary } } : {}),
           },
         });
       if (insertError) {
@@ -5763,8 +5454,6 @@ serve(async (req) => {
         aiOpportunityScore: aiOpportunity.score,
         aiOpportunityLabel: aiOpportunity.label,
         emailSent,
-        // Admin-only debug trace — only present when caller passed debug=true.
-        ...(entityDebug ? { entityDebug: { rows: entityDebug.rows.slice(0, 2000), summary: entityDebug.summary } } : {}),
       },
     };
 
