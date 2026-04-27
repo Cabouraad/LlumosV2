@@ -83,6 +83,7 @@ interface ReportRequest {
 interface BrandProfile {
   primaryName: string;
   aliases: string[];
+  domain?: string;
 }
 
 interface HomepageSignals {
@@ -449,6 +450,7 @@ function buildBrandProfile(
       ...aliasSeed.map((alias) => alias.replace(/\s+/g, '')),
       ...aliasSeed.map((alias) => alias.replace(/\s+/g, '-')),
     ]).filter((alias) => normalizeEntityName(alias).length >= 3),
+    domain,
   };
 }
 
@@ -2012,33 +2014,190 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
 }
 
 /**
- * Extract only direct competitor brands from response text
- * Uses a researched company-specific competitor allowlist instead of generic pattern matching
+ * Full-text entity extraction.
+ *
+ * Scans the FULL raw response text for organization/entity names — not just a
+ * curated allowlist. Captures:
+ *   - Domains (foo.com, bar.io)
+ *   - Acronyms 2-6 chars (JAMS, NAM, LACBA, DTI, ADR)
+ *   - Multi-word Title Case names ("Latham & Watkins", "Lewis Brisbois")
+ *   - Names with firm/org suffixes (LLP, LLC, Inc, Group, Services,
+ *     Association, Bar, Systems, Center, Foundation, Institute, Society,
+ *     Council, Partners, Global, Legal Services)
+ *   - Multi-part firm names with internal commas
+ *     ("Munger, Tolles & Olson LLP", "Quinn Emanuel Urquhart & Sullivan LLP",
+ *     "Farella Braun + Martel LLP")
+ *
+ * The result is filtered through isLikelyCompetitorBrand and self-brand
+ * exclusion. Acronyms that look organization-shaped are admitted even if
+ * they don't pass the strict multi-word title-case rule.
+ */
+const ORG_SUFFIX_RE =
+  /\b(LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Bar Association|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition|Legal Services|Law Group|Law Firm|& Associates|& Co\.?|& Partners)\b/i;
+
+function extractAllOrgEntitiesFromText(
+  text: string,
+  brandProfile: BrandProfile,
+  domain: string,
+): string[] {
+  if (!text) return [];
+
+  const brandName = brandProfile.primaryName;
+  const found: string[] = [];
+
+  const push = (raw: string) => {
+    const cleaned = raw
+      .replace(/^[\s\-–—•·*▪▸:]+/, '')
+      .replace(/[\s\-–—•·*▪▸:]+$/, '')
+      .replace(/^["'`(\[]+|["'`)\]]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return;
+    if (isSelfBrandCandidate(cleaned, brandProfile, domain)) return;
+    found.push(cleaned);
+  };
+
+  // 1. Domains
+  for (const m of text.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev|law|legal|gov|edu)\b/gi) || []) {
+    push(m);
+  }
+
+  // 2. Acronyms (JAMS, NAM, LACBA, DTI, ADR) — 2-6 uppercase letters,
+  //    not at sentence start where they could be a normal capitalized word.
+  //    We accept any all-caps token of length 2-6 except a small stoplist.
+  const ACRONYM_STOP = new Set([
+    'A', 'I', 'AI', 'AM', 'PM', 'US', 'USA', 'UK', 'EU', 'OK', 'TV', 'NO',
+    'YES', 'CEO', 'CTO', 'CFO', 'COO', 'VP', 'IT', 'HR', 'PR', 'QA', 'UX',
+    'UI', 'API', 'URL', 'PDF', 'FAQ', 'SEO', 'PPC', 'CRM', 'ERP', 'SaaS',
+    'B2B', 'B2C', 'ROI', 'KPI', 'LLC', 'LLP', 'INC', 'LTD', 'PC', 'PA', 'PLLC',
+  ]);
+  for (const m of text.match(/\b[A-Z]{2,6}\b/g) || []) {
+    if (ACRONYM_STOP.has(m)) continue;
+    push(m);
+  }
+
+  // 3. Multi-part firm names with internal commas + "&" or "+" tail and
+  //    optional firm suffix. Matches "Munger, Tolles & Olson LLP",
+  //    "Quinn Emanuel Urquhart & Sullivan LLP", "Farella Braun + Martel LLP".
+  const FIRM_COMPOUND_RE =
+    /\b([A-Z][A-Za-z'’.-]+(?:[ ,]+[A-Z][A-Za-z'’.-]+){0,4}\s*[&+]\s*[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){0,3})(?:\s+(?:LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Group|Partners))?/g;
+  for (const m of text.matchAll(FIRM_COMPOUND_RE)) {
+    push(m[0]);
+  }
+
+  // 4. Names ending in an org/firm suffix ("Lewis Brisbois", "Duane Morris LLP",
+  //    "Tactical Law Group LLP", "DTI Global", "Bet Tzedek Legal Services",
+  //    "Los Angeles County Bar Association", "ADR Services", "Resolute Systems").
+  const NAME_WITH_SUFFIX_RE =
+    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition)\b/g;
+  for (const m of text.matchAll(NAME_WITH_SUFFIX_RE)) {
+    push(`${m[1]} ${m[2]}`);
+  }
+
+  // 5. "X Bar Association" / "X Legal Services" / "X Law Group" / "X Law Firm"
+  const COMPOUND_SUFFIX_RE =
+    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(Bar Association|Legal Services|Law Group|Law Firm|Law Offices|Law Office|& Associates|& Partners)\b/g;
+  for (const m of text.matchAll(COMPOUND_SUFFIX_RE)) {
+    push(`${m[1]} ${m[2]}`);
+  }
+
+  // 6. Plain Title Case multi-word phrases (2-4 words).
+  //    Captures "Lewis Brisbois", "Latham Watkins", "Gibson Dunn", etc.
+  const TITLE_CASE_RE =
+    /\b([A-Z][A-Za-z'’.-]{2,}(?:\s+(?:&|of|and)\s+|\s+)[A-Z][A-Za-z'’.-]{2,}(?:\s+[A-Z][A-Za-z'’.-]{2,}){0,2})\b/g;
+  for (const m of text.matchAll(TITLE_CASE_RE)) {
+    push(m[1]);
+  }
+
+  // 7. Bulleted / numbered list items — same as legacy extractor.
+  for (const m of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'’.+,\- ]{2,80})/gm)) {
+    // Use firm-aware splitter for items with commas
+    if (m[1].includes(',')) {
+      for (const part of splitFirmAwareList(m[1])) push(part);
+    } else {
+      push(m[1]);
+    }
+  }
+
+  // 8. After trigger phrases ("such as", "include", "like", "alternatives include",
+  //    "options include", "consider", "recommend"), pull a comma/and list.
+  for (const m of text.matchAll(
+    /(?:include|includes|including|recommend|recommended|recommendation|options?(?:\s+include)?|such as|alternatives?(?:\s+(?:include|are))?|consider|try|platforms?\s+(?:include|like)|firms?\s+(?:include|like|such as)|companies?\s+(?:include|like|such as))\s*[:\-]?\s*([^.;:\n]{0,240})/gi,
+  )) {
+    for (const part of splitFirmAwareList(m[1].replace(/\//g, ','))) push(part);
+  }
+
+  // Deduplicate (case-insensitive normalized) and filter through brand-likeness.
+  const seen = new Map<string, string>();
+  for (const candidate of found) {
+    const key = normalizeEntityName(candidate);
+    if (!key || key.length < 2) continue;
+    // Acronyms (all-caps 2-6 chars) bypass hasBrandLikeShape's multi-word
+    // requirement but still go through self-brand exclusion above.
+    const isAcronym = /^[A-Z]{2,6}$/.test(candidate);
+    if (!isAcronym && !isLikelyCompetitorBrand(candidate, brandName, domain)) continue;
+    // Acronyms still get a minimal sanity check
+    if (isAcronym) {
+      const norm = normalizeEntityName(candidate);
+      if (NON_COMPETITOR_ENTITIES.has(norm)) continue;
+      if (GENERIC_COMPETITOR_TERMS.has(norm)) continue;
+      if (normalizeEntityName(brandName) === norm) continue;
+    }
+    if (!seen.has(key)) seen.set(key, candidate);
+  }
+
+  return Array.from(seen.values());
+}
+
+/**
+ * Extract entities/competitors from the FULL raw response text.
+ *
+ * Strategy:
+ *   1. Start with curated competitor candidates that the research/refinement
+ *      pipeline produced (high-precision allowlist matches).
+ *   2. ALWAYS also scan the full response with extractAllOrgEntitiesFromText
+ *      so named organizations the allowlist missed (long firm names, acronyms
+ *      like JAMS / NAM / LACBA, "X Bar Association", "X Legal Services", etc.)
+ *      still surface in the report.
+ *   3. Deduplicate by normalized name and exclude the brand itself.
  */
 function extractCompetitors(text: string, brandProfile: BrandProfile, competitorCandidates: string[]): string[] {
-  if (!competitorCandidates.length || !text) return [];
+  if (!text) return [];
 
-  const textLower = text.toLowerCase();
+  const seen = new Map<string, string>();
+  const addIfFound = (candidate: string) => {
+    const candidateClean = candidate.trim();
+    if (!candidateClean || candidateClean.length < 2) return;
+    if (isSelfBrandCandidate(candidateClean, brandProfile)) return;
+    const key = normalizeEntityName(candidateClean);
+    if (!key) return;
+    if (!seen.has(key)) seen.set(key, candidateClean);
+  };
 
-  return competitorCandidates.filter((candidate) => {
-    const candidateLower = candidate.toLowerCase().trim();
-    if (!candidateLower || candidateLower.length < 2) return false;
-    if (isSelfBrandCandidate(candidate, brandProfile)) return false;
-
-    // Use word-boundary matching to prevent false positives
-    // For short names (< 4 chars), require exact word boundaries
-    // For longer names, use a looser boundary that allows possessives and punctuation
-    try {
-      const escaped = escapeRegExp(candidateLower);
-      const pattern = candidateLower.length < 4
-        ? new RegExp(`\\b${escaped}\\b`, 'i')
-        : new RegExp(`(?:^|[\\s,;:(/"'\\[])${escaped}(?=[\\s,;:)/"'\\].'!?]|$)`, 'i');
-      return pattern.test(text);
-    } catch {
-      // Fallback to includes if regex fails
-      return textLower.includes(candidateLower);
+  // 1. Curated allowlist matches (word-boundary safe)
+  if (competitorCandidates && competitorCandidates.length) {
+    for (const candidate of competitorCandidates) {
+      const candidateLower = candidate.toLowerCase().trim();
+      if (!candidateLower || candidateLower.length < 2) continue;
+      try {
+        const escaped = escapeRegExp(candidateLower);
+        const pattern = candidateLower.length < 4
+          ? new RegExp(`\\b${escaped}\\b`, 'i')
+          : new RegExp(`(?:^|[\\s,;:(/"'\\[])${escaped}(?=[\\s,;:)/"'\\].'!?]|$)`, 'i');
+        if (pattern.test(text)) addIfFound(candidate);
+      } catch {
+        if (text.toLowerCase().includes(candidateLower)) addIfFound(candidate);
+      }
     }
-  });
+  }
+
+  // 2. Full-text entity extraction (always runs, even if allowlist is empty)
+  const domain = brandProfile.domain || '';
+  for (const entity of extractAllOrgEntitiesFromText(text, brandProfile, domain)) {
+    addIfFound(entity);
+  }
+
+  return Array.from(seen.values());
 }
 
 /**
@@ -4555,7 +4714,7 @@ serve(async (req) => {
 
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
-      result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
+      result.competitors = extractCompetitors(result.response, brandProfile, refinedCompetitorCandidates);
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
