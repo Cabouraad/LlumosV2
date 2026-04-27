@@ -2168,31 +2168,39 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 /**
  * Calculate visibility score for a provider result.
  *
- * Scoring rebalanced (A) to reduce the "presence cliff":
- * - Mentioned at all: 35 (was 50, but combined with stronger bonuses gives a softer curve
- *   while letting a single mention land in the 35-65 range instead of stranding at ~2/100 overall)
- * - Strong recommendation: +25, Moderate: +12, Weak: +0
- * - Position bonus: top-3 +20, top-5 +10
- * - Positive context terms: +3 each (capped at +12)
+ * Rebalanced to better reflect the response signal:
+ * - Mentioned at all: 45 (raised from 35 — being named at all is the hardest threshold to cross)
+ * - Strong recommendation: +25, Moderate: +15, Weak: +5
+ * - Position bonus: top-3 +15, top-5 +8, otherwise +4 if mentioned (don't over-penalize unknown position)
+ * - Share-of-voice bonus within prompt: up to +10 when brand outshines competitors in the same response
+ * - Positive context terms: +2 each (capped at +8)
  */
 function calculateProviderScore(result: ProviderResult): number {
   if (!result.brandMentioned) return 0;
 
-  let score = 35;
+  let score = 45;
 
   if (result.recommendationStrength === 'strong') score += 25;
-  else if (result.recommendationStrength === 'moderate') score += 12;
+  else if (result.recommendationStrength === 'moderate') score += 15;
+  else score += 5;
 
-  if (result.brandPosition !== null && result.brandPosition <= 3) score += 20;
-  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 10;
+  if (result.brandPosition !== null && result.brandPosition <= 3) score += 15;
+  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 8;
+  else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
+
+  // Share of voice within this single response: brand vs competitors named in the same answer
+  const competitorCount = result.competitors?.length || 0;
+  const totalNamed = competitorCount + 1; // +1 for the brand itself
+  const sov = 1 / totalNamed;
+  score += Math.round(sov * 10); // up to +10 when brand is the only one named
 
   const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
   let posBonus = 0;
   const lower = result.response.toLowerCase();
   for (const term of positiveTerms) {
-    if (lower.includes(term)) posBonus += 3;
+    if (lower.includes(term)) posBonus += 2;
   }
-  score += Math.min(posBonus, 12);
+  score += Math.min(posBonus, 8);
 
   return Math.min(score, 100);
 }
