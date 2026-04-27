@@ -450,6 +450,7 @@ function buildBrandProfile(
       ...aliasSeed.map((alias) => alias.replace(/\s+/g, '')),
       ...aliasSeed.map((alias) => alias.replace(/\s+/g, '-')),
     ]).filter((alias) => normalizeEntityName(alias).length >= 3),
+    domain,
   };
 }
 
