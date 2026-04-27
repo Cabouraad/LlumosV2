@@ -3954,14 +3954,15 @@ serve(async (req) => {
             generatedAt: new Date().toISOString(),
             scoreBreakdown: {
               base: baseScore,
-              categoryAdjustment: categoryVisibility.adjustment,
               shareOfVoiceBonus: sovBonus,
               final: overallScore,
+              note: 'Category difficulty is a separate diagnostic and does not contribute to the AI Visibility Score.',
             },
             categoryVisibility: {
               coverage: Number(categoryVisibility.coverage.toFixed(2)),
               label: categoryVisibility.label,
               detail: categoryVisibility.detail,
+              interpretation: categoryVisibility.interpretation,
             },
             shareOfVoice: {
               ratio: Number(shareOfVoice.sov.toFixed(2)),
