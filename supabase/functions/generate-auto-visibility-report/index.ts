@@ -3967,9 +3967,15 @@ serve(async (req) => {
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
             scoreBreakdown: {
-              base: baseScore,
-              categoryAdjustment: categoryVisibility.adjustment,
-              shareOfVoiceBonus: sovBonus,
+              model: 'visibility_funnel_v1',
+              mentionCoverage: Number(mentionCoverageScore.toFixed(2)),
+              promptCoverage: Number(promptCoverageScore.toFixed(2)),
+              providerCoverage: Number(providerCoverageScore.toFixed(2)),
+              quality: Number(qualityScore.toFixed(2)),
+              qualityRaw: Number(rawQualityScore.toFixed(2)),
+              qualityGate: Number(qualityGate.toFixed(2)),
+              shareOfVoice: Number(shareOfVoiceScore.toFixed(2)),
+              base: baseScore, // legacy: coverage-only sum
               final: overallScore,
             },
             categoryVisibility: {
