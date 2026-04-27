@@ -2917,6 +2917,7 @@ async function generatePDF(
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
   refinedCompetitors: string[] = [],
   aiOpportunity?: { score: number; label: string; breakdown: any },
+  classifiedCompetitors: ClassifiedCompetitor[] = [],
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
