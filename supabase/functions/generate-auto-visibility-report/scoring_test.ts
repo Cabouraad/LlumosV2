@@ -14,7 +14,7 @@ import {
   assertEquals,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-import { computeVisibilityScore } from "./index.ts";
+import { computeVisibilityScore } from "./scoring.ts";
 
 // ------- Fixtures -----------------------------------------------------------
 
