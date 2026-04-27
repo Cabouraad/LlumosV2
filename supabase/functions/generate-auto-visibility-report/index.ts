@@ -2959,11 +2959,38 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
 /**
  * Generate executive summary based on results
  */
+/**
+ * AI Visibility Score bands — single source of truth for label copy.
+ *   0–9   Invisible
+ *   10–24 Critical
+ *   25–44 Weak
+ *   45–64 Emerging
+ *   65–79 Competitive
+ *   80–100 Dominant
+ */
+function getVisibilityBand(score: number): {
+  label: 'Invisible' | 'Critical' | 'Weak' | 'Emerging' | 'Competitive' | 'Dominant';
+  tier: 'red' | 'amber' | 'green';
+} {
+  if (score >= 80) return { label: 'Dominant',    tier: 'green' };
+  if (score >= 65) return { label: 'Competitive', tier: 'green' };
+  if (score >= 45) return { label: 'Emerging',    tier: 'amber' };
+  if (score >= 25) return { label: 'Weak',        tier: 'amber' };
+  if (score >= 10) return { label: 'Critical',    tier: 'red'   };
+  return              { label: 'Invisible',   tier: 'red'   };
+}
+
 function generateExecutiveSummary(
   domain: string,
   overallScore: number,
   results: ProviderResult[],
-  industryBenchmark: { industry: string; benchmark: number }
+  industryBenchmark: { industry: string; benchmark: number },
+  context?: {
+    aiOpportunity?: { score: number; label: string };
+    categoryDiagnostic?: { coverage: number; label: string };
+    shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number };
+    classifiedCompetitors?: ClassifiedCompetitor[];
+  }
 ): string[] {
   const summary: string[] = [];
 
@@ -2972,41 +2999,65 @@ function generateExecutiveSummary(
   const mentionedResults = validResults.filter(r => r.brandMentioned);
   const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
   const verifiedMentionCount = mentionedResults.length;
+  const band = getVisibilityBand(overallScore);
 
-  // Score interpretation
+  const aiOpp = context?.aiOpportunity;
+  const catDiag = context?.categoryDiagnostic;
+  const sov = context?.shareOfVoiceInfo;
+  const classified = (context?.classifiedCompetitors || []).filter(c => c.type !== 'Irrelevant / Excluded');
+  const competitorCount = classified.length;
+  const aiMentionedCount = classified.filter(c => c.source === 'ai_mentioned').length;
+
+  // === Headline ===
   if (verifiedMentionCount === 0) {
-    summary.push(`${domain} has 0/100 AI visibility — your brand was not verified in any AI response across the queries we tested.`);
-    summary.push('Category difficulty is reported separately below and explains the market context, not your score. Visibility points are only awarded when your brand is actually named.');
-  } else if (overallScore >= 70) {
-    summary.push(`${domain} has strong AI visibility with a score of ${overallScore}/100.`);
-  } else if (overallScore >= 40) {
-    summary.push(`${domain} has moderate AI visibility (${overallScore}/100) with room for improvement.`);
+    summary.push(
+      `${domain} has an AI Visibility Score of 0/100 — Invisible. Your brand was not verified in any of the ${validResults.length} AI responses tested. ` +
+      `This means there is currently no measurable AI recommendation visibility for this query set.`
+    );
   } else {
-    summary.push(`${domain} has low AI visibility (${overallScore}/100) and is missing significant opportunities.`);
+    summary.push(
+      `${domain} has an AI Visibility Score of ${overallScore}/100 — ${band.label}. ` +
+      `Your brand was verified in ${verifiedMentionCount} of ${validResults.length} AI responses tested (${Math.round(mentionRate * 100)}% mention rate).`
+    );
   }
 
-  // Benchmark comparison — skip when there are no verified mentions; the score is 0
-  // by definition and a benchmark delta would be misleading.
-  if (verifiedMentionCount > 0) {
+  // === AI Opportunity Score ===
+  if (aiOpp) {
+    summary.push(`AI Opportunity Score: ${aiOpp.score}/100 — ${aiOpp.label}. This measures how much room exists to win visibility in this category, separate from your current visibility.`);
+  }
+
+  // === Category Difficulty (separate from score) ===
+  if (catDiag) {
+    const pct = Math.round((catDiag.coverage || 0) * 100);
+    summary.push(`Category Difficulty: ${catDiag.label} (${pct}% category coverage). This describes the market context across AI platforms and is reported separately — it does not add to your AI Visibility Score.`);
+  }
+
+  // === Share of Voice ===
+  if (sov && (sov.brandMentions + sov.competitorMentions) > 0) {
+    const sovPct = Math.round(sov.sov * 100);
+    summary.push(`Share of Voice: ${sovPct}% (${sov.brandMentions} brand recommendation events vs. ${sov.competitorMentions} competitor recommendation events across all AI responses).`);
+  } else if (sov) {
+    summary.push(`Share of Voice: 0% — neither your brand nor competitors were recommended in measurable volume across the responses tested.`);
+  }
+
+  // === Competitors / adjacent providers found ===
+  if (competitorCount > 0) {
+    summary.push(`${competitorCount} competitor${competitorCount === 1 ? '' : 's'} or adjacent provider${competitorCount === 1 ? '' : 's'} were identified in the landscape (${aiMentionedCount} appeared directly in AI responses).`);
+  }
+
+  // === Closing context for 0-mention case ===
+  if (verifiedMentionCount === 0) {
+    summary.push('Category difficulty and competitor presence are reported separately and explain the market context — they do not increase your visibility score. Visibility points are only awarded when your brand is actually named.');
+  } else {
+    // Benchmark comparison only when we have mentions
     const diff = overallScore - industryBenchmark.benchmark;
     if (diff >= 10) {
-      summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average.`);
+      summary.push(`You're performing ${diff} points above the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`);
     } else if (diff <= -10) {
-      summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+      summary.push(`You're ${Math.abs(diff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`);
     } else {
-      summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}.`);
+      summary.push(`You're performing close to the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`);
     }
-  }
-
-  // Provider insights
-  if (verifiedMentionCount === 0) {
-    summary.push('AI models did not mention your brand in any of the relevant queries we tested.');
-  } else if (mentionRate >= 0.7) {
-    summary.push(`AI models mention your brand in ${Math.round(mentionRate * 100)}% of relevant queries.`);
-  } else if (mentionRate >= 0.4) {
-    summary.push(`Your brand appears in ${Math.round(mentionRate * 100)}% of queries - competitors may be capturing the rest.`);
-  } else {
-    summary.push(`Critical: Only ${Math.round(mentionRate * 100)}% of AI queries mention your brand.`);
   }
 
   return summary;
@@ -3084,13 +3135,20 @@ async function generatePDF(
   const faint  = rgb(0.88, 0.88, 0.90);
   const accent = navy; // primary accent is navy
 
-  const scoreColor = (s: number) => s >= 70 ? green : s >= 40 ? amber : red;
-  const scoreLabel = (s: number) => s >= 70 ? 'Strong' : s >= 40 ? 'Moderate' : 'Low';
-  const scoreTlLabel = (s: number) => s >= 70 ? 'On Track' : s >= 40 ? 'In Progress' : 'Critical Priority';
+  // Color + label use the new 6-band visibility model (see getVisibilityBand).
+  const tierColor = (tier: 'red' | 'amber' | 'green') => tier === 'green' ? green : tier === 'amber' ? amber : red;
+  const scoreColor = (s: number) => tierColor(getVisibilityBand(s).tier);
+  const scoreLabel = (s: number) => getVisibilityBand(s).label;
+  const scoreTlLabel = (s: number) => getVisibilityBand(s).label;
 
   const industryBenchmark = getIndustryBenchmark(businessContext);
   const contentGaps = analyzeContentGaps(results, domain);
-  const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
+  const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
+    aiOpportunity,
+    categoryDiagnostic,
+    shareOfVoiceInfo,
+    classifiedCompetitors,
+  });
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
   // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
@@ -3336,10 +3394,11 @@ async function generatePDF(
   const barY2 = y - scoreCardH + 10;
   const barW2 = contentW - 28;
   page.drawRectangle({ x: M + 14, y: barY2, width: barW2, height: 8, color: rgb(0.15, 0.25, 0.35) });
-  // Segmented bar aligned with label thresholds: red (<40) | amber (40-69) | green (>=70)
-  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.4, height: 8, color: red });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.4, y: barY2, width: barW2 * 0.3, height: 8, color: amber });
-  page.drawRectangle({ x: M + 14 + barW2 * 0.7, y: barY2, width: barW2 * 0.3, height: 8, color: green });
+  // Segmented bar aligned with the 6-band visibility model:
+  // red 0–24 (Invisible/Critical) | amber 25–64 (Weak/Emerging) | green 65–100 (Competitive/Dominant)
+  page.drawRectangle({ x: M + 14, y: barY2, width: barW2 * 0.25, height: 8, color: red });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.25, y: barY2, width: barW2 * 0.40, height: 8, color: amber });
+  page.drawRectangle({ x: M + 14 + barW2 * 0.65, y: barY2, width: barW2 * 0.35, height: 8, color: green });
   // Score marker
   const markerX = M + 14 + (overallScore / 100) * barW2;
   page.drawRectangle({ x: markerX - 2, y: barY2 - 4, width: 4, height: 16, color: white });
@@ -3482,7 +3541,13 @@ async function generatePDF(
     page.drawRectangle({ x: cx + 10, y: bodyY - 32, width: Math.max(1, (avg / 100) * pBarW), height: 8, color: scoreColor(avg) });
 
     // Insight note
-    const insightText = avg >= 70 ? 'Strong visibility on this platform.' : avg >= 40 ? 'Moderate — room for improvement.' : 'Low visibility — significant gap.';
+    const insightText =
+      avg >= 80 ? 'Dominant visibility on this platform.' :
+      avg >= 65 ? 'Competitive visibility — well represented.' :
+      avg >= 45 ? 'Emerging visibility — room to strengthen.' :
+      avg >= 25 ? 'Weak visibility — significant gap.' :
+      avg >= 10 ? 'Critical visibility — rarely surfaced.' :
+                  'Invisible — brand was not surfaced on this platform.';
     page.drawText(insightText, { x: cx + 10, y: bodyY - 50, size: 8, font: helveticaOblique, color: light });
   }
 
