@@ -4252,10 +4252,10 @@ async function generatePDF(
 
   y = drawSubsectionHeader(page, 'Competitors Mentioned by AI', y);
   if (aiMentionedClassified.length > 0) {
-    page.drawText('Entities AI assistants actually named in their answers:', {
+    page.drawText('Broad display view: every relevant org, firm, ADR provider, directory, or adjacent platform AI assistants named in their answers. Share of Voice scoring uses only Competitor Recommendation Events (entities AI listed, recommended, or preferred).', {
       x: M + 5, y, size: 9, font: helveticaOblique, color: light,
     });
-    y -= 18;
+    y -= 22;
 
     const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
     for (const cc of sortedAi) {
@@ -4282,11 +4282,11 @@ async function generatePDF(
   // Research-backed competitors — shown SEPARATELY, never blended into AI-mentioned counts.
   if (researchBackedClassified.length > 0) {
     if (y < 120) { page = newPage(); y = H - 10; }
-    y = drawSubsectionHeader(page, 'Research-Backed Competitors (not seen in AI responses)', y);
-    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Excluded from Share of Voice.', {
+    y = drawSubsectionHeader(page, 'Research-Backed Competitors (display only)', y);
+    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Display-only — excluded from Share of Voice and competitor gap scoring.', {
       x: M + 5, y, size: 9, font: helveticaOblique, color: light,
     });
-    y -= 18;
+    y -= 22;
     for (const cc of researchBackedClassified) {
       if (y < 60) { page = newPage(); y = H - 60; }
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
