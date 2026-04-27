@@ -3077,6 +3077,26 @@ async function generatePDF(
   refinedCompetitors: string[] = [],
   aiOpportunity?: { score: number; label: string; breakdown: any },
   classifiedCompetitors: ClassifiedCompetitor[] = [],
+  scoreBreakdown?: {
+    components: {
+      mentionCoverage:  { score: number; max: number };
+      promptCoverage:   { score: number; max: number };
+      providerCoverage: { score: number; max: number };
+      mentionQuality:   { score: number; max: number };
+      competitiveSov:   { score: number; max: number };
+    };
+    diagnostics: {
+      validResponses: number;
+      verifiedBrandMentions: number;
+      promptsCovered: string;
+      providersCovered: string;
+      competitorRecommendationEvents: number;
+      categoryCoverage: string;
+      categoryDifficulty: string;
+    };
+    finalScore: number;
+    note: string;
+  },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
