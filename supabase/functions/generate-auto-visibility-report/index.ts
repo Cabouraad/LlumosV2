@@ -2730,18 +2730,33 @@ function computeAIOpportunityScore(
   }
 
   // 3. Prompt Intent Opportunity (0-20)
-  // Group valid results by prompt; a prompt counts as "brand present" if the brand was mentioned in ANY provider for that prompt.
-  const promptMap = new Map<string, { highIntent: boolean; brandPresent: boolean }>();
+  // Weighted by prompt buyer intent: missing a "best X near me" prompt costs more
+  // opportunity than missing "what is X". A prompt is "brand present" if the brand
+  // was mentioned in ANY provider for that prompt.
+  const promptMap = new Map<string, { intentWeight: number; highIntent: boolean; brandPresent: boolean }>();
   for (const r of valid) {
     const key = r.prompt || '';
-    const entry = promptMap.get(key) || { highIntent: isHighIntentPrompt(key), brandPresent: false };
+    const intentInfo = classifyPromptIntent(key);
+    const entry = promptMap.get(key) || {
+      intentWeight: intentInfo.weight,
+      highIntent: intentInfo.intent === 'High Commercial Intent' || intentInfo.intent === 'Provider Search Intent',
+      brandPresent: false,
+    };
     if (r.brandMentioned) entry.brandPresent = true;
     promptMap.set(key, entry);
   }
-  const highIntentPrompts = Array.from(promptMap.values()).filter(p => p.highIntent);
+  const allPrompts = Array.from(promptMap.values());
+  const highIntentPrompts = allPrompts.filter(p => p.highIntent);
   const highIntentPromptCount = highIntentPrompts.length;
   const absentHighIntentPromptCount = highIntentPrompts.filter(p => !p.brandPresent).length;
-  const absentHighIntentPromptRate = highIntentPromptCount > 0 ? absentHighIntentPromptCount / highIntentPromptCount : 0;
+  // Intent-weighted absence: sum(weight if absent) / sum(weight)
+  let weightedAbsenceNum = 0;
+  let weightedAbsenceDen = 0;
+  for (const p of allPrompts) {
+    weightedAbsenceDen += p.intentWeight;
+    if (!p.brandPresent) weightedAbsenceNum += p.intentWeight;
+  }
+  const absentHighIntentPromptRate = weightedAbsenceDen > 0 ? weightedAbsenceNum / weightedAbsenceDen : 0;
   const promptIntentOpportunityScore = Math.round(absentHighIntentPromptRate * 20);
 
   // 4. Provider Opportunity (0-20)
