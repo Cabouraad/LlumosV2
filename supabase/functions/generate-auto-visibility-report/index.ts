@@ -2395,6 +2395,138 @@ function computeShareOfVoice(results: ProviderResult[]): { sov: number; brandMen
 }
 
 /**
+ * AI Opportunity Score — answers "How much room is there to win visibility in this category?"
+ * This is INTENTIONALLY separate from the AI Visibility Score and must NOT be blended into it.
+ *
+ * Components:
+ *   1. Category Opportunity (0-35)
+ *   2. Competitor Gap       (0-25)
+ *   3. Prompt Intent Opportunity (0-20) — share of high-intent prompts where the brand is absent
+ *   4. Provider Opportunity (0-20) — share of providers where the brand never appears
+ */
+const HIGH_INTENT_PROMPT_TERMS = [
+  'best', 'top', 'near me', 'alternative', 'alternatives',
+  'company', 'companies', 'firm', 'firms', 'agency', 'agencies',
+  'provider', 'providers', 'service', 'services',
+  'attorney', 'attorneys', 'lawyer', 'lawyers',
+];
+
+function isHighIntentPrompt(prompt: string): boolean {
+  if (!prompt) return false;
+  const p = prompt.toLowerCase();
+  return HIGH_INTENT_PROMPT_TERMS.some(term => {
+    // word-boundary match so "service" doesn't catch "services" twice etc.
+    const re = new RegExp(`\\b${term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return re.test(p);
+  });
+}
+
+function computeAIOpportunityScore(
+  results: ProviderResult[],
+  categoryCoverage: number,
+): {
+  score: number;
+  label: 'High Opportunity' | 'Moderate Opportunity' | 'Low Opportunity';
+  breakdown: {
+    categoryOpportunity: number;
+    competitorGapScore: number;
+    promptIntentOpportunityScore: number;
+    providerOpportunityScore: number;
+    absentHighIntentPromptRate: number;
+    providerOpportunity: number;
+    brandRecommendationEvents: number;
+    competitorRecommendationEvents: number;
+    highIntentPromptCount: number;
+    absentHighIntentPromptCount: number;
+    totalProviders: number;
+    providersWhereBrandWasAbsent: number;
+  };
+} {
+  const valid = results.filter(
+    r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
+  );
+
+  // 1. Category Opportunity (0-35)
+  let categoryOpportunity = 15;
+  if (categoryCoverage < 0.25) categoryOpportunity = 35;
+  else if (categoryCoverage < 0.6) categoryOpportunity = 25;
+
+  // 2. Competitor Gap (0-25)
+  // Recommendation event = a valid response where the entity is recommended/preferred (strong signal).
+  let brandRecommendationEvents = 0;
+  let competitorRecommendationEvents = 0;
+  for (const r of valid) {
+    if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
+      brandRecommendationEvents += 1;
+    }
+    // Treat any response that names competitors as a competitor-recommendation event,
+    // because in practice these AI answers are framing competitors as options/recommendations.
+    if (r.competitors && r.competitors.length > 0) {
+      competitorRecommendationEvents += 1;
+    }
+  }
+
+  let competitorGapScore = 5;
+  if (competitorRecommendationEvents > 0 && brandRecommendationEvents === 0) {
+    competitorGapScore = 25;
+  } else if (competitorRecommendationEvents > 0 && brandRecommendationEvents > 0) {
+    competitorGapScore = 10;
+  }
+
+  // 3. Prompt Intent Opportunity (0-20)
+  // Group valid results by prompt; a prompt counts as "brand present" if the brand was mentioned in ANY provider for that prompt.
+  const promptMap = new Map<string, { highIntent: boolean; brandPresent: boolean }>();
+  for (const r of valid) {
+    const key = r.prompt || '';
+    const entry = promptMap.get(key) || { highIntent: isHighIntentPrompt(key), brandPresent: false };
+    if (r.brandMentioned) entry.brandPresent = true;
+    promptMap.set(key, entry);
+  }
+  const highIntentPrompts = Array.from(promptMap.values()).filter(p => p.highIntent);
+  const highIntentPromptCount = highIntentPrompts.length;
+  const absentHighIntentPromptCount = highIntentPrompts.filter(p => !p.brandPresent).length;
+  const absentHighIntentPromptRate = highIntentPromptCount > 0 ? absentHighIntentPromptCount / highIntentPromptCount : 0;
+  const promptIntentOpportunityScore = Math.round(absentHighIntentPromptRate * 20);
+
+  // 4. Provider Opportunity (0-20)
+  const providerSet = new Map<string, { mentioned: boolean }>();
+  for (const r of valid) {
+    const entry = providerSet.get(r.provider) || { mentioned: false };
+    if (r.brandMentioned) entry.mentioned = true;
+    providerSet.set(r.provider, entry);
+  }
+  const totalProviders = providerSet.size;
+  const providersWhereBrandWasAbsent = Array.from(providerSet.values()).filter(p => !p.mentioned).length;
+  const providerOpportunity = totalProviders > 0 ? providersWhereBrandWasAbsent / totalProviders : 0;
+  const providerOpportunityScore = Math.round(providerOpportunity * 20);
+
+  let score = categoryOpportunity + competitorGapScore + promptIntentOpportunityScore + providerOpportunityScore;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const label: 'High Opportunity' | 'Moderate Opportunity' | 'Low Opportunity' =
+    score >= 70 ? 'High Opportunity' : score >= 40 ? 'Moderate Opportunity' : 'Low Opportunity';
+
+  return {
+    score,
+    label,
+    breakdown: {
+      categoryOpportunity,
+      competitorGapScore,
+      promptIntentOpportunityScore,
+      providerOpportunityScore,
+      absentHighIntentPromptRate,
+      providerOpportunity,
+      brandRecommendationEvents,
+      competitorRecommendationEvents,
+      highIntentPromptCount,
+      absentHighIntentPromptCount,
+      totalProviders,
+      providersWhereBrandWasAbsent,
+    },
+  };
+}
+
+/**
  * Apply blur effect to text by replacing with asterisks
  */
 function blurText(text: string): string {
@@ -2606,6 +2738,7 @@ async function generatePDF(
   categoryDiagnostic?: { coverage: number; label: string; adjustment: number; detail: string; interpretation?: string },
   shareOfVoiceInfo?: { sov: number; brandMentions: number; competitorMentions: number },
   refinedCompetitors: string[] = [],
+  aiOpportunity?: { score: number; label: string; breakdown: any },
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -2925,6 +3058,48 @@ async function generatePDF(
   page.drawRectangle({ x: markerX - 2, y: barY2 - 4, width: 4, height: 16, color: white });
 
   y = y - scoreCardH - 12;
+
+  // ===== AI Opportunity Score card — separate from AI Visibility Score =====
+  if (aiOpportunity) {
+    const oppScore = aiOpportunity.score;
+    const oppCardH = 80;
+    page.drawRectangle({ x: M, y: y - oppCardH, width: contentW, height: oppCardH, color: navy });
+
+    page.drawText('AI Opportunity Score', { x: M + 14, y: y - 16, size: 9, font: helvetica, color: rgb(0.75, 0.75, 0.75) });
+    page.drawText('How much room is there to win visibility in this category?', {
+      x: M + 14, y: y - 28, size: 7, font: helveticaOblique, color: rgb(0.65, 0.65, 0.7),
+    });
+
+    const oppText = `${oppScore}`;
+    page.drawText(oppText, { x: M + 14, y: y - 62, size: 44, font: helveticaBold, color: yellow });
+    const otW = helveticaBold.widthOfTextAtSize(oppText, 44);
+    page.drawText('/ 100', { x: M + 18 + otW, y: y - 52, size: 16, font: helvetica, color: rgb(0.75, 0.75, 0.75) });
+
+    // Opportunity is INVERSE: high opportunity is a positive signal (room to grow), not a "good score".
+    const oppColor = oppScore >= 70 ? amber : oppScore >= 40 ? yellow : green;
+    drawTlDot(page, M + contentW - 130, y - 30, oppColor, 20);
+    page.drawText(aiOpportunity.label, { x: M + contentW - 105, y: y - 35, size: 9, font: helveticaBold, color: white });
+
+    // Opportunity bar (gradient from low->high opportunity)
+    const oppBarY = y - oppCardH + 10;
+    const oppBarW = contentW - 28;
+    page.drawRectangle({ x: M + 14, y: oppBarY, width: oppBarW, height: 8, color: rgb(0.15, 0.25, 0.35) });
+    page.drawRectangle({ x: M + 14, y: oppBarY, width: oppBarW * 0.4, height: 8, color: green });
+    page.drawRectangle({ x: M + 14 + oppBarW * 0.4, y: oppBarY, width: oppBarW * 0.3, height: 8, color: yellow });
+    page.drawRectangle({ x: M + 14 + oppBarW * 0.7, y: oppBarY, width: oppBarW * 0.3, height: 8, color: amber });
+    const oppMarkerX = M + 14 + (oppScore / 100) * oppBarW;
+    page.drawRectangle({ x: oppMarkerX - 2, y: oppBarY - 4, width: 4, height: 16, color: white });
+
+    y = y - oppCardH - 12;
+
+    // Opportunity breakdown callout
+    const b = aiOpportunity.breakdown;
+    const oppDetail =
+      `Category Opportunity: ${b.categoryOpportunity}/35   |   Competitor Gap: ${b.competitorGapScore}/25   |   ` +
+      `Prompt Intent: ${b.promptIntentOpportunityScore}/20   |   Provider Coverage Gap: ${b.providerOpportunityScore}/20\n` +
+      `Brand was absent from ${b.absentHighIntentPromptCount} of ${b.highIntentPromptCount} high-intent prompts and ${b.providersWhereBrandWasAbsent} of ${b.totalProviders} AI providers.`;
+    y = drawCalloutBox(page, oppDetail, y, oppColor);
+  }
 
   // Key metrics — 2x2 grid pillar-style cards
   const metricCols = [
@@ -3886,9 +4061,14 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
 
+    // AI Opportunity Score — separate from AI Visibility Score. Answers:
+    // "How much room is there to win visibility in this category?"
+    const aiOpportunity = computeAIOpportunityScore(allResults, categoryVisibility.coverage);
+    console.log(`[AutoReport] AI Opportunity Score: ${aiOpportunity.score}/100 (${aiOpportunity.label}) — categoryOpp=${aiOpportunity.breakdown.categoryOpportunity}, competitorGap=${aiOpportunity.breakdown.competitorGapScore}, promptIntent=${aiOpportunity.breakdown.promptIntentOpportunityScore} (absentRate=${(aiOpportunity.breakdown.absentHighIntentPromptRate*100).toFixed(0)}% of ${aiOpportunity.breakdown.highIntentPromptCount} HI prompts), providerOpp=${aiOpportunity.breakdown.providerOpportunityScore} (${aiOpportunity.breakdown.providersWhereBrandWasAbsent}/${aiOpportunity.breakdown.totalProviders} providers absent)`);
+
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
@@ -3969,6 +4149,12 @@ serve(async (req) => {
               brandMentions: shareOfVoice.brandMentions,
               competitorMentions: shareOfVoice.competitorMentions,
             },
+            aiOpportunity: {
+              score: aiOpportunity.score,
+              label: aiOpportunity.label,
+              breakdown: aiOpportunity.breakdown,
+              note: 'AI Opportunity Score is separate from AI Visibility Score and is never blended into it.',
+            },
           },
         });
       if (insertError) {
@@ -4002,6 +4188,8 @@ serve(async (req) => {
         providersQueried: 4,
         categoryVisibility: categoryVisibility.label,
         shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
+        aiOpportunityScore: aiOpportunity.score,
+        aiOpportunityLabel: aiOpportunity.label,
         emailSent,
       },
     };
