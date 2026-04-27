@@ -284,6 +284,145 @@ function normalizeEntityName(value: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * Canonicalize an entity name so the report doesn't display the same
+ * organization under 3 different spellings (domain, abbreviation, with/without
+ * legal suffix, punctuation variants, etc.).
+ *
+ * Pipeline:
+ *   1. Strip URL noise (protocol, www, trailing path/query).
+ *   2. Drop trailing parenthetical clarifications: "JAMS (Judicial...)" → "JAMS",
+ *      "Los Angeles County Bar Association (LACBA)" → "Los Angeles County Bar Association".
+ *   3. Normalize whitespace, common punctuation (commas inside firm names,
+ *      ampersand spacing, "Inc." vs "Inc"), and trailing periods.
+ *   4. Look up the result (and a punctuation-stripped key) against a
+ *      KNOWN_ENTITY_MAP of domain → canonical name and abbreviation/short
+ *      form → canonical name. First match wins.
+ *   5. Fall back to a cleaned display string.
+ *
+ * Returns the preferred display name. For dedupe keys, callers should still
+ * pass the result through normalizeEntityName().
+ */
+const KNOWN_ENTITY_MAP: Record<string, string> = {
+  // domain → canonical
+  'jamsadr.com': 'JAMS',
+  'jamsadr': 'JAMS',
+  'bettzedek.org': 'Bet Tzedek Legal Services',
+  'bettzedek': 'Bet Tzedek Legal Services',
+  'adrservices.com': 'ADR Services, Inc.',
+  'adrservices': 'ADR Services, Inc.',
+  'lacba.org': 'Los Angeles County Bar Association',
+  'lacba': 'Los Angeles County Bar Association',
+  'gibsondunn.com': 'Gibson Dunn & Crutcher LLP',
+  'gibsondunn': 'Gibson Dunn & Crutcher LLP',
+  'lw.com': 'Latham & Watkins LLP',
+  'fbm.com': 'Farella Braun + Martel LLP',
+  'quinnemanuel.com': 'Quinn Emanuel Urquhart & Sullivan LLP',
+  'mto.com': 'Munger, Tolles & Olson LLP',
+
+  // abbreviation / short form → canonical (lowercased keys)
+  'jams': 'JAMS',
+  'judicial arbitration and mediation services': 'JAMS',
+  'bet tzedek': 'Bet Tzedek Legal Services',
+  'adr services': 'ADR Services, Inc.',
+  'adr services inc': 'ADR Services, Inc.',
+  'los angeles county bar association': 'Los Angeles County Bar Association',
+  'la county bar association': 'Los Angeles County Bar Association',
+  'gibson dunn': 'Gibson Dunn & Crutcher LLP',
+  'gibson dunn crutcher': 'Gibson Dunn & Crutcher LLP',
+  'gibson dunn & crutcher': 'Gibson Dunn & Crutcher LLP',
+  'latham watkins': 'Latham & Watkins LLP',
+  'latham & watkins': 'Latham & Watkins LLP',
+  'farella braun': 'Farella Braun + Martel LLP',
+  'farella braun martel': 'Farella Braun + Martel LLP',
+  'farella braun + martel': 'Farella Braun + Martel LLP',
+  'quinn emanuel': 'Quinn Emanuel Urquhart & Sullivan LLP',
+  'quinn emanuel urquhart sullivan': 'Quinn Emanuel Urquhart & Sullivan LLP',
+  'munger tolles': 'Munger, Tolles & Olson LLP',
+  'munger tolles olson': 'Munger, Tolles & Olson LLP',
+  'munger, tolles & olson': 'Munger, Tolles & Olson LLP',
+  'nam': 'National Arbitration and Mediation (NAM)',
+  'national arbitration and mediation': 'National Arbitration and Mediation (NAM)',
+};
+
+const LEGAL_SUFFIX_RE = /\b(?:llp|l\.l\.p\.|llc|l\.l\.c\.|inc\.?|incorporated|corp\.?|corporation|ltd\.?|plc|p\.c\.|pc|pllc|p\.l\.l\.c\.|lp|l\.p\.|pa|p\.a\.|co\.?)\b/gi;
+
+function stripUrlNoise(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/[/?#].*$/, '')   // drop path/query/hash
+    .trim();
+}
+
+function entityLookupKey(value: string): string {
+  // Lowercase, drop punctuation (incl. & + , .), drop legal suffixes, collapse whitespace.
+  return value
+    .toLowerCase()
+    .replace(LEGAL_SUFFIX_RE, ' ')
+    .replace(/[(),.&+'"`’]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function canonicalizeEntityName(raw: string | null | undefined): string {
+  if (typeof raw !== 'string') return '';
+  let value = raw.trim();
+  if (!value) return '';
+
+  // 1. URL noise
+  const urlStripped = stripUrlNoise(value);
+  // If it looked like a domain (contains a dot, no spaces), check the domain map first.
+  if (/\./.test(urlStripped) && !/\s/.test(urlStripped)) {
+    const domLower = urlStripped.toLowerCase();
+    if (KNOWN_ENTITY_MAP[domLower]) return KNOWN_ENTITY_MAP[domLower];
+    const noTld = domLower.replace(/\.[a-z]{2,}$/i, '');
+    if (KNOWN_ENTITY_MAP[noTld]) return KNOWN_ENTITY_MAP[noTld];
+    // No known mapping → fall through using the bare domain label as a name candidate.
+    value = noTld.replace(/[-_]+/g, ' ');
+  } else {
+    value = urlStripped;
+  }
+
+  // 2. Drop trailing parenthetical clarifications
+  //    "Foo (bar baz)"  → "Foo"
+  //    But only if the parenthetical isn't the whole thing.
+  const parenMatch = value.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  if (parenMatch) {
+    const head = parenMatch[1].trim();
+    const inside = parenMatch[2].trim();
+    // If inside is an abbreviation that maps, prefer the head expansion.
+    // Otherwise just use the head.
+    const insideKey = entityLookupKey(inside);
+    if (insideKey && KNOWN_ENTITY_MAP[insideKey] && head.length >= 3) {
+      value = head;
+    } else {
+      value = head;
+    }
+  }
+
+  // 3. Normalize whitespace + stray punctuation
+  value = value.replace(/\s+/g, ' ').replace(/[.,;:]+$/, '').trim();
+
+  // 4. Map lookup (with and without legal suffix / punctuation)
+  const key = entityLookupKey(value);
+  if (key && KNOWN_ENTITY_MAP[key]) return KNOWN_ENTITY_MAP[key];
+
+  // 5. Light cleanup for display:
+  //    - normalize commas inside multi-part firm names ("Gibson, Dunn" stays as-is)
+  //    - normalize "& " spacing
+  //    - normalize "Inc" → "Inc." for display consistency
+  let display = value
+    .replace(/\s*&\s*/g, ' & ')
+    .replace(/\s*\+\s*/g, ' + ')
+    .replace(/\binc\b(?!\.)/gi, 'Inc.')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return display;
+}
+
 function prettifyDomainLabel(domain: string | null | undefined): string {
   if (!domain || typeof domain !== 'string') return '';
   const base = domain
