@@ -587,38 +587,43 @@ function findBrandMention(text: string, brandProfile: BrandProfile): { index: nu
 }
 
 function brandMentionedInText(text: string, brandProfile: BrandProfile): boolean {
-  return findBrandMention(text, brandProfile) !== null;
-}
+  if (!text || !brandProfile) return false;
 
-function dedupeBrandNames(names: string[]): string[] {
-  const seen = new Set<string>();
-  const deduped: string[] = [];
+  // STRICT detection: only match the canonical primaryName, its compact form (no spaces),
+  // or the domain stem. This is the SAME signal used by analyzeSentiment, ensuring the
+  // scorecard, sentiment, and recommendation sections of the report cannot disagree.
+  // We deliberately do NOT iterate the full alias list here — aliases are used only for
+  // entity expansion elsewhere (e.g., self-exclusion in competitor extraction).
+  const candidates = new Set<string>();
+  const add = (s: string | undefined | null) => {
+    if (typeof s !== 'string') return;
+    const trimmed = s.trim();
+    if (trimmed.length >= 4) candidates.add(trimmed);
+  };
 
-  for (const name of names) {
-    const normalized = normalizeEntityName(name);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    deduped.push(name.trim());
+  add(brandProfile.primaryName);
+  // Compact form: "McLellan Law Group" -> "McLellanLawGroup" / "mclellanlawgroup"
+  if (brandProfile.primaryName) {
+    add(brandProfile.primaryName.replace(/\s+/g, ''));
+  }
+  // Domain stem (the actual website identifier — most reliable brand token)
+  const domainStem = brandProfile.aliases?.find((a) => /^[a-z0-9]+$/i.test(a) && a.length >= 4);
+  if (domainStem) add(domainStem);
+
+  for (const candidate of candidates) {
+    const normalized = candidate.toLowerCase();
+    // Word-boundary match — same approach analyzeSentiment uses (substring),
+    // but with boundary protection to avoid partial-word collisions.
+    const source = aliasToRegexSource(candidate);
+    if (!source) continue;
+    const regex = new RegExp(`(^|[^a-z0-9])(${source})(?=[^a-z0-9]|$)`, 'i');
+    if (regex.test(text)) return true;
+    // Also accept compact substring presence (handles cases where the LLM concatenates)
+    if (normalized.length >= 8 && text.toLowerCase().includes(normalized)) return true;
   }
 
-  return deduped;
+  return false;
 }
-
-function hasBrandLikeShape(name: string): boolean {
-  const trimmed = name.trim();
-  if (!trimmed || trimmed.length < 2) return false;
-  // Domain-like patterns (contains a dot)
-  if (/\./.test(trimmed)) return true;
-  const words = trimmed.split(/\s+/);
-  // Multi-word: at least one word starts with a capital letter AND not all words are common English
-  if (words.length >= 2) {
-    const hasCapital = words.some(w => /^[A-Z]/.test(w));
-    const allCommon = words.every(w => COMMON_ENGLISH_WORDS.has(w.toLowerCase()));
-    return hasCapital && !allCommon;
-  }
-  // Single word rules — much stricter to avoid sentence-start false positives
-  // Reject if it's a common English word
-  if (COMMON_ENGLISH_WORDS.has(trimmed.toLowerCase())) return false;
   if (GENERIC_COMPETITOR_TERMS.has(trimmed.toLowerCase())) return false;
   // Internal caps (e.g., "HubSpot", "LawRank")
   if (/[a-z][A-Z]/.test(trimmed)) return true;
