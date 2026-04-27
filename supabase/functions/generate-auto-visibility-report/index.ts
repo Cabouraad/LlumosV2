@@ -4104,10 +4104,14 @@ serve(async (req) => {
       }
     }
 
-    // Re-extract competitors and re-detect brand mentions with refined list
+    // Re-extract competitors and re-detect brand mentions with refined list, then re-score.
     for (const result of allResults) {
+      result.brandName = brandProfile.primaryName;
+      result.brandAliases = brandProfile.aliases;
       result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
+      result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
+      result.score = calculateProviderScore(result);
     }
 
     // Step 3: Calculate overall score using the Visibility Funnel model.
