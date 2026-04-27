@@ -3290,9 +3290,21 @@ async function generatePDF(
 
       y -= 16;
 
-      // Response excerpt
-      if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const rawExcerpt = r.response.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 300 ? '...' : '');
+      // Response excerpt — always render SOMETHING so blank Google AI sections are not mistaken for "no data"
+      const rawResp = (r.response || '').trim();
+      const isNoOverview = rawResp.startsWith('No AI Overview');
+      const isError = rawResp.startsWith('Error') || rawResp.startsWith('Provider not');
+      if (isError) {
+        y = drawWrappedText(page, `(${rawResp})`, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y -= 4;
+      } else if (isNoOverview || rawResp.length === 0) {
+        const placeholder = r.provider.toLowerCase().includes('google')
+          ? '(Google did not return an AI Overview for this query — Google AI Overviews are only generated for ~30–40% of searches.)'
+          : '(No content returned for this query.)';
+        y = drawWrappedText(page, placeholder, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y -= 4;
+      } else {
+        const rawExcerpt = rawResp.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (rawResp.length > 300 ? '...' : '');
         y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: mid, maxChars: 88, lineSpacing: 11 });
         y -= 4;
       }
