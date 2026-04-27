@@ -2052,6 +2052,10 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     };
   }
 
+  // Group by prompt and measure agreement across providers per prompt.
+  // "Agreement" = all providers for that prompt either all-mention or all-omit.
+  // We then weight by visibility so a brand that's invisible everywhere doesn't get
+  // credit for "agreement on absence".
   const promptGroups = new Map<string, ProviderResult[]>();
   for (const result of validResults) {
     const arr = promptGroups.get(result.prompt) || [];
@@ -2059,47 +2063,53 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     promptGroups.set(result.prompt, arr);
   }
 
-  let totalPrompts = 0;
-  let consistentPrompts = 0;
+  let multiProviderPrompts = 0;
+  let agreementSum = 0; // 0..1 per prompt — fraction of providers that match the majority
+  let mentionPrompts = 0; // # prompts where brand was mentioned by at least one provider
 
   for (const [, group] of promptGroups) {
     if (group.length < 2) continue;
-    totalPrompts++;
+    multiProviderPrompts++;
 
-    const mentionedCount = group.filter((result) => result.brandMentioned).length;
-    // Only count as "consistent" if brand IS mentioned across all providers for that prompt
-    // Unanimous absence is NOT consistency — it's invisibility
-    if (mentionedCount === group.length) {
-      consistentPrompts++;
-    } else if (mentionedCount > 0 && mentionedCount < group.length) {
-      // Partial mention — inconsistent
-    } else {
-      // All absent — count as neutral (not consistent, not inconsistent)
+    const mentionedCount = group.filter((r) => r.brandMentioned).length;
+    if (mentionedCount > 0) mentionPrompts++;
+
+    // Per-prompt agreement: how strongly providers agree (1.0 = unanimous, 0.5 = split)
+    const majority = Math.max(mentionedCount, group.length - mentionedCount);
+    const agreement = majority / group.length;
+    // Only reward agreement when there's mention activity — agreement on absence is invisibility, not signal.
+    if (mentionedCount > 0) {
+      agreementSum += agreement;
     }
   }
 
-  if (totalPrompts === 0) {
-    return { score: 0, label: 'Insufficient Data', detail: 'Not enough provider overlap to measure consistency.' };
+  // Fallback: if no multi-provider overlap, score based purely on mention rate across providers.
+  if (multiProviderPrompts === 0) {
+    const score = Math.round(mentionRate * 100);
+    return {
+      score,
+      label: score >= 60 ? 'High Consistency' : score >= 30 ? 'Mixed Signals' : 'Low Consistency',
+      detail: `Brand was mentioned in ${totalMentions} of ${validResults.length} provider responses (${Math.round(mentionRate * 100)}% mention rate).`,
+    };
   }
 
-  // Weight by mention rate — can't have high consistency with low visibility
-  const rawConsistency = consistentPrompts / totalPrompts;
-  const score = Math.round(rawConsistency * mentionRate * 100);
+  // Combined score: agreement quality (when mentioned) blended with overall mention rate.
+  // - agreementScore rewards providers that consistently mention together.
+  // - mentionRate prevents a single mention with no overlap from claiming "high consistency".
+  const agreementScore = mentionPrompts > 0 ? agreementSum / multiProviderPrompts : 0;
+  const score = Math.round((agreementScore * 0.6 + mentionRate * 0.4) * 100);
+
   let label: string;
   let detail: string;
-
   if (score >= 60) {
     label = 'High Consistency';
-    detail = 'AI platforms mostly agree about your brand — strong, reliable visibility signal.';
+    detail = `AI platforms agree about your brand on ${mentionPrompts} of ${multiProviderPrompts} overlapping prompts — a strong, reliable visibility signal.`;
   } else if (score >= 30) {
     label = 'Mixed Signals';
-    detail = 'Some AI platforms mention your brand while others don\'t — visibility is fragile.';
-  } else if (totalMentions > 0) {
-    label = 'Low Consistency';
-    detail = `Your brand appeared in only ${totalMentions} of ${validResults.length} checks. Most AI platforms don't yet reference your brand consistently.`;
+    detail = `Brand mentioned in ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Some platforms mention you while others don't — visibility is fragile.`;
   } else {
-    label = 'Inconsistent';
-    detail = 'AI platforms disagree significantly about your brand — urgent attention needed.';
+    label = 'Low Consistency';
+    detail = `Brand appeared in only ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Most AI platforms don't yet reference your brand consistently.`;
   }
 
   return { score, label, detail };
