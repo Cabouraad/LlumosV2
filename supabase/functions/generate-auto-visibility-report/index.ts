@@ -3541,7 +3541,13 @@ async function generatePDF(
     page.drawRectangle({ x: cx + 10, y: bodyY - 32, width: Math.max(1, (avg / 100) * pBarW), height: 8, color: scoreColor(avg) });
 
     // Insight note
-    const insightText = avg >= 70 ? 'Strong visibility on this platform.' : avg >= 40 ? 'Moderate — room for improvement.' : 'Low visibility — significant gap.';
+    const insightText =
+      avg >= 80 ? 'Dominant visibility on this platform.' :
+      avg >= 65 ? 'Competitive visibility — well represented.' :
+      avg >= 45 ? 'Emerging visibility — room to strengthen.' :
+      avg >= 25 ? 'Weak visibility — significant gap.' :
+      avg >= 10 ? 'Critical visibility — rarely surfaced.' :
+                  'Invisible — brand was not surfaced on this platform.';
     page.drawText(insightText, { x: cx + 10, y: bodyY - 50, size: 8, font: helveticaOblique, color: light });
   }
 
