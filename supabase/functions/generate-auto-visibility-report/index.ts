@@ -4462,8 +4462,34 @@ serve(async (req) => {
     const avgQuality = mentionedResults.length > 0
       ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
-    // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
-    const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
+
+    // ===== Transparent score components (sum to 100) =====
+    // Mention Coverage (40): intent-weighted share of valid responses that mention the brand.
+    const mentionCoverageScore = Math.round(mentionRate * 40);
+
+    // Prompt Coverage (20): share of unique prompts where the brand was mentioned at least once.
+    const promptsWithBrand = new Set<string>();
+    const allPrompts = new Set<string>();
+    for (const r of validResults) {
+      allPrompts.add(r.prompt);
+      if (r.brandMentioned) promptsWithBrand.add(r.prompt);
+    }
+    const promptCoverageRatio = allPrompts.size > 0 ? promptsWithBrand.size / allPrompts.size : 0;
+    const promptCoverageScore = Math.round(promptCoverageRatio * 20);
+
+    // Provider Coverage (15): share of unique providers where the brand was mentioned at least once.
+    const providersWithBrand = new Set<string>();
+    const allProviders = new Set<string>();
+    for (const r of validResults) {
+      allProviders.add(r.provider);
+      if (r.brandMentioned) providersWithBrand.add(r.provider);
+    }
+    const providerCoverageRatio = allProviders.size > 0 ? providersWithBrand.size / allProviders.size : 0;
+    const providerCoverageScore = Math.round(providerCoverageRatio * 15);
+
+    // Mention Quality (15): per-response quality score average (0–100), scaled to 15.
+    const mentionQualityScore = Math.round((avgQuality / 100) * 15);
+
     console.log(`[AutoReport] Intent-weighted mention coverage: ${(mentionRate*100).toFixed(0)}% (raw=${mentionedResults.length}/${validResults.length})`);
 
 
