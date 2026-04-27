@@ -2589,14 +2589,92 @@ const HIGH_INTENT_PROMPT_TERMS = [
   'attorney', 'attorneys', 'lawyer', 'lawyers',
 ];
 
+/**
+ * Buyer-intent classification for prompts. Drives weighted coverage,
+ * opportunity scoring, and content-gap prioritization.
+ *
+ * Weights (per spec):
+ *   High Commercial Intent  → 1.25
+ *   Provider Search Intent  → 1.00
+ *   Comparison / Evaluation → 0.75
+ *   Educational             → 0.50
+ */
+type PromptIntent =
+  | 'High Commercial Intent'
+  | 'Provider Search Intent'
+  | 'Comparison / Evaluation Intent'
+  | 'Educational Intent';
+
+const PROMPT_INTENT_WEIGHTS: Record<PromptIntent, number> = {
+  'High Commercial Intent': 1.25,
+  'Provider Search Intent': 1.0,
+  'Comparison / Evaluation Intent': 0.75,
+  'Educational Intent': 0.5,
+};
+
+const PROMPT_INTENT_PRIORITY: Record<PromptIntent, 'High' | 'Medium' | 'Low'> = {
+  'High Commercial Intent': 'High',
+  'Provider Search Intent': 'High',
+  'Comparison / Evaluation Intent': 'Medium',
+  'Educational Intent': 'Low',
+};
+
+function classifyPromptIntent(prompt: string): { intent: PromptIntent; weight: number; priority: 'High' | 'Medium' | 'Low' } {
+  const p = (prompt || '').toLowerCase();
+
+  // 1. High Commercial Intent — superlatives, "near me", alternative-to, "[role] for X"
+  const highCommercial =
+    /\b(best|top|leading|#1|number\s+one|cheapest|most\s+(?:trusted|recommended|reputable)|highest[-\s]rated|five[-\s]star)\b/.test(p) ||
+    /\bnear\s+me\b/.test(p) ||
+    /\balternatives?\s+to\b/.test(p) ||
+    /\b(law\s*firm|attorney|lawyer|agency|company|provider|service|firm)\s+for\b/.test(p);
+
+  if (highCommercial) {
+    return { intent: 'High Commercial Intent', weight: PROMPT_INTENT_WEIGHTS['High Commercial Intent'], priority: PROMPT_INTENT_PRIORITY['High Commercial Intent'] };
+  }
+
+  // 3. Comparison / Evaluation
+  const comparison =
+    /\b(vs|versus|compare|comparison|difference\s+between)\b/.test(p) ||
+    /\bwhat\s+(?:should\s+i\s+)?look\s+for\b/.test(p) ||
+    /\bhow\s+(?:do\s+i|to)\s+choose\b/.test(p) ||
+    /\bpros\s+and\s+cons\b/.test(p) ||
+    /\bquestions\s+to\s+ask\b/.test(p);
+  if (comparison) {
+    return { intent: 'Comparison / Evaluation Intent', weight: PROMPT_INTENT_WEIGHTS['Comparison / Evaluation Intent'], priority: PROMPT_INTENT_PRIORITY['Comparison / Evaluation Intent'] };
+  }
+
+  // 4. Educational Intent — "what is", "how does ... work", "guide", "tutorial"
+  const educational =
+    /\b(what\s+is|what\s+are|how\s+does\b.*\bwork|how\s+do\b.*\bwork|why\s+(?:is|do|does)|definition\s+of)\b/.test(p) ||
+    /\b(guide|tutorial|introduction|overview|explained|explainer|basics\s+of|101)\b/.test(p);
+  if (educational) {
+    return { intent: 'Educational Intent', weight: PROMPT_INTENT_WEIGHTS['Educational Intent'], priority: PROMPT_INTENT_PRIORITY['Educational Intent'] };
+  }
+
+  // 2. Provider Search Intent — names a provider role + a context (industry / location / specialty / use case)
+  const providerRole =
+    /\b(attorney|attorneys|lawyer|lawyers|firm|firms|law\s*firm|agency|agencies|provider|providers|company|companies|service|services|consultant|consultants|specialist|expert)\b/.test(p);
+  const providerContext =
+    /\b(in\s+[a-z][a-z\s]{2,}|for\s+(?:a|an|my|our)\s+\w+|for\s+\w+|near\s+\w+|specializing\s+in|that\s+(?:does|handles|covers))\b/.test(p) ||
+    /\b(litigation|dispute|probate|estate|criminal|family|employment|real\s+estate|injury|tax|patent|trademark|immigration|bankruptcy|civil)\b/.test(p);
+  if (providerRole && providerContext) {
+    return { intent: 'Provider Search Intent', weight: PROMPT_INTENT_WEIGHTS['Provider Search Intent'], priority: PROMPT_INTENT_PRIORITY['Provider Search Intent'] };
+  }
+  if (providerRole) {
+    // Bare provider role without strong commercial superlatives → still provider search.
+    return { intent: 'Provider Search Intent', weight: PROMPT_INTENT_WEIGHTS['Provider Search Intent'], priority: PROMPT_INTENT_PRIORITY['Provider Search Intent'] };
+  }
+
+  // Default: treat as educational (lowest weight) so unknown phrasing never inflates the score.
+  return { intent: 'Educational Intent', weight: PROMPT_INTENT_WEIGHTS['Educational Intent'], priority: PROMPT_INTENT_PRIORITY['Educational Intent'] };
+}
+
 function isHighIntentPrompt(prompt: string): boolean {
-  if (!prompt) return false;
-  const p = prompt.toLowerCase();
-  return HIGH_INTENT_PROMPT_TERMS.some(term => {
-    // word-boundary match so "service" doesn't catch "services" twice etc.
-    const re = new RegExp(`\\b${term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-    return re.test(p);
-  });
+  // Backwards-compat helper used by AI Opportunity Score's prompt-intent component.
+  // High-intent now means commercial OR provider-search (the two priorities sales cares about).
+  const { intent } = classifyPromptIntent(prompt);
+  return intent === 'High Commercial Intent' || intent === 'Provider Search Intent';
 }
 
 function computeAIOpportunityScore(
