@@ -4368,13 +4368,24 @@ serve(async (req) => {
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
     // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
+    // Mention coverage is now WEIGHTED by prompt buyer intent (commercial > provider > comparison > educational),
+    // so winning a "best X near me" prompt counts more than winning "what is X".
     const mentionedResults = validResults.filter(r => r.brandMentioned);
-    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+    let weightedMentionNum = 0;
+    let weightedMentionDen = 0;
+    for (const r of validResults) {
+      const w = classifyPromptIntent(r.prompt).weight;
+      weightedMentionDen += w;
+      if (r.brandMentioned) weightedMentionNum += w;
+    }
+    const mentionRate = weightedMentionDen > 0 ? weightedMentionNum / weightedMentionDen : 0;
     const avgQuality = mentionedResults.length > 0
       ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
     // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
     const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
+    console.log(`[AutoReport] Intent-weighted mention coverage: ${(mentionRate*100).toFixed(0)}% (raw=${mentionedResults.length}/${validResults.length})`);
+
 
     // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
