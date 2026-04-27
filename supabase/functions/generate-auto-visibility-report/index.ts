@@ -91,12 +91,53 @@ interface HomepageSignals {
   brandCandidates: string[];
 }
 
+// Mention status taxonomy:
+//   named       — entity is referenced in passing (descriptive sentence, citation, footnote)
+//   listed      — entity appears as a bulleted/numbered list item or in a "such as / include" list
+//   recommended — AI explicitly recommends, suggests, or names entity as a top option
+//   preferred   — AI ranks entity #1 / "best" / "go with" / "top choice"
+export type EntityMentionStatus = 'named' | 'listed' | 'recommended' | 'preferred';
+
+export interface AIMentionedEntity {
+  entityName: string;
+  canonicalName: string;
+  provider: string;
+  promptId: string;
+  promptText: string;
+  entityType: string;
+  mentionCount: number;
+  evidenceSnippet: string;
+  mentionStatus: EntityMentionStatus;
+}
+
+export interface CompetitorRecommendationEvent {
+  entityName: string;
+  canonicalName: string;
+  provider: string;
+  promptId: string;
+  promptText: string;
+  entityType: string;
+  recommendationStrength: 'strong' | 'moderate' | 'weak';
+  position: number | null;
+  evidenceSnippet: string;
+}
+
 interface ProviderResult {
   provider: string;
   prompt: string;
   response: string;
   brandMentioned: boolean;
+  // ALL organizations/firms/services/etc. named anywhere in the response.
+  // Powers: "Competitors Mentioned by AI", Competitor Types Found, Detailed
+  // competitor landscape, Entity discovery.
   competitors: string[];
+  // Strict subset of competitors whose mention pattern indicates the AI is
+  // listing / suggesting / recommending / preferring them as an answer to the
+  // prompt. Powers: Share of Voice, Head-to-Head Matrix, Content Gap
+  // "competitors winning here", AI Opportunity Score competitor gap.
+  recommendedEntities: string[];
+  // Per-entity mention status, keyed by canonical (lowercase) name.
+  entityMentionStatus: Record<string, EntityMentionStatus>;
   score: number;
   sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
   recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
