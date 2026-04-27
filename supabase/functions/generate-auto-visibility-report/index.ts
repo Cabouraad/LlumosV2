@@ -2118,64 +2118,71 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     };
   }
 
-  // Group by prompt and measure agreement across providers per prompt.
-  // "Agreement" = all providers for that prompt either all-mention or all-omit.
-  // We then weight by visibility so a brand that's invisible everywhere doesn't get
-  // credit for "agreement on absence".
-  const promptGroups = new Map<string, ProviderResult[]>();
-  for (const result of validResults) {
-    const arr = promptGroups.get(result.prompt) || [];
-    arr.push(result);
-    promptGroups.set(result.prompt, arr);
+  // Compute per-PROVIDER mention rates and measure how tightly providers agree with each other.
+  // True consistency = providers behave similarly. Wide variance (e.g. ChatGPT 8/8, Google 1/8)
+  // indicates LOW consistency, no matter how strong any single provider's signal is.
+  const providerMentionRates = new Map<string, { mentioned: number; total: number }>();
+  for (const r of validResults) {
+    const cur = providerMentionRates.get(r.provider) || { mentioned: 0, total: 0 };
+    cur.total += 1;
+    if (r.brandMentioned) cur.mentioned += 1;
+    providerMentionRates.set(r.provider, cur);
   }
 
-  let multiProviderPrompts = 0;
-  let agreementSum = 0; // 0..1 per prompt — fraction of providers that match the majority
-  let mentionPrompts = 0; // # prompts where brand was mentioned by at least one provider
+  const rates = Array.from(providerMentionRates.entries()).map(([provider, v]) => ({
+    provider,
+    rate: v.total > 0 ? v.mentioned / v.total : 0,
+    mentioned: v.mentioned,
+    total: v.total,
+  }));
 
-  for (const [, group] of promptGroups) {
-    if (group.length < 2) continue;
-    multiProviderPrompts++;
-
-    const mentionedCount = group.filter((r) => r.brandMentioned).length;
-    if (mentionedCount > 0) mentionPrompts++;
-
-    // Per-prompt agreement: how strongly providers agree (1.0 = unanimous, 0.5 = split)
-    const majority = Math.max(mentionedCount, group.length - mentionedCount);
-    const agreement = majority / group.length;
-    // Only reward agreement when there's mention activity — agreement on absence is invisibility, not signal.
-    if (mentionedCount > 0) {
-      agreementSum += agreement;
-    }
-  }
-
-  // Fallback: if no multi-provider overlap, score based purely on mention rate across providers.
-  if (multiProviderPrompts === 0) {
-    const score = Math.round(mentionRate * 100);
+  if (rates.length < 2) {
+    const r0 = rates[0];
+    const score = r0 ? Math.round(r0.rate * 100) : 0;
     return {
       score,
-      label: score >= 60 ? 'High Consistency' : score >= 30 ? 'Mixed Signals' : 'Low Consistency',
-      detail: `Brand was mentioned in ${totalMentions} of ${validResults.length} provider responses (${Math.round(mentionRate * 100)}% mention rate).`,
+      label: score >= 60 ? 'Single Provider' : 'Insufficient Data',
+      detail: r0
+        ? `Only one provider returned valid responses: ${r0.provider} mentioned your brand in ${r0.mentioned}/${r0.total} prompts.`
+        : 'Not enough valid provider responses to measure consistency.',
     };
   }
 
-  // Combined score: agreement quality (when mentioned) blended with overall mention rate.
-  // - agreementScore rewards providers that consistently mention together.
-  // - mentionRate prevents a single mention with no overlap from claiming "high consistency".
-  const agreementScore = mentionPrompts > 0 ? agreementSum / multiProviderPrompts : 0;
-  const score = Math.round((agreementScore * 0.6 + mentionRate * 0.4) * 100);
+  // Spread = max-rate minus min-rate. Lower spread = higher consistency.
+  const maxRate = Math.max(...rates.map((r) => r.rate));
+  const minRate = Math.min(...rates.map((r) => r.rate));
+  const spread = maxRate - minRate;
+
+  // Average mention rate across providers (the visibility floor)
+  const avgRate = rates.reduce((sum, r) => sum + r.rate, 0) / rates.length;
+
+  // Consistency score: penalize spread heavily, but require some visibility for "high" labels.
+  // - 0% spread + any visibility -> 100 * sqrt(avgRate) (so 100% mentions = 100, 25% mentions = 50)
+  // - 50%+ spread (e.g., 8/8 vs 1/8 = 87.5% spread) -> dramatically reduced
+  const agreementFactor = Math.max(0, 1 - spread); // 1.0 = perfect agreement, 0 = total disagreement
+  const visibilityFactor = Math.sqrt(avgRate); // dampens — partial visibility yields partial consistency
+  const score = Math.round(agreementFactor * visibilityFactor * 100);
+
+  // Build human-readable detail showing the provider-by-provider breakdown
+  const breakdown = rates
+    .sort((a, b) => b.rate - a.rate)
+    .map((r) => `${r.provider} ${r.mentioned}/${r.total}`)
+    .join(', ');
 
   let label: string;
   let detail: string;
-  if (score >= 60) {
+  if (avgRate === 0) {
+    label = 'No Visibility';
+    detail = 'Your brand was not mentioned in any AI response, so consistency cannot be measured.';
+  } else if (spread <= 0.15 && avgRate >= 0.6) {
     label = 'High Consistency';
-    detail = `AI platforms agree about your brand on ${mentionPrompts} of ${multiProviderPrompts} overlapping prompts — a strong, reliable visibility signal.`;
-  } else if (score >= 30) {
-    label = 'Mixed Signals';
-    detail = `Brand mentioned in ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Some platforms mention you while others don't — visibility is fragile.`;
+    detail = `AI platforms agree about your brand: ${breakdown}. A reliable, repeatable visibility signal.`;
+  } else if (spread <= 0.35) {
+    label = 'Moderate Consistency';
+    detail = `Providers mostly agree but with some variance: ${breakdown}.`;
   } else {
     label = 'Low Consistency';
-    detail = `Brand appeared in only ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Most AI platforms don't yet reference your brand consistently.`;
+    detail = `Provider results diverge sharply: ${breakdown}. Visibility is platform-dependent rather than universal.`;
   }
 
   return { score, label, detail };
