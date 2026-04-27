@@ -2881,10 +2881,14 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
   matrix: Record<string, Record<string, boolean>>;
   brandRow: Record<string, boolean>;
 } {
-  const allCompetitors = new Set<string>();
+  const allCompetitors = new Map<string, string>(); // canonKey -> display
   const competitorCounts = new Map<string, number>();
   const promptTexts: string[] = [];
   const promptSet = new Set<string>();
+
+  // Compare via normalized key so "Gibson Dunn" and "Gibson Dunn & Crutcher LLP"
+  // (or any minor casing/punctuation drift across providers) collapse to one row.
+  const canonKey = (s: string) => normalizeEntityName(s);
 
   for (const result of results) {
     if (!promptSet.has(result.prompt)) {
@@ -2896,13 +2900,17 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
     // actually listed/recommended/preferred. Background-mention entities are
     // surfaced separately in the Competitor Landscape section.
     for (const competitor of result.recommendedEntities || []) {
-      allCompetitors.add(competitor);
-      competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
+      const key = canonKey(competitor);
+      if (!key) continue;
+      if (!allCompetitors.has(key)) allCompetitors.set(key, competitor);
+      // Prefer the longer display name (more complete canonical form).
+      else if (competitor.length > (allCompetitors.get(key) || '').length) allCompetitors.set(key, competitor);
+      competitorCounts.set(key, (competitorCounts.get(key) || 0) + 1);
     }
   }
 
-  const competitors = Array.from(allCompetitors).sort(
-    (a, b) => (competitorCounts.get(b) || 0) - (competitorCounts.get(a) || 0) || a.localeCompare(b)
+  const competitors = Array.from(allCompetitors.values()).sort(
+    (a, b) => (competitorCounts.get(canonKey(b)) || 0) - (competitorCounts.get(canonKey(a)) || 0) || a.localeCompare(b)
   );
   const matrix: Record<string, Record<string, boolean>> = {};
   const brandRow: Record<string, boolean> = {};
@@ -2916,8 +2924,11 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
     brandRow[prompt] = validResults.some((result) => result.brandMentioned);
 
     for (const competitor of competitors) {
+      const compKey = canonKey(competitor);
       if (!matrix[competitor]) matrix[competitor] = {};
-      matrix[competitor][prompt] = validResults.some((result) => (result.recommendedEntities || []).includes(competitor));
+      matrix[competitor][prompt] = validResults.some((result) =>
+        (result.recommendedEntities || []).some(re => canonKey(re) === compKey)
+      );
     }
   }
 
