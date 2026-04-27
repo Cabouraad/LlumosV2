@@ -2589,14 +2589,92 @@ const HIGH_INTENT_PROMPT_TERMS = [
   'attorney', 'attorneys', 'lawyer', 'lawyers',
 ];
 
+/**
+ * Buyer-intent classification for prompts. Drives weighted coverage,
+ * opportunity scoring, and content-gap prioritization.
+ *
+ * Weights (per spec):
+ *   High Commercial Intent  → 1.25
+ *   Provider Search Intent  → 1.00
+ *   Comparison / Evaluation → 0.75
+ *   Educational             → 0.50
+ */
+type PromptIntent =
+  | 'High Commercial Intent'
+  | 'Provider Search Intent'
+  | 'Comparison / Evaluation Intent'
+  | 'Educational Intent';
+
+const PROMPT_INTENT_WEIGHTS: Record<PromptIntent, number> = {
+  'High Commercial Intent': 1.25,
+  'Provider Search Intent': 1.0,
+  'Comparison / Evaluation Intent': 0.75,
+  'Educational Intent': 0.5,
+};
+
+const PROMPT_INTENT_PRIORITY: Record<PromptIntent, 'High' | 'Medium' | 'Low'> = {
+  'High Commercial Intent': 'High',
+  'Provider Search Intent': 'High',
+  'Comparison / Evaluation Intent': 'Medium',
+  'Educational Intent': 'Low',
+};
+
+function classifyPromptIntent(prompt: string): { intent: PromptIntent; weight: number; priority: 'High' | 'Medium' | 'Low' } {
+  const p = (prompt || '').toLowerCase();
+
+  // 1. High Commercial Intent — superlatives, "near me", alternative-to, "[role] for X"
+  const highCommercial =
+    /\b(best|top|leading|#1|number\s+one|cheapest|most\s+(?:trusted|recommended|reputable)|highest[-\s]rated|five[-\s]star)\b/.test(p) ||
+    /\bnear\s+me\b/.test(p) ||
+    /\balternatives?\s+to\b/.test(p) ||
+    /\b(law\s*firm|attorney|lawyer|agency|company|provider|service|firm)\s+for\b/.test(p);
+
+  if (highCommercial) {
+    return { intent: 'High Commercial Intent', weight: PROMPT_INTENT_WEIGHTS['High Commercial Intent'], priority: PROMPT_INTENT_PRIORITY['High Commercial Intent'] };
+  }
+
+  // 3. Comparison / Evaluation
+  const comparison =
+    /\b(vs|versus|compare|comparison|difference\s+between)\b/.test(p) ||
+    /\bwhat\s+(?:should\s+i\s+)?look\s+for\b/.test(p) ||
+    /\bhow\s+(?:do\s+i|to)\s+choose\b/.test(p) ||
+    /\bpros\s+and\s+cons\b/.test(p) ||
+    /\bquestions\s+to\s+ask\b/.test(p);
+  if (comparison) {
+    return { intent: 'Comparison / Evaluation Intent', weight: PROMPT_INTENT_WEIGHTS['Comparison / Evaluation Intent'], priority: PROMPT_INTENT_PRIORITY['Comparison / Evaluation Intent'] };
+  }
+
+  // 4. Educational Intent — "what is", "how does ... work", "guide", "tutorial"
+  const educational =
+    /\b(what\s+is|what\s+are|how\s+does\b.*\bwork|how\s+do\b.*\bwork|why\s+(?:is|do|does)|definition\s+of)\b/.test(p) ||
+    /\b(guide|tutorial|introduction|overview|explained|explainer|basics\s+of|101)\b/.test(p);
+  if (educational) {
+    return { intent: 'Educational Intent', weight: PROMPT_INTENT_WEIGHTS['Educational Intent'], priority: PROMPT_INTENT_PRIORITY['Educational Intent'] };
+  }
+
+  // 2. Provider Search Intent — names a provider role + a context (industry / location / specialty / use case)
+  const providerRole =
+    /\b(attorney|attorneys|lawyer|lawyers|firm|firms|law\s*firm|agency|agencies|provider|providers|company|companies|service|services|consultant|consultants|specialist|expert)\b/.test(p);
+  const providerContext =
+    /\b(in\s+[a-z][a-z\s]{2,}|for\s+(?:a|an|my|our)\s+\w+|for\s+\w+|near\s+\w+|specializing\s+in|that\s+(?:does|handles|covers))\b/.test(p) ||
+    /\b(litigation|dispute|probate|estate|criminal|family|employment|real\s+estate|injury|tax|patent|trademark|immigration|bankruptcy|civil)\b/.test(p);
+  if (providerRole && providerContext) {
+    return { intent: 'Provider Search Intent', weight: PROMPT_INTENT_WEIGHTS['Provider Search Intent'], priority: PROMPT_INTENT_PRIORITY['Provider Search Intent'] };
+  }
+  if (providerRole) {
+    // Bare provider role without strong commercial superlatives → still provider search.
+    return { intent: 'Provider Search Intent', weight: PROMPT_INTENT_WEIGHTS['Provider Search Intent'], priority: PROMPT_INTENT_PRIORITY['Provider Search Intent'] };
+  }
+
+  // Default: treat as educational (lowest weight) so unknown phrasing never inflates the score.
+  return { intent: 'Educational Intent', weight: PROMPT_INTENT_WEIGHTS['Educational Intent'], priority: PROMPT_INTENT_PRIORITY['Educational Intent'] };
+}
+
 function isHighIntentPrompt(prompt: string): boolean {
-  if (!prompt) return false;
-  const p = prompt.toLowerCase();
-  return HIGH_INTENT_PROMPT_TERMS.some(term => {
-    // word-boundary match so "service" doesn't catch "services" twice etc.
-    const re = new RegExp(`\\b${term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-    return re.test(p);
-  });
+  // Backwards-compat helper used by AI Opportunity Score's prompt-intent component.
+  // High-intent now means commercial OR provider-search (the two priorities sales cares about).
+  const { intent } = classifyPromptIntent(prompt);
+  return intent === 'High Commercial Intent' || intent === 'Provider Search Intent';
 }
 
 function computeAIOpportunityScore(
@@ -2652,18 +2730,33 @@ function computeAIOpportunityScore(
   }
 
   // 3. Prompt Intent Opportunity (0-20)
-  // Group valid results by prompt; a prompt counts as "brand present" if the brand was mentioned in ANY provider for that prompt.
-  const promptMap = new Map<string, { highIntent: boolean; brandPresent: boolean }>();
+  // Weighted by prompt buyer intent: missing a "best X near me" prompt costs more
+  // opportunity than missing "what is X". A prompt is "brand present" if the brand
+  // was mentioned in ANY provider for that prompt.
+  const promptMap = new Map<string, { intentWeight: number; highIntent: boolean; brandPresent: boolean }>();
   for (const r of valid) {
     const key = r.prompt || '';
-    const entry = promptMap.get(key) || { highIntent: isHighIntentPrompt(key), brandPresent: false };
+    const intentInfo = classifyPromptIntent(key);
+    const entry = promptMap.get(key) || {
+      intentWeight: intentInfo.weight,
+      highIntent: intentInfo.intent === 'High Commercial Intent' || intentInfo.intent === 'Provider Search Intent',
+      brandPresent: false,
+    };
     if (r.brandMentioned) entry.brandPresent = true;
     promptMap.set(key, entry);
   }
-  const highIntentPrompts = Array.from(promptMap.values()).filter(p => p.highIntent);
+  const allPrompts = Array.from(promptMap.values());
+  const highIntentPrompts = allPrompts.filter(p => p.highIntent);
   const highIntentPromptCount = highIntentPrompts.length;
   const absentHighIntentPromptCount = highIntentPrompts.filter(p => !p.brandPresent).length;
-  const absentHighIntentPromptRate = highIntentPromptCount > 0 ? absentHighIntentPromptCount / highIntentPromptCount : 0;
+  // Intent-weighted absence: sum(weight if absent) / sum(weight)
+  let weightedAbsenceNum = 0;
+  let weightedAbsenceDen = 0;
+  for (const p of allPrompts) {
+    weightedAbsenceDen += p.intentWeight;
+    if (!p.brandPresent) weightedAbsenceNum += p.intentWeight;
+  }
+  const absentHighIntentPromptRate = weightedAbsenceDen > 0 ? weightedAbsenceNum / weightedAbsenceDen : 0;
   const promptIntentOpportunityScore = Math.round(absentHighIntentPromptRate * 20);
 
   // 4. Provider Opportunity (0-20)
@@ -2775,6 +2868,9 @@ interface ContentGap {
   providers: string[];           // which AI platforms returned this gap
   competitorsWinning: string[];  // who is currently being recommended instead
   recommendation: string;        // specific action the brand should take
+  intent: PromptIntent;
+  intentWeight: number;
+  priority: 'High' | 'Medium' | 'Low';
 }
 
 function buildGapRecommendation(prompt: string, competitorsWinning: string[]): string {
@@ -2819,29 +2915,41 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
         if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
       }
     } else {
+      const intentInfo = classifyPromptIntent(topic);
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
         competitorsWinning: [...missed.competitors],
         recommendation: '',
+        intent: intentInfo.intent,
+        intentWeight: intentInfo.weight,
+        priority: intentInfo.priority,
       });
     }
   }
 
+  // Sort by intent weight first (high-intent prompts surface first), then by provider breadth.
   const gaps = Array.from(gapsByPrompt.values())
-    .sort((a, b) => b.providers.length - a.providers.length)
-    .slice(0, 3);
+    .sort((a, b) => {
+      if (b.intentWeight !== a.intentWeight) return b.intentWeight - a.intentWeight;
+      return b.providers.length - a.providers.length;
+    })
+    .slice(0, 5);
 
   for (const g of gaps) {
     g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning);
   }
 
   if (gaps.length === 0) {
+    const fallbackIntent = classifyPromptIntent('best providers in industry');
     return [{
       prompt: 'Industry comparison and "best of" queries',
       providers: ['ChatGPT', 'Perplexity', 'Google AIO'],
       competitorsWinning: [],
       recommendation: 'Build comparison and listicle content targeting high-intent commercial queries in your category. Include FAQ schema and 3rd-party validation.',
+      intent: fallbackIntent.intent,
+      intentWeight: fallbackIntent.weight,
+      priority: fallbackIntent.priority,
     }];
   }
 
@@ -3508,7 +3616,9 @@ async function generatePDF(
       const compLines = wrapText(competitorLine, 95);
       const providerLine = `Missing on: ${gap.providers.map(p => p === 'openai' ? 'ChatGPT' : p === 'perplexity' ? 'Perplexity' : p === 'google' ? 'Google AIO' : p).join(', ')}`;
 
-      const bodyContentH = 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
+      // Extra row inside body for Intent + Priority labels.
+      const intentLine = `Intent: ${gap.intent}    Priority: ${gap.priority}`;
+      const bodyContentH = 14 /* intent */ + 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
       const cardH = 22 + bodyContentH;
       if (y - cardH < 60) { page = newPage(); y = H - 60; }
 
@@ -3516,17 +3626,22 @@ async function generatePDF(
       page.drawRectangle({ x: M, y: y - 22, width: contentW, height: 22, color: navy });
       page.drawText(`Gap ${i + 1}: ${promptText}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
 
-      // Badge
-      const badgeText = 'Opportunity';
+      // Priority badge — color-coded by gap.priority
+      const priorityBadgeColor = gap.priority === 'High' ? red : gap.priority === 'Medium' ? amber : green;
+      const badgeText = `${gap.priority} Priority`;
       const badgeW = helveticaBold.widthOfTextAtSize(badgeText, 7) + 12;
-      page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: green });
+      page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: priorityBadgeColor });
       page.drawText(badgeText, { x: M + contentW - badgeW - 2, y: y - 15, size: 7, font: helveticaBold, color: white });
 
       // Body background
       page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) });
 
-      // Providers line
+      // Intent line
       let by = y - 34;
+      page.drawText(intentLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: navy });
+      by -= 14;
+
+      // Providers line
       page.drawText(providerLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: mid });
       by -= 14;
 
@@ -4268,13 +4383,24 @@ serve(async (req) => {
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
     // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
+    // Mention coverage is now WEIGHTED by prompt buyer intent (commercial > provider > comparison > educational),
+    // so winning a "best X near me" prompt counts more than winning "what is X".
     const mentionedResults = validResults.filter(r => r.brandMentioned);
-    const mentionRate = validResults.length > 0 ? mentionedResults.length / validResults.length : 0;
+    let weightedMentionNum = 0;
+    let weightedMentionDen = 0;
+    for (const r of validResults) {
+      const w = classifyPromptIntent(r.prompt).weight;
+      weightedMentionDen += w;
+      if (r.brandMentioned) weightedMentionNum += w;
+    }
+    const mentionRate = weightedMentionDen > 0 ? weightedMentionNum / weightedMentionDen : 0;
     const avgQuality = mentionedResults.length > 0
       ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
       : 0;
     // Weighted blend: 55% presence, 45% quality-when-present. Capped at 100.
     const baseScore = Math.round(mentionRate * 100 * 0.55 + avgQuality * 0.45);
+    console.log(`[AutoReport] Intent-weighted mention coverage: ${(mentionRate*100).toFixed(0)}% (raw=${mentionedResults.length}/${validResults.length})`);
+
 
     // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
@@ -4464,6 +4590,10 @@ serve(async (req) => {
               acc[c.type] = (acc[c.type] || 0) + 1;
               return acc;
             }, {} as Record<string, number>),
+            promptIntents: prompts.map((p) => {
+              const info = classifyPromptIntent(p);
+              return { prompt: p, intent: info.intent, weight: info.weight, priority: info.priority };
+            }),
           },
         });
       if (insertError) {
