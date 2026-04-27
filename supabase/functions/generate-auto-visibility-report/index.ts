@@ -3059,6 +3059,48 @@ async function generatePDF(
 
   y = y - scoreCardH - 12;
 
+  // ===== AI Opportunity Score card — separate from AI Visibility Score =====
+  if (aiOpportunity) {
+    const oppScore = aiOpportunity.score;
+    const oppCardH = 80;
+    page.drawRectangle({ x: M, y: y - oppCardH, width: contentW, height: oppCardH, color: navy });
+
+    page.drawText('AI Opportunity Score', { x: M + 14, y: y - 16, size: 9, font: helvetica, color: rgb(0.75, 0.75, 0.75) });
+    page.drawText('How much room is there to win visibility in this category?', {
+      x: M + 14, y: y - 28, size: 7, font: helveticaOblique, color: rgb(0.65, 0.65, 0.7),
+    });
+
+    const oppText = `${oppScore}`;
+    page.drawText(oppText, { x: M + 14, y: y - 62, size: 44, font: helveticaBold, color: yellow });
+    const otW = helveticaBold.widthOfTextAtSize(oppText, 44);
+    page.drawText('/ 100', { x: M + 18 + otW, y: y - 52, size: 16, font: helvetica, color: rgb(0.75, 0.75, 0.75) });
+
+    // Opportunity is INVERSE: high opportunity is a positive signal (room to grow), not a "good score".
+    const oppColor = oppScore >= 70 ? amber : oppScore >= 40 ? yellow : green;
+    drawTlDot(page, M + contentW - 130, y - 30, oppColor, 20);
+    page.drawText(aiOpportunity.label, { x: M + contentW - 105, y: y - 35, size: 9, font: helveticaBold, color: white });
+
+    // Opportunity bar (gradient from low->high opportunity)
+    const oppBarY = y - oppCardH + 10;
+    const oppBarW = contentW - 28;
+    page.drawRectangle({ x: M + 14, y: oppBarY, width: oppBarW, height: 8, color: rgb(0.15, 0.25, 0.35) });
+    page.drawRectangle({ x: M + 14, y: oppBarY, width: oppBarW * 0.4, height: 8, color: green });
+    page.drawRectangle({ x: M + 14 + oppBarW * 0.4, y: oppBarY, width: oppBarW * 0.3, height: 8, color: yellow });
+    page.drawRectangle({ x: M + 14 + oppBarW * 0.7, y: oppBarY, width: oppBarW * 0.3, height: 8, color: amber });
+    const oppMarkerX = M + 14 + (oppScore / 100) * oppBarW;
+    page.drawRectangle({ x: oppMarkerX - 2, y: oppBarY - 4, width: 4, height: 16, color: white });
+
+    y = y - oppCardH - 12;
+
+    // Opportunity breakdown callout
+    const b = aiOpportunity.breakdown;
+    const oppDetail =
+      `Category Opportunity: ${b.categoryOpportunity}/35   |   Competitor Gap: ${b.competitorGapScore}/25   |   ` +
+      `Prompt Intent: ${b.promptIntentOpportunityScore}/20   |   Provider Coverage Gap: ${b.providerOpportunityScore}/20\n` +
+      `Brand was absent from ${b.absentHighIntentPromptCount} of ${b.highIntentPromptCount} high-intent prompts and ${b.providersWhereBrandWasAbsent} of ${b.totalProviders} AI providers.`;
+    y = drawCalloutBox(page, oppDetail, y, oppColor);
+  }
+
   // Key metrics — 2x2 grid pillar-style cards
   const metricCols = [
     { label: 'Prompts Tested', value: `${promptsTested}`, color: green },
