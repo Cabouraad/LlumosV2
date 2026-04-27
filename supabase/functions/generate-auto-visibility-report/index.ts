@@ -2007,12 +2007,14 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
       result.response = aiOverview.snippet || aiOverview.text || '';
     }
 
+    result.brandName = brandProfile.primaryName;
+    result.brandAliases = brandProfile.aliases;
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
-    result.score = calculateProviderScore(result);
-    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
+    result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName, brandProfile.aliases);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
     result.brandPosition = detectBrandPosition(result.response, brandProfile.primaryName);
+    result.score = calculateProviderScore(result);
   } catch (error) {
     console.error('[AutoReport] Google AIO error:', error);
     result.response = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
