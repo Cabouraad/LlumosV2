@@ -396,10 +396,33 @@ function buildBrandProfile(
 
   const overrideName = (typeof companyNameOverride === 'string' ? companyNameOverride.trim() : '');
 
-  const candidates = dedupeBrandNames([
-    ...(overrideName ? [overrideName] : []),
+  // Filter homepage + research-context candidates: only keep those that share a token
+  // with the domain stem. This kills noise like "Civil Litigation Attorneys" (a heading)
+  // or "California" (first capitalized phrase in research context) being treated as the brand.
+  const stemTokens = new Set(
+    (normalizedStem.match(/[a-z]{4,}/g) || []).concat(
+      // Also split a glued stem ("mclellanlawgroup") into pieces if any common suffix is present
+      ['law', 'group', 'firm', 'team', 'media', 'agency', 'partners', 'studio'].flatMap((s) =>
+        normalizedStem.includes(s) ? [normalizedStem.replace(s, '')] : []
+      )
+    ).filter((t) => t.length >= 4)
+  );
+  const sharesStemToken = (name: string): boolean => {
+    const norm = normalizeEntityName(name);
+    if (!norm) return false;
+    if (norm === normalizedStem || norm.includes(normalizedStem) || normalizedStem.includes(norm)) return true;
+    const tokens = norm.split(/\s+/).filter((t) => t.length >= 4);
+    return tokens.some((t) => stemTokens.has(t) || normalizedStem.includes(t));
+  };
+
+  const externalCandidates = [
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
+  ].filter((c) => c && sharesStemToken(c));
+
+  const candidates = dedupeBrandNames([
+    ...(overrideName ? [overrideName] : []),
+    ...externalCandidates,
     fallbackName,
   ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
@@ -587,47 +610,59 @@ function findBrandMention(text: string, brandProfile: BrandProfile): { index: nu
 }
 
 function brandMentionedInText(text: string, brandProfile: BrandProfile): boolean {
-  return findBrandMention(text, brandProfile) !== null;
-}
+  if (!text || !brandProfile) return false;
 
-function dedupeBrandNames(names: string[]): string[] {
-  const seen = new Set<string>();
-  const deduped: string[] = [];
+  // STRICT detection: only match the canonical primaryName, its compact form (no spaces),
+  // or the domain stem. This is the SAME signal used by analyzeSentiment, ensuring the
+  // scorecard, sentiment, and recommendation sections of the report cannot disagree.
+  // We deliberately do NOT iterate the full alias list here — aliases are used only for
+  // entity expansion elsewhere (e.g., self-exclusion in competitor extraction).
+  const candidates = new Set<string>();
+  const add = (s: string | undefined | null) => {
+    if (typeof s !== 'string') return;
+    const trimmed = s.trim();
+    if (trimmed.length >= 4) candidates.add(trimmed);
+  };
 
-  for (const name of names) {
-    const normalized = normalizeEntityName(name);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    deduped.push(name.trim());
+  add(brandProfile.primaryName);
+  // Compact form: "McLellan Law Group" -> "McLellanLawGroup" / "mclellanlawgroup"
+  if (brandProfile.primaryName) {
+    add(brandProfile.primaryName.replace(/\s+/g, ''));
+  }
+  // Domain stem (the actual website identifier — most reliable brand token)
+  const domainStem = brandProfile.aliases?.find((a) => /^[a-z0-9]+$/i.test(a) && a.length >= 4);
+  if (domainStem) add(domainStem);
+
+  for (const candidate of candidates) {
+    const normalized = candidate.toLowerCase();
+    // Word-boundary match — same approach analyzeSentiment uses (substring),
+    // but with boundary protection to avoid partial-word collisions.
+    const source = aliasToRegexSource(candidate);
+    if (!source) continue;
+    const regex = new RegExp(`(^|[^a-z0-9])(${source})(?=[^a-z0-9]|$)`, 'i');
+    if (regex.test(text)) return true;
+    // Also accept compact substring presence (handles cases where the LLM concatenates)
+    if (normalized.length >= 8 && text.toLowerCase().includes(normalized)) return true;
   }
 
-  return deduped;
+  return false;
 }
 
 function hasBrandLikeShape(name: string): boolean {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length < 2) return false;
-  // Domain-like patterns (contains a dot)
   if (/\./.test(trimmed)) return true;
   const words = trimmed.split(/\s+/);
-  // Multi-word: at least one word starts with a capital letter AND not all words are common English
   if (words.length >= 2) {
     const hasCapital = words.some(w => /^[A-Z]/.test(w));
     const allCommon = words.every(w => COMMON_ENGLISH_WORDS.has(w.toLowerCase()));
     return hasCapital && !allCommon;
   }
-  // Single word rules — much stricter to avoid sentence-start false positives
-  // Reject if it's a common English word
   if (COMMON_ENGLISH_WORDS.has(trimmed.toLowerCase())) return false;
   if (GENERIC_COMPETITOR_TERMS.has(trimmed.toLowerCase())) return false;
-  // Internal caps (e.g., "HubSpot", "LawRank")
   if (/[a-z][A-Z]/.test(trimmed)) return true;
-  // Short all-caps acronym (e.g., "SAP", "IBM")
   if (/^[A-Z]{2,6}$/.test(trimmed)) return true;
-  // Contains digits mixed with letters (e.g., "G2", "360i")
   if (/\d/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) return true;
-  // Capitalized word 5+ chars — only if it looks "brand-like" (not a common word)
-  // We already filtered common words above, so remaining 5+ char capitalized words are likely brands
   if (/^[A-Z][a-z]{4,}/.test(trimmed)) return true;
   return false;
 }
@@ -2083,64 +2118,71 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
     };
   }
 
-  // Group by prompt and measure agreement across providers per prompt.
-  // "Agreement" = all providers for that prompt either all-mention or all-omit.
-  // We then weight by visibility so a brand that's invisible everywhere doesn't get
-  // credit for "agreement on absence".
-  const promptGroups = new Map<string, ProviderResult[]>();
-  for (const result of validResults) {
-    const arr = promptGroups.get(result.prompt) || [];
-    arr.push(result);
-    promptGroups.set(result.prompt, arr);
+  // Compute per-PROVIDER mention rates and measure how tightly providers agree with each other.
+  // True consistency = providers behave similarly. Wide variance (e.g. ChatGPT 8/8, Google 1/8)
+  // indicates LOW consistency, no matter how strong any single provider's signal is.
+  const providerMentionRates = new Map<string, { mentioned: number; total: number }>();
+  for (const r of validResults) {
+    const cur = providerMentionRates.get(r.provider) || { mentioned: 0, total: 0 };
+    cur.total += 1;
+    if (r.brandMentioned) cur.mentioned += 1;
+    providerMentionRates.set(r.provider, cur);
   }
 
-  let multiProviderPrompts = 0;
-  let agreementSum = 0; // 0..1 per prompt — fraction of providers that match the majority
-  let mentionPrompts = 0; // # prompts where brand was mentioned by at least one provider
+  const rates = Array.from(providerMentionRates.entries()).map(([provider, v]) => ({
+    provider,
+    rate: v.total > 0 ? v.mentioned / v.total : 0,
+    mentioned: v.mentioned,
+    total: v.total,
+  }));
 
-  for (const [, group] of promptGroups) {
-    if (group.length < 2) continue;
-    multiProviderPrompts++;
-
-    const mentionedCount = group.filter((r) => r.brandMentioned).length;
-    if (mentionedCount > 0) mentionPrompts++;
-
-    // Per-prompt agreement: how strongly providers agree (1.0 = unanimous, 0.5 = split)
-    const majority = Math.max(mentionedCount, group.length - mentionedCount);
-    const agreement = majority / group.length;
-    // Only reward agreement when there's mention activity — agreement on absence is invisibility, not signal.
-    if (mentionedCount > 0) {
-      agreementSum += agreement;
-    }
-  }
-
-  // Fallback: if no multi-provider overlap, score based purely on mention rate across providers.
-  if (multiProviderPrompts === 0) {
-    const score = Math.round(mentionRate * 100);
+  if (rates.length < 2) {
+    const r0 = rates[0];
+    const score = r0 ? Math.round(r0.rate * 100) : 0;
     return {
       score,
-      label: score >= 60 ? 'High Consistency' : score >= 30 ? 'Mixed Signals' : 'Low Consistency',
-      detail: `Brand was mentioned in ${totalMentions} of ${validResults.length} provider responses (${Math.round(mentionRate * 100)}% mention rate).`,
+      label: score >= 60 ? 'Single Provider' : 'Insufficient Data',
+      detail: r0
+        ? `Only one provider returned valid responses: ${r0.provider} mentioned your brand in ${r0.mentioned}/${r0.total} prompts.`
+        : 'Not enough valid provider responses to measure consistency.',
     };
   }
 
-  // Combined score: agreement quality (when mentioned) blended with overall mention rate.
-  // - agreementScore rewards providers that consistently mention together.
-  // - mentionRate prevents a single mention with no overlap from claiming "high consistency".
-  const agreementScore = mentionPrompts > 0 ? agreementSum / multiProviderPrompts : 0;
-  const score = Math.round((agreementScore * 0.6 + mentionRate * 0.4) * 100);
+  // Spread = max-rate minus min-rate. Lower spread = higher consistency.
+  const maxRate = Math.max(...rates.map((r) => r.rate));
+  const minRate = Math.min(...rates.map((r) => r.rate));
+  const spread = maxRate - minRate;
+
+  // Average mention rate across providers (the visibility floor)
+  const avgRate = rates.reduce((sum, r) => sum + r.rate, 0) / rates.length;
+
+  // Consistency score: penalize spread heavily, but require some visibility for "high" labels.
+  // - 0% spread + any visibility -> 100 * sqrt(avgRate) (so 100% mentions = 100, 25% mentions = 50)
+  // - 50%+ spread (e.g., 8/8 vs 1/8 = 87.5% spread) -> dramatically reduced
+  const agreementFactor = Math.max(0, 1 - spread); // 1.0 = perfect agreement, 0 = total disagreement
+  const visibilityFactor = Math.sqrt(avgRate); // dampens — partial visibility yields partial consistency
+  const score = Math.round(agreementFactor * visibilityFactor * 100);
+
+  // Build human-readable detail showing the provider-by-provider breakdown
+  const breakdown = rates
+    .sort((a, b) => b.rate - a.rate)
+    .map((r) => `${r.provider} ${r.mentioned}/${r.total}`)
+    .join(', ');
 
   let label: string;
   let detail: string;
-  if (score >= 60) {
+  if (avgRate === 0) {
+    label = 'No Visibility';
+    detail = 'Your brand was not mentioned in any AI response, so consistency cannot be measured.';
+  } else if (spread <= 0.15 && avgRate >= 0.6) {
     label = 'High Consistency';
-    detail = `AI platforms agree about your brand on ${mentionPrompts} of ${multiProviderPrompts} overlapping prompts — a strong, reliable visibility signal.`;
-  } else if (score >= 30) {
-    label = 'Mixed Signals';
-    detail = `Brand mentioned in ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Some platforms mention you while others don't — visibility is fragile.`;
+    detail = `AI platforms agree about your brand: ${breakdown}. A reliable, repeatable visibility signal.`;
+  } else if (spread <= 0.35) {
+    label = 'Moderate Consistency';
+    detail = `Providers mostly agree but with some variance: ${breakdown}.`;
   } else {
     label = 'Low Consistency';
-    detail = `Brand appeared in only ${totalMentions} of ${validResults.length} checks (${Math.round(mentionRate * 100)}%). Most AI platforms don't yet reference your brand consistently.`;
+    detail = `Provider results diverge sharply: ${breakdown}. Visibility is platform-dependent rather than universal.`;
   }
 
   return { score, label, detail };
@@ -3248,9 +3290,21 @@ async function generatePDF(
 
       y -= 16;
 
-      // Response excerpt
-      if (r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')) {
-        const rawExcerpt = r.response.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (r.response.length > 300 ? '...' : '');
+      // Response excerpt — always render SOMETHING so blank Google AI sections are not mistaken for "no data"
+      const rawResp = (r.response || '').trim();
+      const isNoOverview = rawResp.startsWith('No AI Overview');
+      const isError = rawResp.startsWith('Error') || rawResp.startsWith('Provider not');
+      if (isError) {
+        y = drawWrappedText(page, `(${rawResp})`, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y -= 4;
+      } else if (isNoOverview || rawResp.length === 0) {
+        const placeholder = r.provider.toLowerCase().includes('google')
+          ? '(Google did not return an AI Overview for this query — Google AI Overviews are only generated for ~30–40% of searches.)'
+          : '(No content returned for this query.)';
+        y = drawWrappedText(page, placeholder, M + 14, y, { size: 8, font: helveticaOblique, color: light, maxChars: 88, lineSpacing: 11 });
+        y -= 4;
+      } else {
+        const rawExcerpt = rawResp.substring(0, 300).replace(/\*\*/g, '').replace(/\*/g, '').replace(/#{1,6}\s+/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() + (rawResp.length > 300 ? '...' : '');
         y = drawWrappedText(page, rawExcerpt, M + 14, y, { size: 8, font: helvetica, color: mid, maxChars: 88, lineSpacing: 11 });
         y -= 4;
       }
@@ -3719,9 +3773,26 @@ serve(async (req) => {
     // Share of Voice bonus: up to +10 when brand dominates the conversation
     const sovBonus = Math.round(shareOfVoice.sov * 10);
 
-    const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
+    let overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
+    // ===== CROSS-VALIDATION GUARDRAIL =====
+    // The strict-substring sentiment analyzer is the most conservative truth signal.
+    // If sentiment says the brand was never mentioned (across ALL valid responses),
+    // clamp the overall score and rebuild per-provider/per-result mention flags so the
+    // scorecard, sentiment, recommendation, and matrix sections cannot disagree.
+    const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
+    if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Clamping score and resetting mention flags to match sentiment truth.`);
+      for (const r of allResults) {
+        r.brandMentioned = false;
+        r.score = 0;
+        r.recommendationStrength = 'absent';
+        r.brandPosition = null;
+      }
+      overallScore = Math.min(overallScore, 12);
+    }
+
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), sentimentMentions: ${sentimentMentionCount}, final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
