@@ -3601,7 +3601,9 @@ async function generatePDF(
       const compLines = wrapText(competitorLine, 95);
       const providerLine = `Missing on: ${gap.providers.map(p => p === 'openai' ? 'ChatGPT' : p === 'perplexity' ? 'Perplexity' : p === 'google' ? 'Google AIO' : p).join(', ')}`;
 
-      const bodyContentH = 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
+      // Extra row inside body for Intent + Priority labels.
+      const intentLine = `Intent: ${gap.intent}    Priority: ${gap.priority}`;
+      const bodyContentH = 14 /* intent */ + 14 /* providers */ + (compLines.length * 11) + 6 + 14 /* "Action" label */ + (recLines.length * 11) + 14;
       const cardH = 22 + bodyContentH;
       if (y - cardH < 60) { page = newPage(); y = H - 60; }
 
@@ -3609,17 +3611,22 @@ async function generatePDF(
       page.drawRectangle({ x: M, y: y - 22, width: contentW, height: 22, color: navy });
       page.drawText(`Gap ${i + 1}: ${promptText}`, { x: M + 10, y: y - 16, size: 9, font: helveticaBold, color: white });
 
-      // Badge
-      const badgeText = 'Opportunity';
+      // Priority badge — color-coded by gap.priority
+      const priorityBadgeColor = gap.priority === 'High' ? red : gap.priority === 'Medium' ? amber : green;
+      const badgeText = `${gap.priority} Priority`;
       const badgeW = helveticaBold.widthOfTextAtSize(badgeText, 7) + 12;
-      page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: green });
+      page.drawRectangle({ x: M + contentW - badgeW - 8, y: y - 18, width: badgeW, height: 14, color: priorityBadgeColor });
       page.drawText(badgeText, { x: M + contentW - badgeW - 2, y: y - 15, size: 7, font: helveticaBold, color: white });
 
       // Body background
       page.drawRectangle({ x: M, y: y - cardH, width: contentW, height: cardH - 22, color: rgb(1.0, 0.99, 0.90) });
 
-      // Providers line
+      // Intent line
       let by = y - 34;
+      page.drawText(intentLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: navy });
+      by -= 14;
+
+      // Providers line
       page.drawText(providerLine, { x: M + 10, y: by, size: 8, font: helveticaBold, color: mid });
       by -= 14;
 
