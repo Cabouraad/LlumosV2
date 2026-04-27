@@ -2626,7 +2626,10 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
       promptTexts.push(result.prompt);
     }
 
-    for (const competitor of result.competitors) {
+    // Head-to-Head Matrix uses RECOMMENDATION EVENTS only — entities the AI
+    // actually listed/recommended/preferred. Background-mention entities are
+    // surfaced separately in the Competitor Landscape section.
+    for (const competitor of result.recommendedEntities || []) {
       allCompetitors.add(competitor);
       competitorCounts.set(competitor, (competitorCounts.get(competitor) || 0) + 1);
     }
