@@ -78,6 +78,10 @@ interface ReportRequest {
    *  precedence over homepage-extracted candidates so we don't end up with
    *  bogus primary names like "Client Login" or "A. Holt". */
   companyName?: string;
+  /** Admin-only: when true, capture and persist a per-entity extraction debug
+   *  trace into metadata.entityDebug (visibility_report_requests + visibility_reports).
+   *  Adds no surface area to the prospect-facing PDF. */
+  debug?: boolean;
 }
 
 interface BrandProfile {
