@@ -1449,15 +1449,23 @@ Return ONLY a JSON array of 8 prompt strings, no other text:
     if (jsonMatch) {
       const prompts = JSON.parse(jsonMatch[0]);
       if (Array.isArray(prompts) && prompts.length >= 8) {
-        return prompts.slice(0, 8);
+        return prompts.slice(0, 8).map(sanitizePromptYear);
       }
     }
     
-    return getDefaultPrompts(domain);
+    return getDefaultPrompts(domain).map(sanitizePromptYear);
   } catch (error) {
     console.error('[AutoReport] Error generating prompts:', error);
-    return getDefaultPrompts(domain);
+    return getDefaultPrompts(domain).map(sanitizePromptYear);
   }
+}
+
+/**
+ * Replace any stale year (2020-2024) with 2025 to keep prompts current.
+ */
+function sanitizePromptYear(prompt: string): string {
+  if (typeof prompt !== 'string') return prompt;
+  return prompt.replace(/\b20(1\d|2[0-4])\b/g, '2025');
 }
 
 function getDefaultPrompts(domain: string): string[] {
