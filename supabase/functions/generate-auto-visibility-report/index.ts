@@ -5724,6 +5724,8 @@ serve(async (req) => {
               recommendationEventsTotal: competitorRecommendationEvents.length,
               recommendationEventsUnique: new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size,
             },
+            // Admin-only debug trace — only present when caller passed debug=true.
+            ...(entityDebug ? { entityDebug: { rows: entityDebug.rows.slice(0, 2000), summary: entityDebug.summary } } : {}),
           },
         });
       if (insertError) {
