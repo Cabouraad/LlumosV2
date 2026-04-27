@@ -3576,15 +3576,27 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
     const existing = gapsByPrompt.get(key);
     if (existing) {
       if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
+      const existingKeys = new Set(existing.competitorsWinning.map(c => normalizeEntityName(c)));
       for (const c of (missed.recommendedEntities || [])) {
-        if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
+        const k = normalizeEntityName(c);
+        if (k && !existingKeys.has(k)) {
+          existing.competitorsWinning.push(c);
+          existingKeys.add(k);
+        }
       }
     } else {
       const intentInfo = classifyPromptIntent(topic);
+      // Dedupe on first build too (in case the same provider response surfaces variants).
+      const seenKeys = new Set<string>();
+      const seeded: string[] = [];
+      for (const c of (missed.recommendedEntities || [])) {
+        const k = normalizeEntityName(c);
+        if (k && !seenKeys.has(k)) { seenKeys.add(k); seeded.push(c); }
+      }
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
-        competitorsWinning: [...(missed.recommendedEntities || [])],
+        competitorsWinning: seeded,
         recommendation: '',
         intent: intentInfo.intent,
         intentWeight: intentInfo.weight,
