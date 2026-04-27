@@ -261,8 +261,9 @@ Deno.test("Share of Voice is 0% when the brand has 0 recommendation events", () 
 });
 
 Deno.test("AI Visibility Score is 0/100 when the brand is never mentioned", () => {
-  const score = computeVisibilityScore(RESULTS as never);
-  assertEquals(score.final, 0, `expected 0, got ${score.final}`);
+  const sov = computeShareOfVoice(RESULTS);
+  const score = computeVisibilityScore(RESULTS as never, sov.sov);
+  assertEquals(score.finalScore, 0, `expected 0, got ${score.finalScore}`);
 });
 
 Deno.test("AI Opportunity Score remains high when brand is absent and competitors dominate", () => {
