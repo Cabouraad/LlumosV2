@@ -5138,6 +5138,7 @@ function buildEntityDebugTrace(
   brandProfile: BrandProfile,
   domain: string,
   promptIdFor: (prompt: string) => string,
+  classifyByName: (name: string) => string,
 ): EntityDebugTrace {
   const rows: EntityDebugRow[] = [];
   const excludedByReason: Record<string, number> = {};
