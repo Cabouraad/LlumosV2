@@ -1847,6 +1847,11 @@ async function queryChatGPT(prompt: string, brandProfile: BrandProfile, competit
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1903,6 +1908,11 @@ async function queryPerplexity(prompt: string, brandProfile: BrandProfile, compe
     result.response = data.choices[0]?.message?.content || '';
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -1969,6 +1979,11 @@ async function queryClaude(prompt: string, brandProfile: BrandProfile, competito
     result.response = (data.content || []).map((b: any) => b.text || '').join('\n').trim();
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -2050,6 +2065,11 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
 
     result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     result.competitors = extractCompetitors(result.response, brandProfile, competitorCandidates);
+    {
+      const __cls = classifyEntityMentions(result.competitors, result.response);
+      result.recommendedEntities = __cls.recommended;
+      result.entityMentionStatus = __cls.statuses;
+    }
     result.score = calculateProviderScore(result);
     result.sentiment = analyzeSentiment(result.response, brandProfile.primaryName);
     result.recommendationStrength = analyzeRecommendationStrength(result.response, brandProfile.primaryName);
@@ -4911,6 +4931,11 @@ serve(async (req) => {
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
       result.competitors = extractCompetitors(result.response, brandProfile, refinedCompetitorCandidates);
+      {
+        const __cls = classifyEntityMentions(result.competitors, result.response);
+        result.recommendedEntities = __cls.recommended;
+        result.entityMentionStatus = __cls.statuses;
+      }
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
