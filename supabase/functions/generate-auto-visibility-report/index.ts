@@ -5021,6 +5021,70 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
+    // ===== Build aiMentionedEntities + competitorRecommendationEvents =====
+    // aiMentionedEntities  → every named org/firm/service/etc. (powers the
+    //                        Detailed Competitor Landscape, Competitors Mentioned
+    //                        by AI, Competitor Types Found, Entity Discovery).
+    // competitorRecommendationEvents → strict subset where the AI listed /
+    //                        recommended / preferred the entity (powers SoV,
+    //                        Head-to-Head Matrix, Content Gap "competitors
+    //                        winning here", AI Opportunity competitor gap).
+    const aiMentionedEntities: AIMentionedEntity[] = [];
+    const competitorRecommendationEvents: CompetitorRecommendationEvent[] = [];
+    let promptIdCounter = 0;
+    const promptIdMap = new Map<string, string>();
+    const promptIdFor = (promptText: string): string => {
+      const existing = promptIdMap.get(promptText);
+      if (existing) return existing;
+      promptIdCounter += 1;
+      const id = `p${promptIdCounter}`;
+      promptIdMap.set(promptText, id);
+      return id;
+    };
+    for (const r of validResults) {
+      const promptId = promptIdFor(r.prompt);
+      for (const entity of r.competitors || []) {
+        const canonical = entity.toLowerCase().trim();
+        if (!canonical) continue;
+        const status = (r.entityMentionStatus && r.entityMentionStatus[canonical]) || 'named';
+        const entityType = classifyByName(entity);
+        const evidence = buildEvidenceSnippet(entity, r.response);
+        const mentionCount = countEntityMentions(entity, r.response);
+        aiMentionedEntities.push({
+          entityName: entity,
+          canonicalName: canonical,
+          provider: r.provider,
+          promptId,
+          promptText: r.prompt,
+          entityType,
+          mentionCount,
+          evidenceSnippet: evidence,
+          mentionStatus: status,
+        });
+
+        if (status === 'listed' || status === 'recommended' || status === 'preferred') {
+          // Map mention status → recommendation strength.
+          //   preferred   → strong
+          //   recommended → moderate
+          //   listed      → weak
+          const recommendationStrength: 'strong' | 'moderate' | 'weak' =
+            status === 'preferred' ? 'strong' : status === 'recommended' ? 'moderate' : 'weak';
+          competitorRecommendationEvents.push({
+            entityName: entity,
+            canonicalName: canonical,
+            provider: r.provider,
+            promptId,
+            promptText: r.prompt,
+            entityType,
+            recommendationStrength,
+            position: detectEntityPosition(entity, r.response),
+            evidenceSnippet: evidence,
+          });
+        }
+      }
+    }
+    console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
+
     // ===== Single source of truth for the AI Visibility Score =====
     // All five components (Mention Coverage, Prompt Coverage, Provider Coverage,
     // Mention Quality, Competitive SoV) and the zero-mention + single-mention
