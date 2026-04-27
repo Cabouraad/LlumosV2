@@ -2900,29 +2900,41 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
         if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
       }
     } else {
+      const intentInfo = classifyPromptIntent(topic);
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
         competitorsWinning: [...missed.competitors],
         recommendation: '',
+        intent: intentInfo.intent,
+        intentWeight: intentInfo.weight,
+        priority: intentInfo.priority,
       });
     }
   }
 
+  // Sort by intent weight first (high-intent prompts surface first), then by provider breadth.
   const gaps = Array.from(gapsByPrompt.values())
-    .sort((a, b) => b.providers.length - a.providers.length)
-    .slice(0, 3);
+    .sort((a, b) => {
+      if (b.intentWeight !== a.intentWeight) return b.intentWeight - a.intentWeight;
+      return b.providers.length - a.providers.length;
+    })
+    .slice(0, 5);
 
   for (const g of gaps) {
     g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning);
   }
 
   if (gaps.length === 0) {
+    const fallbackIntent = classifyPromptIntent('best providers in industry');
     return [{
       prompt: 'Industry comparison and "best of" queries',
       providers: ['ChatGPT', 'Perplexity', 'Google AIO'],
       competitorsWinning: [],
       recommendation: 'Build comparison and listicle content targeting high-intent commercial queries in your category. Include FAQ schema and 3rd-party validation.',
+      intent: fallbackIntent.intent,
+      intentWeight: fallbackIntent.weight,
+      priority: fallbackIntent.priority,
     }];
   }
 
