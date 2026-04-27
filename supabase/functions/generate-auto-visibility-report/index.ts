@@ -5257,8 +5257,9 @@ serve(async (req) => {
     score = body.score;
     const callerRequestId = body.requestId || null;
     const companyNameOverride = (typeof body.companyName === 'string' ? body.companyName.trim() : '') || undefined;
+    const debugMode = body.debug === true;
 
-    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}`);
+    console.log(`[AutoReport] Starting report generation for ${domain}${callerRequestId ? ` (caller row: ${callerRequestId})` : ''}${companyNameOverride ? ` (companyName: ${companyNameOverride})` : ''}${debugMode ? ' [DEBUG]' : ''}`);
 
     // ===== Idempotency guard: prevent duplicate emails for the same email+domain =====
     const dedupeClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
