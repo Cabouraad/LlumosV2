@@ -3135,13 +3135,20 @@ async function generatePDF(
   const faint  = rgb(0.88, 0.88, 0.90);
   const accent = navy; // primary accent is navy
 
-  const scoreColor = (s: number) => s >= 70 ? green : s >= 40 ? amber : red;
-  const scoreLabel = (s: number) => s >= 70 ? 'Strong' : s >= 40 ? 'Moderate' : 'Low';
-  const scoreTlLabel = (s: number) => s >= 70 ? 'On Track' : s >= 40 ? 'In Progress' : 'Critical Priority';
+  // Color + label use the new 6-band visibility model (see getVisibilityBand).
+  const tierColor = (tier: 'red' | 'amber' | 'green') => tier === 'green' ? green : tier === 'amber' ? amber : red;
+  const scoreColor = (s: number) => tierColor(getVisibilityBand(s).tier);
+  const scoreLabel = (s: number) => getVisibilityBand(s).label;
+  const scoreTlLabel = (s: number) => getVisibilityBand(s).label;
 
   const industryBenchmark = getIndustryBenchmark(businessContext);
   const contentGaps = analyzeContentGaps(results, domain);
-  const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark);
+  const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
+    aiOpportunity,
+    categoryDiagnostic,
+    shareOfVoiceInfo,
+    classifiedCompetitors,
+  });
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
   // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
