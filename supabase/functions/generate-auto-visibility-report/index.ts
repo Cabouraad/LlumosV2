@@ -569,6 +569,19 @@ const WEAK_SINGLE_TOKEN_ALIASES = new Set([
   'and', 'the', 'of', 'for',
 ]);
 
+function dedupeBrandNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const name of names) {
+    if (typeof name !== 'string') continue;
+    const normalized = normalizeEntityName(name);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(name.trim());
+  }
+  return deduped;
+}
+
 function isStrongAlias(alias: string, brandProfile: BrandProfile): boolean {
   const normalized = normalizeEntityName(alias);
   if (!normalized) return false;
