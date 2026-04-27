@@ -5045,9 +5045,197 @@ async function sendReportEmail(
   }
 }
 
-/**
- * Main handler
- */
+// ============================================================================
+// Admin-only entity extraction debug trace
+// ============================================================================
+//
+// When the caller passes { debug: true }, we capture a per-entity audit trail
+// for every prompt × provider response. The trace is persisted in
+// metadata.entityDebug on both visibility_report_requests and visibility_reports
+// so it can be inspected via SQL — it never reaches the prospect-facing PDF.
+//
+// For each raw entity match we record:
+//   - originalText           the literal candidate string before canonicalization
+//   - canonicalName          the canonical display name (or null if filtered out)
+//   - entityType             classifier output (firm, mediator, association, etc.)
+//   - mentionStatus          named | listed | recommended | preferred
+//   - position               1-based list position when detectable
+//   - evidenceSnippet        ±80 char excerpt around the first occurrence
+//   - includedInCompetitorLandscape   true if it survived to aiMentionedEntities
+//   - includedInShareOfVoice          true if it became a recommendation event
+//   - excludedReason         when excluded: client_brand | generic_term |
+//                            duplicate_alias | irrelevant_entity |
+//                            citation_or_source_only | location_only |
+//                            not_an_organization
+//
+// Plus rolled-up summary counts.
+interface EntityDebugRow {
+  promptId: string;
+  prompt: string;
+  provider: string;
+  originalText: string;
+  canonicalName: string | null;
+  entityType: string;
+  mentionStatus: 'named' | 'listed' | 'recommended' | 'preferred' | 'n/a';
+  position: number | null;
+  evidenceSnippet: string;
+  includedInCompetitorLandscape: boolean;
+  includedInShareOfVoice: boolean;
+  excludedReason?:
+    | 'client_brand'
+    | 'generic_term'
+    | 'duplicate_alias'
+    | 'irrelevant_entity'
+    | 'citation_or_source_only'
+    | 'location_only'
+    | 'not_an_organization';
+}
+
+interface EntityDebugTrace {
+  rows: EntityDebugRow[];
+  summary: {
+    totalRawMatches: number;
+    totalCanonicalEntities: number;
+    totalAiMentioned: number;
+    totalRecommendationEvents: number;
+    totalExcluded: number;
+    excludedByReason: Record<string, number>;
+  };
+}
+
+const LOCATION_TOKENS = new Set([
+  'los angeles', 'san francisco', 'new york', 'chicago', 'boston', 'seattle',
+  'california', 'texas', 'florida', 'washington', 'oregon', 'nevada',
+  'usa', 'united states', 'us', 'america', 'manhattan', 'brooklyn', 'queens',
+]);
+
+function classifyExcludedReason(
+  candidate: string,
+  brandProfile: BrandProfile,
+  domain: string,
+): EntityDebugRow['excludedReason'] {
+  const norm = normalizeEntityName(candidate);
+  if (!norm) return 'irrelevant_entity';
+  if (isSelfBrandCandidate(candidate, brandProfile, domain)) return 'client_brand';
+  if (NON_COMPETITOR_ENTITIES.has(norm)) return 'irrelevant_entity';
+  if (GENERIC_COMPETITOR_TERMS.has(norm)) return 'generic_term';
+  if (LOCATION_TOKENS.has(norm)) return 'location_only';
+  // Citation / source markers like "[1]", "1.", "see footnote"
+  if (/^(?:\[\d+\]|\(\d+\)|\d+\.?|footnote|source|see)$/i.test(candidate.trim())) {
+    return 'citation_or_source_only';
+  }
+  // No alphabetic content → not an organization
+  if (!/[a-zA-Z]/.test(candidate)) return 'not_an_organization';
+  // Single-word, all-lowercase, not in known map → likely not an org
+  if (!candidate.includes(' ') && candidate === candidate.toLowerCase() && !/^[a-z]{2,6}$/.test(candidate)) {
+    return 'not_an_organization';
+  }
+  return 'irrelevant_entity';
+}
+
+function buildEntityDebugTrace(
+  validResults: ProviderResult[],
+  brandProfile: BrandProfile,
+  domain: string,
+  promptIdFor: (prompt: string) => string,
+): EntityDebugTrace {
+  const rows: EntityDebugRow[] = [];
+  const excludedByReason: Record<string, number> = {};
+  const seenCanonical = new Set<string>();
+  let totalRawMatches = 0;
+  let totalAiMentioned = 0;
+  let totalRecommendationEvents = 0;
+  let totalExcluded = 0;
+
+  for (const r of validResults) {
+    if (!r.response) continue;
+    const promptId = promptIdFor(r.prompt);
+
+    // Re-run the raw extractor so we can see what was found BEFORE filtering.
+    // extractAllOrgEntitiesFromText already applies self-brand exclusion +
+    // isLikelyCompetitorBrand, so anything r.competitors lacks but the text
+    // contains was filtered out — surface it as excluded.
+    const acceptedSet = new Set((r.competitors || []).map(c => normalizeEntityName(c)));
+    const acceptedDisplayByKey = new Map<string, string>();
+    for (const c of r.competitors || []) acceptedDisplayByKey.set(normalizeEntityName(c), c);
+
+    // Pull the broader candidate stream (pre-filter) by re-invoking the raw
+    // pattern matchers. We approximate by intersecting with a permissive
+    // domain/title-case sweep. This intentionally over-collects so excluded
+    // entities show up in the trace.
+    const rawCandidates = new Set<string>();
+    for (const m of r.response.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev|law|legal|gov|edu)\b/gi) || []) rawCandidates.add(m);
+    for (const m of r.response.match(/\b[A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){1,4}\b/g) || []) rawCandidates.add(m);
+    for (const m of r.response.match(/\b[A-Z]{2,6}\b/g) || []) rawCandidates.add(m);
+    // Also include everything we accepted (so accepted rows always appear).
+    for (const c of r.competitors || []) rawCandidates.add(c);
+
+    for (const candidate of rawCandidates) {
+      totalRawMatches++;
+      const key = normalizeEntityName(candidate);
+      if (!key) continue;
+
+      const accepted = acceptedSet.has(key);
+      const canonical = accepted ? canonicalizeEntityName(acceptedDisplayByKey.get(key) || candidate) : null;
+      const status: EntityDebugRow['mentionStatus'] = accepted
+        ? ((r.entityMentionStatus && r.entityMentionStatus[(canonical || candidate).toLowerCase()]) as any) || 'named'
+        : 'n/a';
+      const isRec = accepted && (status === 'listed' || status === 'recommended' || status === 'preferred');
+
+      const row: EntityDebugRow = {
+        promptId,
+        prompt: r.prompt,
+        provider: r.provider,
+        originalText: candidate,
+        canonicalName: canonical,
+        entityType: accepted ? classifyByName(canonical || candidate) : 'unknown',
+        mentionStatus: status,
+        position: accepted ? detectEntityPosition(canonical || candidate, r.response) : null,
+        evidenceSnippet: buildEvidenceSnippet(canonical || candidate, r.response),
+        includedInCompetitorLandscape: accepted,
+        includedInShareOfVoice: isRec,
+      };
+
+      if (!accepted) {
+        const reason = classifyExcludedReason(candidate, brandProfile, domain);
+        // Suppress duplicate-alias noise: if a longer accepted form already
+        // covers this fragment (e.g., "Gibson" when "Gibson Dunn & Crutcher"
+        // was accepted), tag as duplicate_alias.
+        let finalReason: EntityDebugRow['excludedReason'] = reason;
+        for (const acceptedKey of acceptedSet) {
+          if (acceptedKey && acceptedKey !== key && (acceptedKey.includes(key) || key.includes(acceptedKey))) {
+            finalReason = 'duplicate_alias';
+            break;
+          }
+        }
+        row.excludedReason = finalReason;
+        excludedByReason[finalReason || 'irrelevant_entity'] =
+          (excludedByReason[finalReason || 'irrelevant_entity'] || 0) + 1;
+        totalExcluded++;
+      } else {
+        totalAiMentioned++;
+        if (isRec) totalRecommendationEvents++;
+        if (canonical) seenCanonical.add(canonical.toLowerCase());
+      }
+
+      rows.push(row);
+    }
+  }
+
+  return {
+    rows,
+    summary: {
+      totalRawMatches,
+      totalCanonicalEntities: seenCanonical.size,
+      totalAiMentioned,
+      totalRecommendationEvents,
+      totalExcluded,
+      excludedByReason,
+    },
+  };
+}
+
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
