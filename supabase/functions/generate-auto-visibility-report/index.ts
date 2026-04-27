@@ -2395,6 +2395,138 @@ function computeShareOfVoice(results: ProviderResult[]): { sov: number; brandMen
 }
 
 /**
+ * AI Opportunity Score — answers "How much room is there to win visibility in this category?"
+ * This is INTENTIONALLY separate from the AI Visibility Score and must NOT be blended into it.
+ *
+ * Components:
+ *   1. Category Opportunity (0-35)
+ *   2. Competitor Gap       (0-25)
+ *   3. Prompt Intent Opportunity (0-20) — share of high-intent prompts where the brand is absent
+ *   4. Provider Opportunity (0-20) — share of providers where the brand never appears
+ */
+const HIGH_INTENT_PROMPT_TERMS = [
+  'best', 'top', 'near me', 'alternative', 'alternatives',
+  'company', 'companies', 'firm', 'firms', 'agency', 'agencies',
+  'provider', 'providers', 'service', 'services',
+  'attorney', 'attorneys', 'lawyer', 'lawyers',
+];
+
+function isHighIntentPrompt(prompt: string): boolean {
+  if (!prompt) return false;
+  const p = prompt.toLowerCase();
+  return HIGH_INTENT_PROMPT_TERMS.some(term => {
+    // word-boundary match so "service" doesn't catch "services" twice etc.
+    const re = new RegExp(`\\b${term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
+    return re.test(p);
+  });
+}
+
+function computeAIOpportunityScore(
+  results: ProviderResult[],
+  categoryCoverage: number,
+): {
+  score: number;
+  label: 'High Opportunity' | 'Moderate Opportunity' | 'Low Opportunity';
+  breakdown: {
+    categoryOpportunity: number;
+    competitorGapScore: number;
+    promptIntentOpportunityScore: number;
+    providerOpportunityScore: number;
+    absentHighIntentPromptRate: number;
+    providerOpportunity: number;
+    brandRecommendationEvents: number;
+    competitorRecommendationEvents: number;
+    highIntentPromptCount: number;
+    absentHighIntentPromptCount: number;
+    totalProviders: number;
+    providersWhereBrandWasAbsent: number;
+  };
+} {
+  const valid = results.filter(
+    r => r.response && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview')
+  );
+
+  // 1. Category Opportunity (0-35)
+  let categoryOpportunity = 15;
+  if (categoryCoverage < 0.25) categoryOpportunity = 35;
+  else if (categoryCoverage < 0.6) categoryOpportunity = 25;
+
+  // 2. Competitor Gap (0-25)
+  // Recommendation event = a valid response where the entity is recommended/preferred (strong signal).
+  let brandRecommendationEvents = 0;
+  let competitorRecommendationEvents = 0;
+  for (const r of valid) {
+    if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
+      brandRecommendationEvents += 1;
+    }
+    // Treat any response that names competitors as a competitor-recommendation event,
+    // because in practice these AI answers are framing competitors as options/recommendations.
+    if (r.competitors && r.competitors.length > 0) {
+      competitorRecommendationEvents += 1;
+    }
+  }
+
+  let competitorGapScore = 5;
+  if (competitorRecommendationEvents > 0 && brandRecommendationEvents === 0) {
+    competitorGapScore = 25;
+  } else if (competitorRecommendationEvents > 0 && brandRecommendationEvents > 0) {
+    competitorGapScore = 10;
+  }
+
+  // 3. Prompt Intent Opportunity (0-20)
+  // Group valid results by prompt; a prompt counts as "brand present" if the brand was mentioned in ANY provider for that prompt.
+  const promptMap = new Map<string, { highIntent: boolean; brandPresent: boolean }>();
+  for (const r of valid) {
+    const key = r.prompt || '';
+    const entry = promptMap.get(key) || { highIntent: isHighIntentPrompt(key), brandPresent: false };
+    if (r.brandMentioned) entry.brandPresent = true;
+    promptMap.set(key, entry);
+  }
+  const highIntentPrompts = Array.from(promptMap.values()).filter(p => p.highIntent);
+  const highIntentPromptCount = highIntentPrompts.length;
+  const absentHighIntentPromptCount = highIntentPrompts.filter(p => !p.brandPresent).length;
+  const absentHighIntentPromptRate = highIntentPromptCount > 0 ? absentHighIntentPromptCount / highIntentPromptCount : 0;
+  const promptIntentOpportunityScore = Math.round(absentHighIntentPromptRate * 20);
+
+  // 4. Provider Opportunity (0-20)
+  const providerSet = new Map<string, { mentioned: boolean }>();
+  for (const r of valid) {
+    const entry = providerSet.get(r.provider) || { mentioned: false };
+    if (r.brandMentioned) entry.mentioned = true;
+    providerSet.set(r.provider, entry);
+  }
+  const totalProviders = providerSet.size;
+  const providersWhereBrandWasAbsent = Array.from(providerSet.values()).filter(p => !p.mentioned).length;
+  const providerOpportunity = totalProviders > 0 ? providersWhereBrandWasAbsent / totalProviders : 0;
+  const providerOpportunityScore = Math.round(providerOpportunity * 20);
+
+  let score = categoryOpportunity + competitorGapScore + promptIntentOpportunityScore + providerOpportunityScore;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const label: 'High Opportunity' | 'Moderate Opportunity' | 'Low Opportunity' =
+    score >= 70 ? 'High Opportunity' : score >= 40 ? 'Moderate Opportunity' : 'Low Opportunity';
+
+  return {
+    score,
+    label,
+    breakdown: {
+      categoryOpportunity,
+      competitorGapScore,
+      promptIntentOpportunityScore,
+      providerOpportunityScore,
+      absentHighIntentPromptRate,
+      providerOpportunity,
+      brandRecommendationEvents,
+      competitorRecommendationEvents,
+      highIntentPromptCount,
+      absentHighIntentPromptCount,
+      totalProviders,
+      providersWhereBrandWasAbsent,
+    },
+  };
+}
+
+/**
  * Apply blur effect to text by replacing with asterisks
  */
 function blurText(text: string): string {
