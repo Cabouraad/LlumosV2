@@ -3052,6 +3052,11 @@ function generateExecutiveSummary(
 
   // === Closing context for 0-mention case ===
   if (verifiedMentionCount === 0) {
+    if (aiMentionedCount > 0 || competitorCount > 0) {
+      summary.push(
+        'However, competitors and adjacent providers appeared in several responses, which indicates an opportunity to build category authority and become a recommended option.'
+      );
+    }
     summary.push('Category difficulty and competitor presence are reported separately and explain the market context — they do not increase your visibility score. Visibility points are only awarded when your brand is actually named.');
   } else {
     // Benchmark comparison only when we have mentions
