@@ -4692,12 +4692,7 @@ serve(async (req) => {
             emailSent,
             providers: ['chatgpt', 'perplexity', 'claude', 'google_aio'],
             generatedAt: new Date().toISOString(),
-            scoreBreakdown: {
-              base: baseScore,
-              shareOfVoiceBonus: sovBonus,
-              final: overallScore,
-              note: 'Category difficulty is a separate diagnostic and does not contribute to the AI Visibility Score.',
-            },
+            scoreBreakdown,
             categoryVisibility: {
               coverage: Number(categoryVisibility.coverage.toFixed(2)),
               label: categoryVisibility.label,
