@@ -4188,6 +4188,8 @@ serve(async (req) => {
         providersQueried: 4,
         categoryVisibility: categoryVisibility.label,
         shareOfVoice: Number(shareOfVoice.sov.toFixed(2)),
+        aiOpportunityScore: aiOpportunity.score,
+        aiOpportunityLabel: aiOpportunity.label,
         emailSent,
       },
     };
