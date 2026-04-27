@@ -535,10 +535,41 @@ function aliasToRegexSource(alias: string): string | null {
   return cleaned.split(/\s+/).filter(Boolean).map((token) => escapeRegExp(token)).join('[\\s\\-._&]*');
 }
 
+// Generic legal/business descriptors that must NEVER be used as a single-token brand alias.
+// These cause massive false positives (e.g., "law", "group", "team", "firm" appearing in every legal response).
+const WEAK_SINGLE_TOKEN_ALIASES = new Set([
+  'law', 'legal', 'group', 'firm', 'team', 'company', 'co', 'inc', 'llc', 'llp', 'pllc', 'pc', 'pa',
+  'corp', 'corporation', 'ltd', 'lp', 'partners', 'partner', 'agency', 'studio', 'labs', 'media',
+  'marketing', 'consulting', 'services', 'solutions', 'systems', 'tech', 'software', 'capital',
+  'ventures', 'attorneys', 'attorney', 'lawyers', 'lawyer', 'clinic', 'health', 'dental', 'realty',
+  'homes', 'office', 'offices', 'practice', 'global', 'national', 'international', 'associates',
+  'and', 'the', 'of', 'for',
+]);
+
+function isStrongAlias(alias: string, brandProfile: BrandProfile): boolean {
+  const normalized = normalizeEntityName(alias);
+  if (!normalized) return false;
+  const words = normalized.split(' ').filter(Boolean);
+  // Multi-word aliases are always strong (assuming they survived earlier filters)
+  if (words.length >= 2) {
+    // But reject if EVERY word is weak/generic
+    if (words.every((w) => WEAK_SINGLE_TOKEN_ALIASES.has(w))) return false;
+    return true;
+  }
+  // Single-token alias: must be ≥4 chars, not a generic descriptor, not a common english word
+  const token = words[0];
+  if (!token || token.length < 4) return false;
+  if (WEAK_SINGLE_TOKEN_ALIASES.has(token)) return false;
+  if (COMMON_ENGLISH_WORDS.has(token)) return false;
+  if (GENERIC_COMPETITOR_TERMS.has(token)) return false;
+  return true;
+}
+
 function findBrandMention(text: string, brandProfile: BrandProfile): { index: number; alias: string } | null {
   let bestMatch: { index: number; alias: string } | null = null;
 
   for (const alias of brandProfile.aliases) {
+    if (!isStrongAlias(alias, brandProfile)) continue;
     const source = aliasToRegexSource(alias);
     if (!source) continue;
 
