@@ -3307,7 +3307,7 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
       gapsByPrompt.set(key, {
         prompt: topic,
         providers: [missed.provider],
-        competitorsWinning: [...missed.competitors],
+        competitorsWinning: [...(missed.recommendedEntities || [])],
         recommendation: '',
         intent: intentInfo.intent,
         intentWeight: intentInfo.weight,
