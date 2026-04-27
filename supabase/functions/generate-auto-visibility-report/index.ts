@@ -396,10 +396,33 @@ function buildBrandProfile(
 
   const overrideName = (typeof companyNameOverride === 'string' ? companyNameOverride.trim() : '');
 
-  const candidates = dedupeBrandNames([
-    ...(overrideName ? [overrideName] : []),
+  // Filter homepage + research-context candidates: only keep those that share a token
+  // with the domain stem. This kills noise like "Civil Litigation Attorneys" (a heading)
+  // or "California" (first capitalized phrase in research context) being treated as the brand.
+  const stemTokens = new Set(
+    (normalizedStem.match(/[a-z]{4,}/g) || []).concat(
+      // Also split a glued stem ("mclellanlawgroup") into pieces if any common suffix is present
+      ['law', 'group', 'firm', 'team', 'media', 'agency', 'partners', 'studio'].flatMap((s) =>
+        normalizedStem.includes(s) ? [normalizedStem.replace(s, '')] : []
+      )
+    ).filter((t) => t.length >= 4)
+  );
+  const sharesStemToken = (name: string): boolean => {
+    const norm = normalizeEntityName(name);
+    if (!norm) return false;
+    if (norm === normalizedStem || norm.includes(normalizedStem) || normalizedStem.includes(norm)) return true;
+    const tokens = norm.split(/\s+/).filter((t) => t.length >= 4);
+    return tokens.some((t) => stemTokens.has(t) || normalizedStem.includes(t));
+  };
+
+  const externalCandidates = [
     ...homepageSignals.brandCandidates,
     ...extractBrandCandidatesFromContext(businessContext),
+  ].filter((c) => c && sharesStemToken(c));
+
+  const candidates = dedupeBrandNames([
+    ...(overrideName ? [overrideName] : []),
+    ...externalCandidates,
     fallbackName,
   ]).filter((c) => c && c.length >= 2 && !/^\d+$/.test(c.trim()));
 
