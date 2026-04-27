@@ -3731,9 +3731,26 @@ serve(async (req) => {
     // Share of Voice bonus: up to +10 when brand dominates the conversation
     const sovBonus = Math.round(shareOfVoice.sov * 10);
 
-    const overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
+    let overallScore = Math.max(0, Math.min(100, baseScore + categoryVisibility.adjustment + sovBonus));
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), final: ${overallScore}`);
+    // ===== CROSS-VALIDATION GUARDRAIL =====
+    // The strict-substring sentiment analyzer is the most conservative truth signal.
+    // If sentiment says the brand was never mentioned (across ALL valid responses),
+    // clamp the overall score and rebuild per-provider/per-result mention flags so the
+    // scorecard, sentiment, recommendation, and matrix sections cannot disagree.
+    const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
+    if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Clamping score and resetting mention flags to match sentiment truth.`);
+      for (const r of allResults) {
+        r.brandMentioned = false;
+        r.score = 0;
+        r.recommendationStrength = 'absent';
+        r.brandPosition = null;
+      }
+      overallScore = Math.min(overallScore, 12);
+    }
+
+    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, category adj: ${categoryVisibility.adjustment} (${categoryVisibility.label}), SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), sentimentMentions: ${sentimentMentionCount}, final: ${overallScore}`);
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
