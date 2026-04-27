@@ -2523,6 +2523,69 @@ function classifyEntityMentionStatus(entity: string, response: string): EntityMe
  * strict subset of entities that count as recommendation events
  * (status ∈ {listed, recommended, preferred}).
  */
+/**
+ * Build a list of search variants for a canonical entity so we can locate it
+ * in the raw AI response even when the response uses a shorter form
+ * ("Gibson Dunn" vs canonical "Gibson Dunn & Crutcher LLP", "JAMS" vs
+ * canonical "JAMS", "Bet Tzedek" vs "Bet Tzedek Legal Services").
+ *
+ * Variants tried (in order of specificity):
+ *   1. The canonical itself
+ *   2. Canonical with legal suffixes stripped ("Gibson Dunn & Crutcher")
+ *   3. Canonical with parenthetical clarifications stripped
+ *   4. All KNOWN_ENTITY_MAP keys that resolve to this canonical
+ *      (covers domains, abbreviations, short forms)
+ *   5. The first 2 words of the canonical, if multi-word ("Gibson Dunn",
+ *      "Quinn Emanuel", "Munger Tolles", "Latham Watkins", "Farella Braun")
+ */
+function entitySearchVariants(canonical: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (v: string) => {
+    const t = (v || '').trim();
+    if (!t || t.length < 2) return;
+    const k = t.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(t);
+  };
+
+  add(canonical);
+
+  // Strip legal suffix (LLP, LLC, Inc., PC, ...) for a looser match.
+  add(canonical.replace(LEGAL_SUFFIX_RE, ' ').replace(/\s+/g, ' ').trim());
+
+  // Strip trailing parenthetical clarifications.
+  add(canonical.replace(/\s*\([^)]*\)\s*$/g, '').trim());
+
+  // KNOWN_ENTITY_MAP reverse lookup: every key that resolves to this canonical.
+  for (const [key, value] of Object.entries(KNOWN_ENTITY_MAP)) {
+    if (value === canonical) add(key);
+  }
+
+  // First two words for multi-word firm names ("Gibson Dunn", "Quinn Emanuel").
+  const cleaned = canonical
+    .replace(LEGAL_SUFFIX_RE, ' ')
+    .replace(/[(),.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = cleaned.split(' ').filter(Boolean);
+  if (words.length >= 2) add(`${words[0]} ${words[1]}`);
+
+  return out;
+}
+
+/**
+ * Build the per-result map of canonical entity → mention status, plus the
+ * strict subset of entities that count as recommendation events
+ * (status ∈ {listed, recommended, preferred}).
+ *
+ * For each canonical entity we try its search variants against the response
+ * and use the FIRST variant that's actually present, so a response saying
+ * "Gibson Dunn" still classifies the canonical "Gibson Dunn & Crutcher LLP"
+ * correctly (instead of always returning 'named' because the literal string
+ * never appeared verbatim).
+ */
 function classifyEntityMentions(
   entities: string[],
   response: string,
@@ -2530,18 +2593,34 @@ function classifyEntityMentions(
   const statuses: Record<string, EntityMentionStatus> = {};
   const recommended: string[] = [];
   const seenRec = new Set<string>();
+  const lowerResponse = response.toLowerCase();
   for (const e of entities) {
     const canon = e.toLowerCase().trim();
     if (!canon) continue;
-    const status = classifyEntityMentionStatus(e, response);
-    statuses[canon] = status;
-    if (status !== 'named' && !seenRec.has(canon)) {
+    // Pick the longest variant that actually appears in the response, so we
+    // classify based on the most specific form available.
+    let bestStatus: EntityMentionStatus = 'named';
+    const variants = entitySearchVariants(e).filter(v => lowerResponse.includes(v.toLowerCase()));
+    if (variants.length === 0) {
+      statuses[canon] = 'named';
+      continue;
+    }
+    for (const v of variants) {
+      const s = classifyEntityMentionStatus(v, response);
+      // Promote to the strongest status seen across variants.
+      if (s === 'preferred') { bestStatus = 'preferred'; break; }
+      if (s === 'recommended' && bestStatus !== 'preferred') bestStatus = 'recommended';
+      else if (s === 'listed' && bestStatus === 'named') bestStatus = 'listed';
+    }
+    statuses[canon] = bestStatus;
+    if (bestStatus !== 'named' && !seenRec.has(canon)) {
       seenRec.add(canon);
       recommended.push(e);
     }
   }
   return { statuses, recommended };
 }
+
 
 /**
  * Pull a short ±80-char evidence snippet around the first mention of `entity`
