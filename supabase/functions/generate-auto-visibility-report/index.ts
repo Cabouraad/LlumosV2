@@ -4544,11 +4544,21 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
-    // Share of Voice bonus: up to +10 when brand dominates the conversation.
-    const sovBonus = Math.round(shareOfVoice.sov * 10);
+    // Competitive Share of Voice (10): brand recommendation events vs. competitors.
+    const competitiveSovScore = Math.round(shareOfVoice.sov * 10);
 
-
-    let overallScore = Math.max(0, Math.min(100, baseScore + sovBonus));
+    // Final = sum of the 5 transparent components, capped at 100.
+    let overallScore = Math.max(
+      0,
+      Math.min(
+        100,
+        mentionCoverageScore +
+          promptCoverageScore +
+          providerCoverageScore +
+          mentionQualityScore +
+          competitiveSovScore,
+      ),
+    );
 
     // ===== CROSS-VALIDATION GUARDRAIL =====
     // The strict-substring sentiment analyzer is the most conservative truth signal.
@@ -4567,13 +4577,49 @@ serve(async (req) => {
     }
 
     // Hard floor: zero verified brand mentions => 0/100. Category difficulty cannot
-    // lift the score; it is reported as a separate diagnostic only.
+    // lift the score; it is reported as a separate diagnostic only. Every visibility
+    // component is also forced to 0 so the breakdown matches the headline.
     const verifiedMentionCount = validResults.filter(r => r.brandMentioned).length;
+    let mentionCoverageFinal = mentionCoverageScore;
+    let promptCoverageFinal = promptCoverageScore;
+    let providerCoverageFinal = providerCoverageScore;
+    let mentionQualityFinal = mentionQualityScore;
+    let competitiveSovFinal = competitiveSovScore;
     if (verifiedMentionCount === 0) {
       overallScore = 0;
+      mentionCoverageFinal = 0;
+      promptCoverageFinal = 0;
+      providerCoverageFinal = 0;
+      mentionQualityFinal = 0;
+      competitiveSovFinal = 0;
     }
 
-    console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
+    // Bundle the breakdown for the PDF + persisted metadata. This is the single
+    // source of truth shown to prospects.
+    const scoreBreakdown = {
+      components: {
+        mentionCoverage:    { score: mentionCoverageFinal,   max: 40 },
+        promptCoverage:     { score: promptCoverageFinal,    max: 20 },
+        providerCoverage:   { score: providerCoverageFinal,  max: 15 },
+        mentionQuality:     { score: mentionQualityFinal,    max: 15 },
+        competitiveSov:     { score: competitiveSovFinal,    max: 10 },
+      },
+      diagnostics: {
+        validResponses: validResults.length,
+        verifiedBrandMentions: verifiedMentionCount,
+        promptsCovered: `${promptsWithBrand.size}/${allPrompts.size}`,
+        providersCovered: `${providersWithBrand.size}/${allProviders.size}`,
+        competitorRecommendationEvents: shareOfVoice.competitorRecommendationEvents,
+        categoryCoverage: `${Math.round((categoryVisibility.coverage || 0) * 100)}%`,
+        categoryDifficulty: categoryVisibility.label,
+      },
+      finalScore: overallScore,
+      note:
+        'Category Difficulty is not added to the AI Visibility Score. ' +
+        'It is shown separately to explain whether AI platforms are naming brands in this category at all.',
+    };
+
+    console.log(`[AutoReport] Score breakdown — mention:${mentionCoverageFinal}/40 prompt:${promptCoverageFinal}/20 provider:${providerCoverageFinal}/15 quality:${mentionQualityFinal}/15 sov:${competitiveSovFinal}/10 → final:${overallScore}/100 (verifiedMentions=${verifiedMentionCount}, sentimentMentions=${sentimentMentionCount}, category(diagnostic only)=${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%)`);
 
     // AI Opportunity Score — separate from AI Visibility Score. Answers:
     // "How much room is there to win visibility in this category?"
@@ -4582,7 +4628,7 @@ serve(async (req) => {
 
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity, classifiedCompetitors, scoreBreakdown);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
