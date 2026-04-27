@@ -2959,13 +2959,14 @@ async function generatePDF(
     : `Your score is ${Math.abs(bDiff)} points below the ${industryBenchmark.industry} average of ${industryBenchmark.benchmark}/100.`;
   y = drawCalloutBox(page, bText, y, bDiff >= 0 ? green : red);
 
-  // Category visibility diagnostic (D) — clarifies whether low scores are due to
-  // invisible brand or invisible category.
+  // Category visibility diagnostic — explains the market context. NOT part of the score.
   if (categoryDiagnostic) {
     const catColor =
       categoryDiagnostic.label === 'Active Category' ? green :
       categoryDiagnostic.label === 'Sparse Category' ? amber : red;
-    const catText = `Category Coverage: ${categoryDiagnostic.label}. ${categoryDiagnostic.detail}`;
+    const pct = Math.round((categoryDiagnostic.coverage || 0) * 100);
+    const interp = categoryDiagnostic.interpretation || categoryDiagnostic.detail;
+    const catText = `Category Difficulty: ${categoryDiagnostic.label}   |   Category Coverage: ${pct}%\nInterpretation: ${interp}`;
     y = drawCalloutBox(page, catText, y, catColor);
   }
 
