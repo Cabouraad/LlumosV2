@@ -2651,7 +2651,7 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 
     for (const competitor of competitors) {
       if (!matrix[competitor]) matrix[competitor] = {};
-      matrix[competitor][prompt] = validResults.some((result) => result.competitors.includes(competitor));
+      matrix[competitor][prompt] = validResults.some((result) => (result.recommendedEntities || []).includes(competitor));
     }
   }
 
