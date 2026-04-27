@@ -1405,11 +1405,16 @@ CRITICAL RULES:
 - All prompts should plausibly surface named firms, agencies, products, or competing brands
 
 REQUIRED MIX (exactly 8 prompts following this distribution):
-- 2 BROAD category prompts: "best [category]", "top [category] in [year]"
+- 2 BROAD category prompts: "best [category]", "top [category] in 2025" or evergreen phrasing
 - 3 LONG-TAIL intent prompts: include a specific buyer scenario, company size, geography, budget,
   use case, or industry vertical (e.g. "best CRM for a 10-person law firm", "marketing agency for B2B SaaS startups under $5M ARR")
 - 2 COMPARISON / "vs" prompts: "X vs Y for [use case]" or "alternatives to [well-known incumbent] for [need]"
 - 1 BUYER-DECISION prompt: "How do I choose…", "What should I look for in…", that requires the AI to name providers
+
+YEAR RULES (STRICT):
+- NEVER use the years 2020, 2021, 2022, 2023, or 2024 in any prompt under any circumstance.
+- If a year is included, it MUST be 2025 or 2026, or use evergreen phrasing like "right now", "this year", or no year at all.
+- Reject any phrasing like "in 2023" or "for 2024" — replace with "in 2025" or remove the year entirely.
 
 Prompts must reflect what an actual buyer types when CHOOSING a provider, not what they type to learn the topic.`
           },
@@ -1444,15 +1449,23 @@ Return ONLY a JSON array of 8 prompt strings, no other text:
     if (jsonMatch) {
       const prompts = JSON.parse(jsonMatch[0]);
       if (Array.isArray(prompts) && prompts.length >= 8) {
-        return prompts.slice(0, 8);
+        return prompts.slice(0, 8).map(sanitizePromptYear);
       }
     }
     
-    return getDefaultPrompts(domain);
+    return getDefaultPrompts(domain).map(sanitizePromptYear);
   } catch (error) {
     console.error('[AutoReport] Error generating prompts:', error);
-    return getDefaultPrompts(domain);
+    return getDefaultPrompts(domain).map(sanitizePromptYear);
   }
+}
+
+/**
+ * Replace any stale year (2020-2024) with 2025 to keep prompts current.
+ */
+function sanitizePromptYear(prompt: string): string {
+  if (typeof prompt !== 'string') return prompt;
+  return prompt.replace(/\b20(1\d|2[0-4])\b/g, '2025');
 }
 
 function getDefaultPrompts(domain: string): string[] {
