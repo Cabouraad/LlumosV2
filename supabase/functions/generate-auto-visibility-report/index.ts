@@ -100,6 +100,10 @@ interface ProviderResult {
   sentiment: 'positive' | 'neutral' | 'negative' | 'not_mentioned';
   recommendationStrength: 'strong' | 'moderate' | 'weak' | 'absent';
   brandPosition: number | null; // position in list if applicable (1-based), null if not in a list
+  // Brand identity carried alongside the response so brand-adjacent helpers (sentiment,
+  // positive-context scoring) can use the actual primary name + aliases instead of guessing.
+  brandName?: string;
+  brandAliases?: string[];
 }
 
 // Only exclude platforms/channels/directories/AI models that are NEVER competitors
