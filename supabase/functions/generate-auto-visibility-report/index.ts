@@ -5220,6 +5220,17 @@ serve(async (req) => {
               const info = classifyPromptIntent(p);
               return { prompt: p, intent: info.intent, weight: info.weight, priority: info.priority };
             }),
+            // Two separate arrays so the report can show ALL named entities
+            // while keeping Share of Voice / Head-to-Head / Content Gap
+            // conservative (recommendation events only).
+            aiMentionedEntities: aiMentionedEntities.slice(0, 1000),
+            competitorRecommendationEvents: competitorRecommendationEvents.slice(0, 500),
+            entityCounts: {
+              aiMentionedTotal: aiMentionedEntities.length,
+              aiMentionedUnique: new Set(aiMentionedEntities.map(e => e.canonicalName)).size,
+              recommendationEventsTotal: competitorRecommendationEvents.length,
+              recommendationEventsUnique: new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size,
+            },
           },
         });
       if (insertError) {
