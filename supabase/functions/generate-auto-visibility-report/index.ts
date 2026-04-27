@@ -3102,9 +3102,10 @@ function computeAIOpportunityScore(
     if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
       brandRecommendationEvents += 1;
     }
-    // Treat any response that names competitors as a competitor-recommendation event,
-    // because in practice these AI answers are framing competitors as options/recommendations.
-    if (r.competitors && r.competitors.length > 0) {
+    // Competitor gap counts only RECOMMENDATION EVENTS — entities the AI
+    // listed/recommended/preferred. Background mentions don't represent a
+    // visibility threat for the brand.
+    if (r.recommendedEntities && r.recommendedEntities.length > 0) {
       competitorRecommendationEvents += 1;
     }
   }
