@@ -4703,51 +4703,24 @@ serve(async (req) => {
     // Category difficulty is a SEPARATE diagnostic and never adds points to the score.
     const validResults = allResults.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-    // Refined base: blend mention rate (presence) with quality of mentions (positioning/recommendation).
-    // Mention coverage is now WEIGHTED by prompt buyer intent (commercial > provider > comparison > educational),
-    // so winning a "best X near me" prompt counts more than winning "what is X".
+    // ===== CROSS-VALIDATION GUARDRAIL =====
+    // The strict-substring sentiment analyzer is the most conservative truth signal.
+    // If sentiment says the brand was never mentioned (across ALL valid responses),
+    // reset per-result mention flags so the scorecard, sentiment, recommendation,
+    // and matrix sections cannot disagree. Run BEFORE scoring so the helper sees
+    // the corrected flags.
+    const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
+    const preGuardrailMentioned = validResults.filter(r => r.brandMentioned).length;
+    if (validResults.length > 0 && sentimentMentionCount === 0 && preGuardrailMentioned > 0) {
+      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${preGuardrailMentioned} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
+      for (const r of allResults) {
+        r.brandMentioned = false;
+        r.score = 0;
+        r.recommendationStrength = 'absent';
+        r.brandPosition = null;
+      }
+    }
     const mentionedResults = validResults.filter(r => r.brandMentioned);
-    let weightedMentionNum = 0;
-    let weightedMentionDen = 0;
-    for (const r of validResults) {
-      const w = classifyPromptIntent(r.prompt).weight;
-      weightedMentionDen += w;
-      if (r.brandMentioned) weightedMentionNum += w;
-    }
-    const mentionRate = weightedMentionDen > 0 ? weightedMentionNum / weightedMentionDen : 0;
-    const avgQuality = mentionedResults.length > 0
-      ? mentionedResults.reduce((sum, r) => sum + r.score, 0) / mentionedResults.length
-      : 0;
-
-    // ===== Transparent score components (sum to 100) =====
-    // Mention Coverage (40): intent-weighted share of valid responses that mention the brand.
-    const mentionCoverageScore = Math.round(mentionRate * 40);
-
-    // Prompt Coverage (20): share of unique prompts where the brand was mentioned at least once.
-    const promptsWithBrand = new Set<string>();
-    const allPrompts = new Set<string>();
-    for (const r of validResults) {
-      allPrompts.add(r.prompt);
-      if (r.brandMentioned) promptsWithBrand.add(r.prompt);
-    }
-    const promptCoverageRatio = allPrompts.size > 0 ? promptsWithBrand.size / allPrompts.size : 0;
-    const promptCoverageScore = Math.round(promptCoverageRatio * 20);
-
-    // Provider Coverage (15): share of unique providers where the brand was mentioned at least once.
-    const providersWithBrand = new Set<string>();
-    const allProviders = new Set<string>();
-    for (const r of validResults) {
-      allProviders.add(r.provider);
-      if (r.brandMentioned) providersWithBrand.add(r.provider);
-    }
-    const providerCoverageRatio = allProviders.size > 0 ? providersWithBrand.size / allProviders.size : 0;
-    const providerCoverageScore = Math.round(providerCoverageRatio * 15);
-
-    // Mention Quality (15): per-response quality score average (0–100), scaled to 15.
-    const mentionQualityScore = Math.round((avgQuality / 100) * 15);
-
-    console.log(`[AutoReport] Intent-weighted mention coverage: ${(mentionRate*100).toFixed(0)}% (raw=${mentionedResults.length}/${validResults.length})`);
-
 
     // Diagnostic only — NOT added to overall score.
     const categoryVisibility = computeCategoryVisibility(allResults);
@@ -4800,71 +4773,22 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Industry inferred as "${reportIndustry}". Classified ${classifiedCompetitors.length} entities (${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length} AI-mentioned, ${classifiedCompetitors.filter(c => c.source === 'research_backed').length} research-backed).`);
 
-    // Competitive Share of Voice (10): brand recommendation events vs. competitors.
-    const competitiveSovScore = Math.round(shareOfVoice.sov * 10);
+    // ===== Single source of truth for the AI Visibility Score =====
+    // All five components (Mention Coverage, Prompt Coverage, Provider Coverage,
+    // Mention Quality, Competitive SoV) and the zero-mention + single-mention
+    // guardrails live in computeVisibilityScore(). Tests cover every guardrail.
+    const visibility = computeVisibilityScore(validResults, shareOfVoice.sov);
+    const overallScore = visibility.finalScore;
+    const verifiedMentionCount = visibility.diagnostics.verifiedBrandMentions;
 
-    // Final = sum of the 5 transparent components, capped at 100.
-    let overallScore = Math.max(
-      0,
-      Math.min(
-        100,
-        mentionCoverageScore +
-          promptCoverageScore +
-          providerCoverageScore +
-          mentionQualityScore +
-          competitiveSovScore,
-      ),
-    );
-
-    // ===== CROSS-VALIDATION GUARDRAIL =====
-    // The strict-substring sentiment analyzer is the most conservative truth signal.
-    // If sentiment says the brand was never mentioned (across ALL valid responses),
-    // reset per-result mention flags so the scorecard, sentiment, recommendation,
-    // and matrix sections cannot disagree.
-    const sentimentMentionCount = validResults.filter(r => r.sentiment !== 'not_mentioned').length;
-    if (validResults.length > 0 && sentimentMentionCount === 0 && mentionedResults.length > 0) {
-      console.warn(`[AutoReport] Guardrail triggered: brandMentioned=${mentionedResults.length} but sentiment=0 across ${validResults.length} responses. Resetting mention flags to match sentiment truth.`);
-      for (const r of allResults) {
-        r.brandMentioned = false;
-        r.score = 0;
-        r.recommendationStrength = 'absent';
-        r.brandPosition = null;
-      }
-    }
-
-    // Hard floor: zero verified brand mentions => 0/100. Category difficulty cannot
-    // lift the score; it is reported as a separate diagnostic only. Every visibility
-    // component is also forced to 0 so the breakdown matches the headline.
-    const verifiedMentionCount = validResults.filter(r => r.brandMentioned).length;
-    let mentionCoverageFinal = mentionCoverageScore;
-    let promptCoverageFinal = promptCoverageScore;
-    let providerCoverageFinal = providerCoverageScore;
-    let mentionQualityFinal = mentionQualityScore;
-    let competitiveSovFinal = competitiveSovScore;
-    if (verifiedMentionCount === 0) {
-      overallScore = 0;
-      mentionCoverageFinal = 0;
-      promptCoverageFinal = 0;
-      providerCoverageFinal = 0;
-      mentionQualityFinal = 0;
-      competitiveSovFinal = 0;
-    }
-
-    // Bundle the breakdown for the PDF + persisted metadata. This is the single
-    // source of truth shown to prospects.
+    // Build the prospect-facing breakdown (PDF + persisted metadata).
     const scoreBreakdown = {
-      components: {
-        mentionCoverage:    { score: mentionCoverageFinal,   max: 40 },
-        promptCoverage:     { score: promptCoverageFinal,    max: 20 },
-        providerCoverage:   { score: providerCoverageFinal,  max: 15 },
-        mentionQuality:     { score: mentionQualityFinal,    max: 15 },
-        competitiveSov:     { score: competitiveSovFinal,    max: 10 },
-      },
+      components: visibility.components,
       diagnostics: {
-        validResponses: validResults.length,
+        validResponses: visibility.diagnostics.validResponses,
         verifiedBrandMentions: verifiedMentionCount,
-        promptsCovered: `${promptsWithBrand.size}/${allPrompts.size}`,
-        providersCovered: `${providersWithBrand.size}/${allProviders.size}`,
+        promptsCovered: visibility.diagnostics.promptsCovered,
+        providersCovered: visibility.diagnostics.providersCovered,
         competitorRecommendationEvents: shareOfVoice.competitorRecommendationEvents,
         categoryCoverage: `${Math.round((categoryVisibility.coverage || 0) * 100)}%`,
         categoryDifficulty: categoryVisibility.label,
@@ -4875,7 +4799,9 @@ serve(async (req) => {
         'It is shown separately to explain whether AI platforms are naming brands in this category at all.',
     };
 
-    console.log(`[AutoReport] Score breakdown — mention:${mentionCoverageFinal}/40 prompt:${promptCoverageFinal}/20 provider:${providerCoverageFinal}/15 quality:${mentionQualityFinal}/15 sov:${competitiveSovFinal}/10 → final:${overallScore}/100 (verifiedMentions=${verifiedMentionCount}, sentimentMentions=${sentimentMentionCount}, category(diagnostic only)=${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%)`);
+    const c = visibility.components;
+    console.log(`[AutoReport] Score breakdown — mention:${c.mentionCoverage.score}/40 prompt:${c.promptCoverage.score}/20 provider:${c.providerCoverage.score}/15 quality:${c.mentionQuality.score}/15 sov:${c.competitiveSov.score}/10 → final:${overallScore}/100 (verifiedMentions=${verifiedMentionCount}, sentimentMentions=${sentimentMentionCount}, singleMentionGuardrail=${visibility.diagnostics.singleMentionGuardrailApplied}, category(diagnostic only)=${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%)`);
+
 
     // AI Opportunity Score — separate from AI Visibility Score. Answers:
     // "How much room is there to win visibility in this category?"
