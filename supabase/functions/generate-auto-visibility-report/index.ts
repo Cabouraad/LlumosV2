@@ -80,13 +80,13 @@ interface ReportRequest {
   companyName?: string;
 }
 
-interface BrandProfile {
+export interface BrandProfile {
   primaryName: string;
   aliases: string[];
   domain?: string;
 }
 
-interface HomepageSignals {
+export interface HomepageSignals {
   context: string;
   brandCandidates: string[];
 }
