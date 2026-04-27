@@ -4282,11 +4282,11 @@ async function generatePDF(
   // Research-backed competitors — shown SEPARATELY, never blended into AI-mentioned counts.
   if (researchBackedClassified.length > 0) {
     if (y < 120) { page = newPage(); y = H - 10; }
-    y = drawSubsectionHeader(page, 'Research-Backed Competitors (not seen in AI responses)', y);
-    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Excluded from Share of Voice.', {
+    y = drawSubsectionHeader(page, 'Research-Backed Competitors (display only)', y);
+    page.drawText('Validated market competitors that did NOT appear in any AI answer for these prompts. Display-only — excluded from Share of Voice and competitor gap scoring.', {
       x: M + 5, y, size: 9, font: helveticaOblique, color: light,
     });
-    y -= 18;
+    y -= 22;
     for (const cc of researchBackedClassified) {
       if (y < 60) { page = newPage(); y = H - 60; }
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
