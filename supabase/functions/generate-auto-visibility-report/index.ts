@@ -3578,43 +3578,83 @@ function buildGapRecommendation(prompt: string, competitorsWinning: string[], en
 }
 
 function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
-  const gapsByPrompt = new Map<string, ContentGap>();
+  // Per-prompt aggregation:
+  //   entityAgg.get(promptKey).get(canonicalKey) = {
+  //     display, status (best across providers), mentionCount, providers
+  //   }
+  type EntityAgg = {
+    display: string;
+    status: 'preferred' | 'recommended' | 'listed' | 'named';
+    mentionCount: number;
+    providers: Set<string>;
+  };
+  const STATUS_RANK: Record<string, number> = { preferred: 4, recommended: 3, listed: 2, named: 1 };
+
+  const gapsByPrompt = new Map<string, ContentGap & { _entities: Map<string, EntityAgg> }>();
 
   for (const missed of results.filter(r => !r.brandMentioned && !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'))) {
     const topic = missed.prompt.replace(/\?/g, '').trim();
     if (topic.length <= 10 || topic.length >= 160) continue;
     const key = topic.toLowerCase();
 
-    const existing = gapsByPrompt.get(key);
-    if (existing) {
-      if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
-      const existingKeys = new Set(existing.competitorsWinning.map(c => normalizeEntityName(c)));
-      for (const c of (missed.recommendedEntities || [])) {
-        const k = normalizeEntityName(c);
-        if (k && !existingKeys.has(k)) {
-          existing.competitorsWinning.push(c);
-          existingKeys.add(k);
-        }
-      }
-    } else {
+    let bucket = gapsByPrompt.get(key);
+    if (!bucket) {
       const intentInfo = classifyPromptIntent(topic);
-      // Dedupe on first build too (in case the same provider response surfaces variants).
-      const seenKeys = new Set<string>();
-      const seeded: string[] = [];
-      for (const c of (missed.recommendedEntities || [])) {
-        const k = normalizeEntityName(c);
-        if (k && !seenKeys.has(k)) { seenKeys.add(k); seeded.push(c); }
-      }
-      gapsByPrompt.set(key, {
+      bucket = {
         prompt: topic,
-        providers: [missed.provider],
-        competitorsWinning: seeded,
+        providers: [],
+        competitorsWinning: [],
+        entitiesMentioned: [],
         recommendation: '',
         intent: intentInfo.intent,
         intentWeight: intentInfo.weight,
         priority: intentInfo.priority,
-      });
+        _entities: new Map(),
+      };
+      gapsByPrompt.set(key, bucket);
     }
+    if (!bucket.providers.includes(missed.provider)) bucket.providers.push(missed.provider);
+
+    // Walk every entity surfaced for this prompt × provider, capturing the
+    // best status seen across providers and counting per-provider reach.
+    for (const entity of missed.competitors || []) {
+      const canonKey = normalizeEntityName(entity);
+      if (!canonKey) continue;
+      const status = (missed.entityMentionStatus && missed.entityMentionStatus[entity.toLowerCase().trim()])
+        || (missed.recommendedEntities?.includes(entity) ? 'listed' : 'named');
+      const existing = bucket._entities.get(canonKey);
+      if (existing) {
+        if ((STATUS_RANK[status] || 1) > (STATUS_RANK[existing.status] || 1)) existing.status = status as any;
+        existing.mentionCount += 1;
+        existing.providers.add(missed.provider);
+        // Prefer the longer / more complete display name.
+        if (entity.length > existing.display.length) existing.display = entity;
+      } else {
+        bucket._entities.set(canonKey, {
+          display: entity,
+          status: status as any,
+          mentionCount: 1,
+          providers: new Set([missed.provider]),
+        });
+      }
+    }
+  }
+
+  // Materialize sorted competitorsWinning + entitiesMentioned per gap.
+  for (const bucket of gapsByPrompt.values()) {
+    const all = Array.from(bucket._entities.values()).sort((a, b) => {
+      // 1. Status priority (preferred > recommended > listed > named)
+      const sd = (STATUS_RANK[b.status] || 0) - (STATUS_RANK[a.status] || 0);
+      if (sd !== 0) return sd;
+      // 2. Mention count
+      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
+      // 3. Provider diversity
+      if (b.providers.size !== a.providers.size) return b.providers.size - a.providers.size;
+      // 4. Stable alpha
+      return a.display.localeCompare(b.display);
+    });
+    bucket.competitorsWinning = all.filter(e => e.status !== 'named').map(e => e.display);
+    bucket.entitiesMentioned = all.filter(e => e.status === 'named').map(e => e.display);
   }
 
   // Sort by intent weight first (high-intent prompts surface first), then by provider breadth.
@@ -3623,10 +3663,11 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
       if (b.intentWeight !== a.intentWeight) return b.intentWeight - a.intentWeight;
       return b.providers.length - a.providers.length;
     })
-    .slice(0, 5);
+    .slice(0, 5)
+    .map(({ _entities, ...gap }) => gap);
 
   for (const g of gaps) {
-    g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning);
+    g.recommendation = buildGapRecommendation(g.prompt, g.competitorsWinning, g.entitiesMentioned);
   }
 
   if (gaps.length === 0) {
@@ -3635,6 +3676,7 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
       prompt: 'Industry comparison and "best of" queries',
       providers: ['ChatGPT', 'Perplexity', 'Google AIO'],
       competitorsWinning: [],
+      entitiesMentioned: [],
       recommendation: 'Build comparison and listicle content targeting high-intent commercial queries in your category. Include FAQ schema and 3rd-party validation.',
       intent: fallbackIntent.intent,
       intentWeight: fallbackIntent.weight,
