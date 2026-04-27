@@ -5572,7 +5572,7 @@ serve(async (req) => {
     let entityDebug: EntityDebugTrace | null = null;
     if (debugMode) {
       try {
-        entityDebug = buildEntityDebugTrace(validResults, brandProfile, domain, promptIdFor);
+        entityDebug = buildEntityDebugTrace(validResults, brandProfile, domain, promptIdFor, classifyByName);
         console.log(`[AutoReport][DEBUG] entityDebug: rawMatches=${entityDebug.summary.totalRawMatches} canonical=${entityDebug.summary.totalCanonicalEntities} mentioned=${entityDebug.summary.totalAiMentioned} recommended=${entityDebug.summary.totalRecommendationEvents} excluded=${entityDebug.summary.totalExcluded} reasons=${JSON.stringify(entityDebug.summary.excludedByReason)}`);
       } catch (debugErr: any) {
         console.error('[AutoReport][DEBUG] buildEntityDebugTrace failed:', debugErr?.message);
