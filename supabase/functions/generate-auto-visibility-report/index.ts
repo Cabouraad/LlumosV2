@@ -4018,9 +4018,14 @@ serve(async (req) => {
 
     console.log(`[AutoReport] Score breakdown — mentionRate: ${(mentionRate*100).toFixed(0)}%, avgQuality: ${avgQuality.toFixed(1)}, base: ${baseScore}, SoV bonus: ${sovBonus} (sov=${shareOfVoice.sov.toFixed(2)}), category(diagnostic only): ${categoryVisibility.label} ${(categoryVisibility.coverage*100).toFixed(0)}%, sentimentMentions: ${sentimentMentionCount}, verifiedMentions: ${verifiedMentionCount}, final: ${overallScore}`);
 
+    // AI Opportunity Score — separate from AI Visibility Score. Answers:
+    // "How much room is there to win visibility in this category?"
+    const aiOpportunity = computeAIOpportunityScore(allResults, categoryVisibility.coverage);
+    console.log(`[AutoReport] AI Opportunity Score: ${aiOpportunity.score}/100 (${aiOpportunity.label}) — categoryOpp=${aiOpportunity.breakdown.categoryOpportunity}, competitorGap=${aiOpportunity.breakdown.competitorGapScore}, promptIntent=${aiOpportunity.breakdown.promptIntentOpportunityScore} (absentRate=${(aiOpportunity.breakdown.absentHighIntentPromptRate*100).toFixed(0)}% of ${aiOpportunity.breakdown.highIntentPromptCount} HI prompts), providerOpp=${aiOpportunity.breakdown.providerOpportunityScore} (${aiOpportunity.breakdown.providersWhereBrandWasAbsent}/${aiOpportunity.breakdown.totalProviders} providers absent)`);
+
     // Step 4: Generate PDF with enhanced content
     console.log('[AutoReport] Generating PDF with executive summary, benchmarks, and content gaps...');
-    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates);
+    const pdfBytes = await generatePDF(firstName, domain, overallScore, allResults, businessContext, categoryVisibility, shareOfVoice, refinedCompetitorCandidates, aiOpportunity);
 
     console.log(`[AutoReport] PDF generated: ${pdfBytes.length} bytes`);
 
