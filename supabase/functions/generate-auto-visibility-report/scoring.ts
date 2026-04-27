@@ -150,23 +150,42 @@ export function computeVisibilityScore(
   let competitiveSovScore   = Math.min(10, Math.round(Math.max(0, Math.min(1, sov)) * 10));
 
   // ===== Guardrail 2: single mention on a large run cannot inflate the score
+  // Spec:
+  //   • A single weak/passing mention should keep the final score under 10.
+  //   • Even a "perfect" single mention (top recommendation, strong context)
+  //     should stay under 15. The breakdown components are capped to match.
   let singleMentionGuardrailApplied = false;
   if (verifiedBrandMentions === 1 && validResults.length >= 20) {
     singleMentionGuardrailApplied = true;
-    mentionQualityScore = Math.min(mentionQualityScore, 5);
-    competitiveSovScore = Math.min(competitiveSovScore, 2);
+    // Strong = top recommendation with high per-response quality (≥70).
+    const isStrongSingleMention = avgQuality >= 70;
+    const finalCap = isStrongSingleMention ? 14 : 9;
+    // Per-component caps so the rendered breakdown matches the headline.
+    mentionQualityScore = Math.min(mentionQualityScore, isStrongSingleMention ? 5 : 2);
+    competitiveSovScore = Math.min(competitiveSovScore, isStrongSingleMention ? 2 : 1);
+    let runningTotal = mentionCoverageScore + promptCoverageScore + providerCoverageScore +
+                       mentionQualityScore + competitiveSovScore;
+    if (runningTotal > finalCap) {
+      // Trim from largest coverage component first (mention → prompt → provider)
+      const order: Array<'mention' | 'prompt' | 'provider'> = ['mention', 'prompt', 'provider'];
+      for (const k of order) {
+        if (runningTotal <= finalCap) break;
+        if (k === 'mention') {
+          const cut = Math.min(mentionCoverageScore, runningTotal - finalCap);
+          mentionCoverageScore -= cut; runningTotal -= cut;
+        } else if (k === 'prompt') {
+          const cut = Math.min(promptCoverageScore, runningTotal - finalCap);
+          promptCoverageScore -= cut; runningTotal -= cut;
+        } else {
+          const cut = Math.min(providerCoverageScore, runningTotal - finalCap);
+          providerCoverageScore -= cut; runningTotal -= cut;
+        }
+      }
+    }
   }
 
   let finalScore = mentionCoverageScore + promptCoverageScore + providerCoverageScore +
                    mentionQualityScore + competitiveSovScore;
-
-  // Belt-and-suspenders cap so a single mention never produces ≥ 15
-  if (singleMentionGuardrailApplied && finalScore >= 15) {
-    const overflow = finalScore - 14;
-    mentionCoverageScore = Math.max(0, mentionCoverageScore - overflow);
-    finalScore = mentionCoverageScore + promptCoverageScore + providerCoverageScore +
-                 mentionQualityScore + competitiveSovScore;
-  }
 
   // ===== Guardrail 1: zero verified mentions => everything zero
   if (verifiedBrandMentions === 0) {
