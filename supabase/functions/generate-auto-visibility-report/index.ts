@@ -2418,6 +2418,8 @@ function detectEntityPosition(entity: string, response: string): number | null {
 }
 
 
+/**
+ * Analyze sentiment of brand mention in response
  */
 function analyzeSentiment(response: string, brandName: string): 'positive' | 'neutral' | 'negative' | 'not_mentioned' {
   if (!response.toLowerCase().includes(brandName.toLowerCase())) return 'not_mentioned';
