@@ -4714,7 +4714,7 @@ serve(async (req) => {
 
     // Re-extract competitors and re-detect brand mentions with refined list
     for (const result of allResults) {
-      result.competitors = extractCompetitors(result.response, brandName, refinedCompetitorCandidates);
+      result.competitors = extractCompetitors(result.response, brandProfile, refinedCompetitorCandidates);
       result.brandMentioned = brandMentionedInText(result.response, brandProfile);
     }
 
