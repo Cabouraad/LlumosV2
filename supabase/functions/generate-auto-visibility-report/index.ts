@@ -343,6 +343,15 @@ const KNOWN_ENTITY_MAP: Record<string, string> = {
   'munger, tolles & olson': 'Munger, Tolles & Olson LLP',
   'nam': 'National Arbitration and Mediation (NAM)',
   'national arbitration and mediation': 'National Arbitration and Mediation (NAM)',
+  'resolute systems': 'Resolute Systems',
+  'dti': 'DTI Global',
+  'dti global': 'DTI Global',
+  'legal aid foundation of los angeles': 'Legal Aid Foundation of Los Angeles',
+  'lafla': 'Legal Aid Foundation of Los Angeles',
+  'lafla.org': 'Legal Aid Foundation of Los Angeles',
+  'state bar of california': 'State Bar of California',
+  'calbar': 'State Bar of California',
+  'calbar.ca.gov': 'State Bar of California',
 };
 
 const LEGAL_SUFFIX_RE = /\b(?:llp|l\.l\.p\.|llc|l\.l\.c\.|inc\.?|incorporated|corp\.?|corporation|ltd\.?|plc|p\.c\.|pc|pllc|p\.l\.l\.c\.|lp|l\.p\.|pa|p\.a\.|co\.?)\b/gi;
