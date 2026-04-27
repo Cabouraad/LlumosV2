@@ -2241,7 +2241,7 @@ async function queryGoogleAIO(prompt: string, brandProfile: BrandProfile, compet
  * they don't pass the strict multi-word title-case rule.
  */
 const ORG_SUFFIX_RE =
-  /\b(LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Bar Association|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition|Legal Services|Law Group|Law Firm|& Associates|& Co\.?|& Partners)\b/i;
+  /\b(LLP|LLC|PLLC|PC|APC|APLC|PA|LP|PLC|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Bar Association|Bar|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition|Legal Services|Legal Group|Legal Aid|Law Group|Law Firm|Law Offices?|Mediation Center|Mediation Centre|Mediation Program|Mediation Services|Arbitration Association|Arbitration Services|Dispute Resolution Services|Dispute Resolution Center|& Associates|& Co\.?|& Partners)\b/i;
 
 function extractAllOrgEntitiesFromText(
   text: string,
@@ -2255,9 +2255,19 @@ function extractAllOrgEntitiesFromText(
 
   const push = (raw: string) => {
     const cleaned = raw
+      // Strip leading list markers / punctuation
       .replace(/^[\s\-–—•·*▪▸:]+/, '')
       .replace(/[\s\-–—•·*▪▸:]+$/, '')
+      // Strip surrounding quotes/brackets/parens
       .replace(/^["'`(\[]+|["'`)\]]+$/g, '')
+      // Strip trailing citation markers like " [1]", "[2,3]"
+      .replace(/\s*\[\d+(?:[,\s]+\d+)*\]\s*$/g, '')
+      // Strip trailing URLs glued to the name
+      .replace(/\s+\(?\bhttps?:\/\/\S+\)?$/i, '')
+      // Strip trailing parenthetical descriptions ("Foo (a leading firm)")
+      .replace(/\s*\([^)]{0,120}\)\s*$/g, '')
+      // Strip trailing dash/colon descriptions ("Foo — leading firm", "Foo: trusted")
+      .replace(/\s*[–—\-:]\s+[a-z].*$/i, '')
       .replace(/\s+/g, ' ')
       .trim();
     if (!cleaned) return;
@@ -2265,8 +2275,12 @@ function extractAllOrgEntitiesFromText(
     found.push(cleaned);
   };
 
+  // Pre-clean: strip inline citation markers so they don't break entity matches
+  // ("JAMS [1]" → "JAMS ").
+  const cleanText = text.replace(/\[\d+(?:[,\s]+\d+)*\]/g, ' ');
+
   // 1. Domains
-  for (const m of text.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev|law|legal|gov|edu)\b/gi) || []) {
+  for (const m of cleanText.match(/\b(?:[a-z0-9-]+\.)+(?:com|io|net|org|co|app|ai|dev|law|legal|gov|edu)\b/gi) || []) {
     push(m);
   }
 
@@ -2278,8 +2292,9 @@ function extractAllOrgEntitiesFromText(
     'YES', 'CEO', 'CTO', 'CFO', 'COO', 'VP', 'IT', 'HR', 'PR', 'QA', 'UX',
     'UI', 'API', 'URL', 'PDF', 'FAQ', 'SEO', 'PPC', 'CRM', 'ERP', 'SaaS',
     'B2B', 'B2C', 'ROI', 'KPI', 'LLC', 'LLP', 'INC', 'LTD', 'PC', 'PA', 'PLLC',
+    'APC', 'PLC', 'LP', 'APLC',
   ]);
-  for (const m of text.match(/\b[A-Z]{2,6}\b/g) || []) {
+  for (const m of cleanText.match(/\b[A-Z]{2,6}\b/g) || []) {
     if (ACRONYM_STOP.has(m)) continue;
     push(m);
   }
@@ -2288,37 +2303,50 @@ function extractAllOrgEntitiesFromText(
   //    optional firm suffix. Matches "Munger, Tolles & Olson LLP",
   //    "Quinn Emanuel Urquhart & Sullivan LLP", "Farella Braun + Martel LLP".
   const FIRM_COMPOUND_RE =
-    /\b([A-Z][A-Za-z'’.-]+(?:[ ,]+[A-Z][A-Za-z'’.-]+){0,4}\s*[&+]\s*[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){0,3})(?:\s+(?:LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Group|Partners))?/g;
-  for (const m of text.matchAll(FIRM_COMPOUND_RE)) {
+    /\b([A-Z][A-Za-z'’.-]+(?:[ ,]+[A-Z][A-Za-z'’.-]+){0,4}\s*[&+]\s*[A-Z][A-Za-z'’.-]+(?:\s+[A-Z][A-Za-z'’.-]+){0,3})(?:\s+(?:LLP|LLC|PLLC|PC|APC|APLC|PA|LP|PLC|Inc\.?|Ltd\.?|Group|Partners))?/g;
+  for (const m of cleanText.matchAll(FIRM_COMPOUND_RE)) {
     push(m[0]);
   }
 
   // 4. Names ending in an org/firm suffix ("Lewis Brisbois", "Duane Morris LLP",
   //    "Tactical Law Group LLP", "DTI Global", "Bet Tzedek Legal Services",
-  //    "Los Angeles County Bar Association", "ADR Services", "Resolute Systems").
+  //    "Los Angeles County Bar Association", "ADR Services", "Resolute Systems",
+  //    "Smith APC", "Doe PLC").
   const NAME_WITH_SUFFIX_RE =
-    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(LLP|LLC|PLLC|PC|PA|LP|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition)\b/g;
-  for (const m of text.matchAll(NAME_WITH_SUFFIX_RE)) {
+    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(LLP|LLC|PLLC|PC|APC|APLC|PA|LP|PLC|Inc\.?|Ltd\.?|Co\.?|Group|Partners|Holdings|Services|Solutions|Systems|Global|Worldwide|International|Association|Foundation|Institute|Society|Council|Center|Centre|Network|Alliance|Coalition)\b/g;
+  for (const m of cleanText.matchAll(NAME_WITH_SUFFIX_RE)) {
     push(`${m[1]} ${m[2]}`);
   }
 
-  // 5. "X Bar Association" / "X Legal Services" / "X Law Group" / "X Law Firm"
+  // 5. Compound suffixes — legal/ADR/nonprofit specific:
+  //    "X Bar Association", "X County Bar Association", "X State Bar",
+  //    "X Legal Services / Group / Aid", "X Law Group / Firm / Offices",
+  //    "X Mediation Center / Program / Services",
+  //    "X Arbitration Association / Services",
+  //    "X Dispute Resolution Services / Center",
+  //    "X & Associates", "X & Partners".
   const COMPOUND_SUFFIX_RE =
-    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(Bar Association|Legal Services|Law Group|Law Firm|Law Offices|Law Office|& Associates|& Partners)\b/g;
-  for (const m of text.matchAll(COMPOUND_SUFFIX_RE)) {
+    /\b([A-Z][A-Za-z'’.&-]+(?:\s+[A-Z][A-Za-z'’.&-]+){0,5})\s+(Bar Association|County Bar Association|State Bar|Bar Foundation|Legal Services|Legal Group|Legal Aid Foundation|Legal Aid Society|Legal Aid|Law Group|Law Firm|Law Offices|Law Office|Mediation Center|Mediation Centre|Mediation Program|Mediation Services|Arbitration Association|Arbitration Services|Dispute Resolution Services|Dispute Resolution Center|Dispute Resolution Centre|& Associates|& Partners)\b/g;
+  for (const m of cleanText.matchAll(COMPOUND_SUFFIX_RE)) {
     push(`${m[1]} ${m[2]}`);
+  }
+
+  // 5b. "<City/State> Bar Association" / "State Bar" without a leading firm name.
+  for (const m of cleanText.matchAll(/\b((?:[A-Z][A-Za-z'’.-]+\s+){1,4})(County Bar Association|State Bar|Bar Association)\b/g)) {
+    push(`${m[1].trim()} ${m[2]}`);
   }
 
   // 6. Plain Title Case multi-word phrases (2-4 words).
   //    Captures "Lewis Brisbois", "Latham Watkins", "Gibson Dunn", etc.
   const TITLE_CASE_RE =
     /\b([A-Z][A-Za-z'’.-]{2,}(?:\s+(?:&|of|and)\s+|\s+)[A-Z][A-Za-z'’.-]{2,}(?:\s+[A-Z][A-Za-z'’.-]{2,}){0,2})\b/g;
-  for (const m of text.matchAll(TITLE_CASE_RE)) {
+  for (const m of cleanText.matchAll(TITLE_CASE_RE)) {
     push(m[1]);
   }
 
-  // 7. Bulleted / numbered list items — same as legacy extractor.
-  for (const m of text.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'’.+,\- ]{2,80})/gm)) {
+  // 7. Bulleted / numbered list items — extract the leading entity portion
+  //    even when followed by a description, parenthetical, citation, or URL.
+  for (const m of cleanText.matchAll(/(?:^|\n)\s*(?:\d+[.)]\s+|[-•*▪▸]\s+)([A-Z][A-Za-z0-9&'’.+,\- ]{2,120})/gm)) {
     // Use firm-aware splitter for items with commas
     if (m[1].includes(',')) {
       for (const part of splitFirmAwareList(m[1])) push(part);
@@ -2328,12 +2356,14 @@ function extractAllOrgEntitiesFromText(
   }
 
   // 8. After trigger phrases ("such as", "include", "like", "alternatives include",
-  //    "options include", "consider", "recommend"), pull a comma/and list.
-  for (const m of text.matchAll(
-    /(?:include|includes|including|recommend|recommended|recommendation|options?(?:\s+include)?|such as|alternatives?(?:\s+(?:include|are))?|consider|try|platforms?\s+(?:include|like)|firms?\s+(?:include|like|such as)|companies?\s+(?:include|like|such as))\s*[:\-]?\s*([^.;:\n]{0,240})/gi,
+  //    "options include", "consider", "recommend", "providers include",
+  //    "mediators include", "arbitrators include", "associations include").
+  for (const m of cleanText.matchAll(
+    /(?:include|includes|including|recommend|recommended|recommendation|options?(?:\s+include)?|such as|alternatives?(?:\s+(?:include|are))?|consider|try|platforms?\s+(?:include|like)|firms?\s+(?:include|like|such as)|companies?\s+(?:include|like|such as)|providers?\s+(?:include|like)|mediators?\s+(?:include|like)|arbitrators?\s+(?:include|like)|associations?\s+(?:include|like))\s*[:\-]?\s*([^.;:\n]{0,240})/gi,
   )) {
     for (const part of splitFirmAwareList(m[1].replace(/\//g, ','))) push(part);
   }
+
 
   // Deduplicate (case-insensitive normalized) and filter through brand-likeness.
   const seen = new Map<string, string>();
