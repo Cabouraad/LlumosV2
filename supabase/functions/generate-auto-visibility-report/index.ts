@@ -3299,7 +3299,7 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
     const existing = gapsByPrompt.get(key);
     if (existing) {
       if (!existing.providers.includes(missed.provider)) existing.providers.push(missed.provider);
-      for (const c of missed.competitors) {
+      for (const c of (missed.recommendedEntities || [])) {
         if (!existing.competitorsWinning.includes(c)) existing.competitorsWinning.push(c);
       }
     } else {
