@@ -2553,18 +2553,6 @@ function findBrandHitIndices(textLower: string, brandTokens: string[]): number[]
   return indices;
 }
 
-function hasBrandAdjacentPositiveContext(result: ProviderResult): boolean {
-  const text = (result.response || '').toLowerCase();
-  const positive = /\b(best|top|leading|trusted|excellent|great|reputable|highly[\s-]?regarded|well[\s-]?regarded|premier|outstanding|recommended|recommend|preferred|expert|experienced|skilled|award[\s-]?winning)\b/;
-  const brandHits = findBrandHitIndices(text, collectBrandTokens(result));
-  if (brandHits.length === 0) return false;
-  for (const idx of brandHits) {
-    const window = text.slice(Math.max(0, idx - 80), Math.min(text.length, idx + 80));
-    if (positive.test(window)) return true;
-  }
-  return false;
-}
-
 function hasSourceBackedMention(result: ProviderResult): boolean {
   const text = result.response || '';
   // Numeric citations like [1], [12]
@@ -2581,7 +2569,19 @@ function hasSourceBackedMention(result: ProviderResult): boolean {
 function calculateProviderScore(result: ProviderResult): number {
   if (!result.brandMentioned) return 0;
 
-  const status = classifyMentionStatus(result);
+  // Brand-adjacent context: drives positive bonus, negative penalty, and boilerplate downgrade.
+  const adjCtx = result.brandName
+    ? getBrandAdjacentContext(result.response || '', result.brandName, result.brandAliases)
+    : { positiveContext: false, negativeContext: false, matchedTerms: [], evidenceSnippet: '', brandOnlyInBoilerplate: false };
+
+  let status = classifyMentionStatus(result);
+
+  // If the brand only appears in disclaimers, citations, footers, or unrelated lists,
+  // it cannot be classified as recommended/preferred — downgrade to "mentioned".
+  if (adjCtx.brandOnlyInBoilerplate && (status === 'recommended' || status === 'preferred' || status === 'considered')) {
+    status = 'mentioned';
+  }
+
   let score: number;
   switch (status) {
     case 'preferred':   score = 80; break;
@@ -2599,12 +2599,15 @@ function calculateProviderScore(result: ProviderResult): number {
   }
 
   // Brand-adjacent positive context (NOT generic positives elsewhere in the response)
-  if (hasBrandAdjacentPositiveContext(result)) score += 5;
+  if (adjCtx.positiveContext) score += 5;
 
   // Source / citation-backed
   if (hasSourceBackedMention(result)) score += 5;
 
-  return Math.min(score, 100);
+  // Brand-adjacent negative context reduces mention quality
+  if (adjCtx.negativeContext) score -= 10;
+
+  return Math.max(0, Math.min(score, 100));
 }
 
 /**
