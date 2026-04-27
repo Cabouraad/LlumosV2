@@ -2281,41 +2281,147 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 }
 
 /**
- * Calculate visibility score for a provider result.
+ * Per-response visibility score (0..100).
  *
- * Rebalanced to better reflect the response signal:
- * - Mentioned at all: 45 (raised from 35 — being named at all is the hardest threshold to cross)
- * - Strong recommendation: +25, Moderate: +15, Weak: +5
- * - Position bonus: top-3 +15, top-5 +8, otherwise +4 if mentioned (don't over-penalize unknown position)
- * - Share-of-voice bonus within prompt: up to +10 when brand outshines competitors in the same response
- * - Positive context terms: +2 each (capped at +8)
+ * New funnel-aligned model:
+ *   absent      -> 0
+ *   mentioned   -> base 15  (named, but not framed as a provider/option)
+ *   considered  -> base 35  (listed as one of several options/firms/providers/alternatives)
+ *   recommended -> base 60  (AI clearly recommends/suggests/endorses the brand)
+ *   preferred   -> base 80  (ranked highly / one of the best/top / placed above competitors)
+ *
+ * Modifiers:
+ *   +10 top-1, +7 top-3, +4 top-5
+ *   +5 positive context within ~80 chars of a brand mention (brand-adjacent only)
+ *   +5 source/citation-backed mention (URL or [n] cite near brand, or domain referenced)
+ * Cap at 100.
  */
+function classifyMentionStatus(result: ProviderResult): 'absent' | 'mentioned' | 'considered' | 'recommended' | 'preferred' {
+  if (!result.brandMentioned) return 'absent';
+  const text = (result.response || '').toLowerCase();
+
+  // "preferred": ranked highest / best / top pick / above competitors
+  const preferredPatterns = [
+    /\b(best|top|#?\s*1|number\s+one|leading|premier|most\s+(trusted|recommended|reputable))\b/,
+    /\b(stands?\s+out|outperforms?|ahead\s+of|above\s+(the\s+)?(rest|competitors))\b/,
+    /\b(our\s+top\s+pick|editor'?s\s+choice|gold\s+standard)\b/,
+  ];
+  // "recommended": clearly suggested/endorsed
+  const recommendedPatterns = [
+    /\b(recommend(ed|s|ation)?|suggest(ed|s)?|endors(e|ed|es)|good\s+choice|great\s+choice|solid\s+choice|worth\s+considering|we\s+like)\b/,
+  ];
+  // "considered": listed as one of several options/firms/providers/alternatives
+  const consideredPatterns = [
+    /\b(options?|alternatives?|providers?|vendors?|firms?|companies|choices|candidates)\b/,
+    /\b(such\s+as|including|for\s+example|e\.g\.,?|like|among\s+(them|others))\b/,
+    /^\s*[-*\d+\.\)]/m, // list-style formatting present
+  ];
+
+  // Find brand mention positions to keep the classification brand-adjacent
+  const brandTokens = collectBrandTokens(result);
+  const brandHits = findBrandHitIndices(text, brandTokens);
+
+  const nearAnyBrand = (re: RegExp): boolean => {
+    if (brandHits.length === 0) {
+      // Fall back to whole-response presence — but only used when we already know brandMentioned=true
+      return re.test(text);
+    }
+    for (const idx of brandHits) {
+      const window = text.slice(Math.max(0, idx - 120), Math.min(text.length, idx + 120));
+      if (re.test(window)) return true;
+    }
+    return false;
+  };
+
+  if (preferredPatterns.some(re => nearAnyBrand(re))) return 'preferred';
+  if (recommendedPatterns.some(re => nearAnyBrand(re))) return 'recommended';
+  if (consideredPatterns.some(re => nearAnyBrand(re))) return 'considered';
+  return 'mentioned';
+}
+
+function collectBrandTokens(result: ProviderResult): string[] {
+  // Best effort: derive tokens from existing signals. The brand string itself isn't on the
+  // ProviderResult, but the response text + competitor list let us recover likely brand
+  // anchors. Falls back to scanning the whole response if nothing better is available.
+  const tokens: string[] = [];
+  const competitors = new Set((result.competitors || []).map(c => c.toLowerCase()));
+  // Heuristic: any capitalized multi-word phrase that is NOT a competitor is a candidate brand anchor.
+  const matches = (result.response || '').match(/\b([A-Z][A-Za-z0-9&.\-]{1,}(?:\s+[A-Z][A-Za-z0-9&.\-]{1,}){0,3})\b/g) || [];
+  for (const m of matches) {
+    const lower = m.toLowerCase();
+    if (competitors.has(lower)) continue;
+    if (lower.length < 3) continue;
+    tokens.push(lower);
+  }
+  return tokens;
+}
+
+function findBrandHitIndices(textLower: string, brandTokens: string[]): number[] {
+  const indices: number[] = [];
+  const seen = new Set<number>();
+  for (const tok of brandTokens) {
+    let from = 0;
+    while (true) {
+      const i = textLower.indexOf(tok, from);
+      if (i < 0) break;
+      if (!seen.has(i)) { indices.push(i); seen.add(i); }
+      from = i + tok.length;
+      if (indices.length > 25) return indices;
+    }
+  }
+  return indices;
+}
+
+function hasBrandAdjacentPositiveContext(result: ProviderResult): boolean {
+  const text = (result.response || '').toLowerCase();
+  const positive = /\b(best|top|leading|trusted|excellent|great|reputable|highly[\s-]?regarded|well[\s-]?regarded|premier|outstanding|recommended|recommend|preferred|expert|experienced|skilled|award[\s-]?winning)\b/;
+  const brandHits = findBrandHitIndices(text, collectBrandTokens(result));
+  if (brandHits.length === 0) return false;
+  for (const idx of brandHits) {
+    const window = text.slice(Math.max(0, idx - 80), Math.min(text.length, idx + 80));
+    if (positive.test(window)) return true;
+  }
+  return false;
+}
+
+function hasSourceBackedMention(result: ProviderResult): boolean {
+  const text = result.response || '';
+  // Numeric citations like [1], [12]
+  if (/\[\d+\]/.test(text)) return true;
+  // Inline URLs
+  if (/https?:\/\/[^\s)]+/i.test(text)) return true;
+  // Markdown links
+  if (/\]\((https?:[^)]+)\)/i.test(text)) return true;
+  // "according to" / "source:" cues
+  if (/\b(according\s+to|source:|cited\s+by|as\s+reported\s+by)\b/i.test(text)) return true;
+  return false;
+}
+
 function calculateProviderScore(result: ProviderResult): number {
   if (!result.brandMentioned) return 0;
 
-  let score = 45;
-
-  if (result.recommendationStrength === 'strong') score += 25;
-  else if (result.recommendationStrength === 'moderate') score += 15;
-  else score += 5;
-
-  if (result.brandPosition !== null && result.brandPosition <= 3) score += 15;
-  else if (result.brandPosition !== null && result.brandPosition <= 5) score += 8;
-  else score += 4; // mentioned but position unknown — small credit so we don't strand at 45
-
-  // Share of voice within this single response: brand vs competitors named in the same answer
-  const competitorCount = result.competitors?.length || 0;
-  const totalNamed = competitorCount + 1; // +1 for the brand itself
-  const sov = 1 / totalNamed;
-  score += Math.round(sov * 10); // up to +10 when brand is the only one named
-
-  const positiveTerms = ['best', 'top', 'leading', 'recommend', 'excellent', 'great', 'trusted'];
-  let posBonus = 0;
-  const lower = result.response.toLowerCase();
-  for (const term of positiveTerms) {
-    if (lower.includes(term)) posBonus += 2;
+  const status = classifyMentionStatus(result);
+  let score: number;
+  switch (status) {
+    case 'preferred':   score = 80; break;
+    case 'recommended': score = 60; break;
+    case 'considered':  score = 35; break;
+    case 'mentioned':   score = 15; break;
+    default:            return 0;
   }
-  score += Math.min(posBonus, 8);
+
+  // Position modifiers (brandPosition is 1-based)
+  if (result.brandPosition !== null && result.brandPosition !== undefined) {
+    if (result.brandPosition === 1) score += 10;
+    else if (result.brandPosition <= 3) score += 7;
+    else if (result.brandPosition <= 5) score += 4;
+  }
+
+  // Brand-adjacent positive context (NOT generic positives elsewhere in the response)
+  if (hasBrandAdjacentPositiveContext(result)) score += 5;
+
+  // Source / citation-backed
+  if (hasSourceBackedMention(result)) score += 5;
 
   return Math.min(score, 100);
 }
