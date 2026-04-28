@@ -6433,6 +6433,33 @@ serve(async (req) => {
     const competitorRecommendationEvents: CompetitorRecommendationEvent[] = [];
     const validatedEntityTrace: ValidatedEntity[] = [];
     const validationExclusions: Record<string, number> = {};
+    // Admin debug counters: duplicates merged after canonicalization (different
+    // raw strings collapsing to the same canonical) and child products rolled
+    // up to a parent brand (e.g. "Experian Business Credit Advantage" → "Experian").
+    const seenCanonicals = new Set<string>();
+    let duplicateAliasesMerged = 0;
+    let childProductsRolledUp = 0;
+    // Per-entity admin debug rows. Always built (cheap) so the summary log
+    // can ship even when debugMode is off; the full row dump is only emitted
+    // when debugMode is true to avoid flooding production logs.
+    const adminEntityRows: Array<{
+      promptId: string;
+      provider: string;
+      rawText: string;
+      canonicalName: string;
+      entityType: string;
+      confidenceScore: number;
+      mentionStatus: EntityMentionStatus;
+      evidenceSnippet: string;
+      includeInCompetitorLandscape: boolean;
+      includeInShareOfVoice: boolean;
+      excludedReason?: string;
+      exclusionCategory?: ExclusionCategory;
+      matchedValidationRules: string[];
+      matchedExclusionRules: string[];
+      wasDuplicateMerge: boolean;
+      wasChildRollup: boolean;
+    }> = [];
     let promptIdCounter = 0;
     const promptIdMap = new Map<string, string>();
     const promptIdFor = (promptText: string): string => {
@@ -6477,6 +6504,41 @@ serve(async (req) => {
         });
         validatedEntityTrace.push(validated);
 
+        // Detect canonicalization side-effects for the audit summary:
+        //  - duplicate alias: raw form differs from canonical AND we've seen
+        //    this canonical key before in this run.
+        //  - child rollup: the parent-brand prefix rollup transformed the
+        //    name (e.g. "Experian Business Credit Advantage" → "Experian").
+        const properCanonical = canonicalizeEntityName(entity) || entity;
+        const canonicalKey = properCanonical.toLowerCase().trim();
+        const wasChildRollup = !!applyParentRollup(entity);
+        const wasDuplicateMerge = seenCanonicals.has(canonicalKey)
+          && entity.toLowerCase().trim() !== canonicalKey;
+        if (wasChildRollup) childProductsRolledUp += 1;
+        if (wasDuplicateMerge) duplicateAliasesMerged += 1;
+        seenCanonicals.add(canonicalKey);
+
+        adminEntityRows.push({
+          promptId,
+          provider: r.provider,
+          rawText: entity,
+          canonicalName: properCanonical,
+          entityType: validated.entityType,
+          confidenceScore: validated.confidenceScore,
+          mentionStatus: status,
+          evidenceSnippet: evidence,
+          includeInCompetitorLandscape: validated.includeInCompetitorLandscape,
+          includeInShareOfVoice: validated.includeInShareOfVoice,
+          excludedReason: validated.excludedReason,
+          exclusionCategory: validated.includeInCompetitorLandscape
+            ? undefined
+            : categorizeExclusionReason(validated.excludedReason),
+          matchedValidationRules: validated.matchedValidationRules || [],
+          matchedExclusionRules: validated.matchedExclusionRules || [],
+          wasDuplicateMerge,
+          wasChildRollup,
+        });
+
         if (!validated.includeInCompetitorLandscape) {
           const reason = validated.excludedReason || 'unknown';
           validationExclusions[reason] = (validationExclusions[reason] || 0) + 1;
@@ -6519,8 +6581,81 @@ serve(async (req) => {
         }
       }
     }
+
+    // ===== Admin / debug summary for competitor extraction =====
+    // Always emit the aggregate counts (cheap, ~1 log line) so we can audit
+    // why entities were included/excluded without re-running with debug=true.
+    const rawExtractedCount = validatedEntityTrace.length;
+    const validatedCount = validatedEntityTrace.filter(v => v.includeInCompetitorLandscape).length;
+    const excludedCount = rawExtractedCount - validatedCount;
+    const competitorLandscapeCount = new Set(
+      adminEntityRows.filter(r => r.includeInCompetitorLandscape).map(r => r.canonicalName.toLowerCase()),
+    ).size;
+    const shareOfVoiceCount = new Set(
+      adminEntityRows.filter(r => r.includeInShareOfVoice).map(r => r.canonicalName.toLowerCase()),
+    ).size;
+    const regulatoryContextCount = adminEntityRows.filter(
+      r => r.entityType === 'Regulatory / Legal Context',
+    ).length;
+    // Group exclusions by canonical category so the audit log highlights the
+    // top reason buckets (heading/advice phrase, product feature, sentence
+    // fragment, legal/regulatory term, duplicate child product, generic noun,
+    // low confidence, not an organization).
+    const exclusionsByCategory: Record<ExclusionCategory, number> = {
+      'heading/advice phrase': 0,
+      'product feature': 0,
+      'sentence fragment': 0,
+      'legal/regulatory term': 0,
+      'duplicate child product': 0,
+      'generic noun': 0,
+      'low confidence': 0,
+      'not an organization': 0,
+      'other': 0,
+    };
+    for (const row of adminEntityRows) {
+      if (row.includeInCompetitorLandscape) continue;
+      const cat = row.exclusionCategory || 'other';
+      exclusionsByCategory[cat] = (exclusionsByCategory[cat] || 0) + 1;
+    }
+
     console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
     console.log(`[AutoReport] Validation layer — kept=${aiMentionedEntities.length}/${validatedEntityTrace.length}, excluded=${validatedEntityTrace.length - aiMentionedEntities.length}, byReason=${JSON.stringify(validationExclusions)}`);
+    console.log(`[AutoReport][AdminDebug] Extraction summary: ${JSON.stringify({
+      rawExtracted: rawExtractedCount,
+      validated: validatedCount,
+      excluded: excludedCount,
+      competitorLandscape: competitorLandscapeCount,
+      shareOfVoice: shareOfVoiceCount,
+      regulatoryLegalContext: regulatoryContextCount,
+      duplicateAliasesMerged,
+      childProductsRolledUp,
+      exclusionsByCategory,
+    })}`);
+
+    // Detailed per-entity row dump — only when debugMode is on. Each row is
+    // a single JSON-encoded log line so it can be grepped/parsed by the
+    // admin debug viewer without flooding production logs by default.
+    if (debugMode) {
+      console.log(`[AutoReport][AdminDebug] === Per-entity extraction trace (${adminEntityRows.length} rows) ===`);
+      for (const row of adminEntityRows) {
+        console.log(`[AutoReport][AdminDebug][Entity] ${JSON.stringify(row)}`);
+      }
+      // Group exclusions by category for quick scanning in the dashboard.
+      const grouped: Record<string, Array<{ rawText: string; canonical: string; reason?: string; provider: string; promptId: string }>> = {};
+      for (const row of adminEntityRows) {
+        if (row.includeInCompetitorLandscape) continue;
+        const cat = row.exclusionCategory || 'other';
+        (grouped[cat] = grouped[cat] || []).push({
+          rawText: row.rawText,
+          canonical: row.canonicalName,
+          reason: row.excludedReason,
+          provider: row.provider,
+          promptId: row.promptId,
+        });
+      }
+      console.log(`[AutoReport][AdminDebug] Exclusions grouped by reason: ${JSON.stringify(grouped)}`);
+    }
+
 
     // Admin-only entity extraction debug trace (gated by debug=true).
     let entityDebug: EntityDebugTrace | null = null;
