@@ -2849,6 +2849,14 @@ export function validateEntity(args: {
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: 'no alphabetic content' };
   }
+  // Regulatory / legal context: laws, regulations, agencies, compliance
+  // frameworks. Never a Direct Competitor; excluded from landscape, SoV,
+  // recommendation events, "competitors winning here", and totals.
+  if (isRegulatoryLegalContext(cleaned, canonicalName)) {
+    return { ...base, entityType: 'Regulatory / Legal Context', confidenceScore: 0.9,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'regulatory / legal context — not a competitor' };
+  }
   if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
