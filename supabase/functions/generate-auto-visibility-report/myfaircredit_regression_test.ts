@@ -22,12 +22,12 @@ import {
   assertEquals,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
+// NOTE: We import from `entity-validation.ts` (the pure module) instead of
+// `index.ts` so the test runner doesn't need to resolve npm:resend / pdf-lib.
 import {
   validateEntity,
-  canonicalizeEntityName,
-  applyParentRollup,
   categorizeExclusionReason,
-} from "./index.ts";
+} from "./entity-validation.ts";
 
 // ---------------------------------------------------------------------------
 // Mocked AI response snippets — short, realistic excerpts that mirror the
