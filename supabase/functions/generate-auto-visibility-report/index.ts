@@ -435,7 +435,7 @@ const PARENT_PREFIX_ROLLUPS: Array<{ prefix: RegExp; parent: string }> = [
   { prefix: /^fico\b/i,                      parent: 'FICO' },
 ];
 
-function applyParentRollup(value: string): string | null {
+export function applyParentRollup(value: string): string | null {
   for (const { prefix, parent } of PARENT_PREFIX_ROLLUPS) {
     if (prefix.test(value.trim())) return parent;
   }
@@ -480,7 +480,7 @@ function entityLookupKey(value: string): string {
     .trim();
 }
 
-function canonicalizeEntityName(raw: string | null | undefined): string {
+export function canonicalizeEntityName(raw: string | null | undefined): string {
   if (typeof raw !== 'string') return '';
   let value = raw.trim();
   if (!value) return '';
@@ -2716,583 +2716,29 @@ function entitySearchVariants(canonical: string): string[] {
 // and given an excludedReason so the debug trace explains the drop.
 // ============================================================================
 
-export interface ValidatedEntity {
-  rawText: string;
-  canonicalName: string;
-  entityType: string;
-  confidenceScore: number;
-  mentionStatus: EntityMentionStatus;
-  includeInCompetitorLandscape: boolean;
-  includeInShareOfVoice: boolean;
-  excludedReason?: string;
-  evidenceSnippet: string;
-  provider: string;
-  promptId: string;
-  // Audit trail: which positive validation tests fired and which exclusion
-  // rules matched. Used by the admin debug logger to explain inclusion /
-  // exclusion decisions on a per-entity basis.
-  matchedValidationRules?: string[];
-  matchedExclusionRules?: string[];
-}
-
-// Canonical exclusion-reason categories used by the admin debug grouping.
-// Free-form excludedReason strings are mapped into one of these buckets so
-// the debug summary stays stable and auditable.
-export type ExclusionCategory =
-  | 'heading/advice phrase'
-  | 'product feature'
-  | 'sentence fragment'
-  | 'legal/regulatory term'
-  | 'duplicate child product'
-  | 'generic noun'
-  | 'low confidence'
-  | 'not an organization'
-  | 'other';
-
-export function categorizeExclusionReason(reason?: string): ExclusionCategory {
-  const r = (reason || '').toLowerCase();
-  if (!r) return 'other';
-  if (r.includes('regulatory') || r.includes('legal')) return 'legal/regulatory term';
-  if (r.includes('heading') || r.includes('advice') || r.includes('criteria')) return 'heading/advice phrase';
-  if (r.includes('feature') || r.includes('product feature')) return 'product feature';
-  if (r.includes('sentence fragment') || r.includes('fragment') || r.includes('verb-led')) return 'sentence fragment';
-  if (r.includes('duplicate') || r.includes('child product') || r.includes('rolled up')) return 'duplicate child product';
-  if (r.includes('generic')) return 'generic noun';
-  if (r.includes('confidence')) return 'low confidence';
-  if (r.includes('not an organization') || r.includes('unknown entity') || r.includes('insufficient signal')) return 'not an organization';
-  return 'other';
-}
-
-const ORG_SUFFIX_PATTERN = /\b(?:inc\.?|incorporated|llc|l\.l\.c\.?|llp|l\.l\.p\.?|plc|ltd\.?|limited|corp\.?|corporation|company|co\.?|group|holdings?|partners?|associates?|firm|law|lawyers|attorneys?|bank|bureau|association|foundation|fund|services|capital|credit|analytics|monitoring|repair|systems?|solutions?|technologies|technology|labs?|institute|agency|consulting|advisors?|advisory|enterprises?)\b/i;
-
-const KNOWN_BRAND_ACRONYMS = new Set([
-  'fico', 'jams', 'nam', 'irs', 'ftc', 'fdic',
-  'aaa', 'adr', 'lacba', 'aba', 'naacp', 'aclu', 'bbb', 'nfib', 'usbc',
-  'experian', 'equifax', 'transunion',
-]);
-
-// ---------------------------------------------------------------------------
-// REGULATORY / LEGAL CONTEXT — laws, regulations, agencies, compliance
-// frameworks, and statutory acronyms. These must NEVER be classified as
-// Direct Competitors. They are excluded from Share of Voice, competitor
-// recommendation events, "competitors winning here", and competitor totals.
-// They may surface in a separate "Regulatory / Legal Context Mentioned"
-// section via entityType="Regulatory / Legal Context".
-// ---------------------------------------------------------------------------
-const REGULATORY_LEGAL_ENTITIES = new Set<string>([
-  // Acronyms
-  'croa', 'fcra', 'fdcpa', 'gdpr', 'ccpa', 'sec', 'finra', 'sba', 'cfpb',
-  'ein', 'soc', 'soc ii', 'soc 2', 'soc-ii', 'aml',
-  'd-u-n-s number', 'duns number', 'd-u-n-s', 'duns',
-  // Full names
-  'credit repair organizations act',
-  'fair credit reporting act',
-  'fair debt collection practices act',
-].map(s => s.toLowerCase()));
-
-function isRegulatoryLegalContext(rawText: string, canonicalName: string): boolean {
-  const r = (rawText || '').trim().toLowerCase();
-  const c = (canonicalName || '').trim().toLowerCase();
-  return REGULATORY_LEGAL_ENTITIES.has(r) || REGULATORY_LEGAL_ENTITIES.has(c);
-}
-
-const PROVIDER_LIST_TRIGGERS = [
-  'top providers include', 'top providers are', 'best options are', 'best options include',
-  'recommended services', 'recommended providers', 'recommended options',
-  'leading companies', 'leading providers', 'leading firms', 'leading services',
-  'top companies', 'top firms', 'top services', 'top choices', 'top picks',
-  'popular options', 'popular providers', 'notable firms', 'notable providers',
-  'consider the following', 'options include', 'examples include', 'such as',
-  'reputable firms', 'well-known firms', 'major providers',
-];
-
-const GENERIC_PHRASE_BLOCKLIST = new Set([
-  'before', 'obtain', 'paid services', 'they', 'key', 'details', 'information',
-  'step', 'step process', 'locate', 'ask', 'run', 'use', 'check', 'bumper',
-  'vehicle history report', 'vehicle identification number', 'accident history',
-  'title issues', 'overview', 'introduction', 'conclusion', 'summary',
-  'pros', 'cons', 'pros and cons', 'features', 'benefits', 'tips', 'notes',
-  'options', 'choices', 'considerations', 'recommendations',
-  'best practices', 'how to', 'getting started', 'next steps',
-]);
-
-// ---------------------------------------------------------------------------
-// EXCLUSION FILTER — catches non-competitor phrases the upstream extractor
-// frequently captures: AI-answer headings, advice/criteria phrases, product
-// features, sentence fragments, and generic nouns. Anything that matches is
-// excluded from the competitor landscape, types, matrix, gap and SoV.
-// ---------------------------------------------------------------------------
-
-// Category 1: section headings / AI answer headings
-const EXCLUSION_HEADINGS = new Set<string>([
-  'key considerations', 'important considerations', 'additional considerations',
-  'top recommendations', 'best free options', 'best overall options',
-  'best value', 'bottom line', 'key differences', 'key alternatives',
-  'source highlights', 'leading companies', 'major business credit bureaus',
-  'business credit reports here', 'strengths and recommendations',
-  'important implementation notes', 'recommended approach',
-  'conclusion selecting',
-].map(s => s.toLowerCase()));
-
-// Category 2: advice / criteria phrases
-const EXCLUSION_ADVICE = new Set<string>([
-  'specific needs', 'customer reviews', 'reputation and reviews',
-  'licensing and certification', 'personalized service', 'educational resources',
-  'upfront fees', 'written contract', 'money-back guarantee',
-  'understanding of credit laws', 'false claims', 'red flags', 'positive signs',
-  'good bbb', 'services offered', 'services they should provide',
-  'compare prices', 'trial periods', 'customer', 'your company',
-  'your selection', 'coverage focus', 'integration needs',
-  'compliance requirements',
-].map(s => s.toLowerCase()));
-
-// Category 3: product features / generic services
-const EXCLUSION_FEATURES = new Set<string>([
-  'credit monitoring', 'credit scores', 'free credit scores',
-  'identity theft protection', 'paid plans', 'bureaus monitored',
-  'scoring model', 'credit building', 'business credit building',
-  'credit report review', 'build credit responsibly', 'personal monitoring',
-  'business credit risk score', 'payment index', 'business failure score',
-  'small business risk score', 'financial stability risk',
-  'live business identity', 'red flag alert', 'regulatory compliance',
-].map(s => s.toLowerCase()));
-
-// Category 4: sentence fragments / verb phrases
-const EXCLUSION_FRAGMENTS = new Set<string>([
-  'provides', 'covers', 'monitors', 'updates', 'up to',
-  'choose credit karma', 'choose experian', 'provides paydex',
-  'offers d-u-n-s number', 'provides business credit score',
-  'alongside transunion', 'their features other', 'and their features',
-  'top recommendations these', 'important considerations when',
-  'best practice most',
-].map(s => s.toLowerCase()));
-
-// Category 5: generic nouns
-const EXCLUSION_GENERIC_NOUNS = new Set<string>([
-  'credit', 'security', 'mobile apps', 'local nonprofits',
-  'community organizations', 'local credit repair companies',
-  'financial advisors', 'small businesses', 'startup tips',
-  'california startups', 'california department',
-  'california-specific considerations', 'california-compliant',
-].map(s => s.toLowerCase()));
-
-// Heuristic patterns that match the same families of phrases more broadly.
-const EXCLUSION_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
-  // Headings starting with these qualifiers
-  { pattern: /^(key|important|additional|top|best|leading|major|recommended|notable|popular)\s+\w+/i,
-    reason: 'heading' },
-  // "Choose X" / "Provides X" / "Offers X" verb-led fragments
-  { pattern: /^(choose|provides|offers|monitors|covers|updates|alongside|select)\s+/i,
-    reason: 'sentence fragment' },
-  // "X and Their Features" / "Their Features X"
-  { pattern: /\b(their features|and their features)\b/i, reason: 'sentence fragment' },
-  // "California-..." style location qualifiers used as nouns
-  { pattern: /^california[- ]/i, reason: 'generic noun' },
-  // Compliance / requirements / needs / focus when used as a category label
-  { pattern: /\b(requirements|considerations|recommendations|needs|focus|reviews|fees|guarantee|signs|flags)$/i,
-    reason: 'advice phrase' },
-];
+// All validation/classification helpers live in entity-validation.ts so they
+// can be unit-tested without pulling in the npm dependencies (resend, pdf-lib,
+// supabase-js) at module load. Re-exported here so existing call sites keep
+// importing from index.ts unchanged.
+export {
+  validateEntity,
+  classifyEntityType,
+  categorizeExclusionReason,
+  isRegulatoryLegalContext,
+  matchesExclusionFilter,
+} from "./entity-validation.ts";
+export type {
+  ValidatedEntity,
+  ExclusionCategory,
+  EntityType,
+} from "./entity-validation.ts";
+import {
+  validateEntity as _validateEntity,
+  classifyEntityType as _classifyEntityType,
+  categorizeExclusionReason as _categorizeExclusionReason,
+} from "./entity-validation.ts";
 
 /**
- * Returns the excludedReason if the phrase matches the exclusion filter,
- * otherwise null. Categories: heading / advice phrase / product feature /
- * sentence fragment / generic noun.
- */
-function matchesExclusionFilter(rawText: string): string | null {
-  const lower = (rawText || '').trim().toLowerCase();
-  if (!lower) return null;
-  if (EXCLUSION_HEADINGS.has(lower))       return 'heading';
-  if (EXCLUSION_ADVICE.has(lower))         return 'advice phrase';
-  if (EXCLUSION_FEATURES.has(lower))       return 'product feature';
-  if (EXCLUSION_FRAGMENTS.has(lower))      return 'sentence fragment';
-  if (EXCLUSION_GENERIC_NOUNS.has(lower))  return 'generic noun';
-  for (const { pattern, reason } of EXCLUSION_PATTERNS) {
-    if (pattern.test(lower)) return reason;
-  }
-  return null;
-}
-
-function looksLikeDomain(s: string): boolean {
-  return /\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|app|ai|gov|edu)\b/i.test(s);
-}
-
-function looksLikeProperOrgName(s: string): boolean {
-  // Multi-word Title-Case (e.g. "Munger Tolles & Olson"), or single TitleCase
-  // word that's at least 4 chars (e.g. "Carfax", "Modria").
-  const trimmed = s.trim();
-  if (!trimmed) return false;
-  if (looksLikeDomain(trimmed)) return true;
-  const words = trimmed.split(/\s+/);
-  const titleWords = words.filter(w => /^[A-Z][A-Za-z0-9&\-\.']{1,}/.test(w));
-  if (words.length >= 2 && titleWords.length >= Math.ceil(words.length / 2)) return true;
-  if (words.length === 1 && /^[A-Z][A-Za-z0-9]{3,}$/.test(words[0])) return true;
-  return false;
-}
-
-function appearsInProviderListContext(entity: string, response: string): boolean {
-  if (!entity || !response) return false;
-  const lower = response.toLowerCase();
-  const entLower = entity.toLowerCase();
-  const idx = lower.indexOf(entLower);
-  if (idx < 0) return false;
-  // Within 400 chars before the mention, look for a provider-list trigger.
-  const window = lower.slice(Math.max(0, idx - 400), idx);
-  if (PROVIDER_LIST_TRIGGERS.some(t => window.includes(t))) return true;
-  // Or the entity appears at the start of a numbered/bulleted line.
-  const lines = response.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.toLowerCase().includes(entLower)) continue;
-    if (/^(?:\d+[.)]\s|[-•*▪▸]\s)/.test(trimmed)) return true;
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// CURATED ENTITY TYPE CLASSIFIER
-// Maps a canonical (already-rolled-up) entity name to one of the allowed
-// entity types. Returns null when the entity is not in the curated map —
-// callers MUST NOT default unknowns to "Direct Competitor".
-// ---------------------------------------------------------------------------
-export type EntityType =
-  | 'Direct Competitor'
-  | 'Credit Bureau / Scoring Provider'
-  | 'Credit Monitoring Platform'
-  | 'Credit Repair Company'
-  | 'Business Credit Provider'
-  | 'Financial Services Platform'
-  | 'Marketplace / Directory'
-  | 'Nonprofit / Counseling Resource'
-  | 'Government / Regulatory Resource'
-  | 'Regulatory / Legal Context'
-  | 'Software Platform'
-  | 'Adjacent Service Provider'
-  | 'Excluded / Unknown';
-
-const ENTITY_TYPE_MAP: Record<string, EntityType> = {
-  // Credit Bureau / Scoring Provider
-  'experian': 'Credit Bureau / Scoring Provider',
-  'equifax': 'Credit Bureau / Scoring Provider',
-  'transunion': 'Credit Bureau / Scoring Provider',
-  'fico': 'Credit Bureau / Scoring Provider',
-  'dun & bradstreet': 'Credit Bureau / Scoring Provider',
-
-  // Credit Monitoring Platform
-  'credit karma': 'Credit Monitoring Platform',
-  'credit sesame': 'Credit Monitoring Platform',
-  'identity guard': 'Credit Monitoring Platform',
-  'chase credit journey': 'Credit Monitoring Platform',
-  'capital one creditwise': 'Credit Monitoring Platform',
-
-  // Credit Repair Company
-  'lexington law': 'Credit Repair Company',
-  'sky blue credit': 'Credit Repair Company',
-  'credit saint': 'Credit Repair Company',
-  'the credit people': 'Credit Repair Company',
-  'the credit pros': 'Credit Repair Company',
-  'pyramid credit repair': 'Credit Repair Company',
-  'safeport law': 'Credit Repair Company',
-  'creditrepair.com': 'Credit Repair Company',
-
-  // Business Credit Provider
-  'nav': 'Business Credit Provider',
-  'credit suite': 'Business Credit Provider',
-  "moody's analytics creditedge": 'Business Credit Provider',
-  'moodys analytics creditedge': 'Business Credit Provider',
-  'zywave': 'Business Credit Provider',
-
-  // Marketplace / Directory
-  'bestcompany': 'Marketplace / Directory',
-  'bestcompany.com': 'Marketplace / Directory',
-  'consumeraffairs': 'Marketplace / Directory',
-  'bbb': 'Marketplace / Directory',
-  'better business bureau': 'Marketplace / Directory',
-
-  // Nonprofit / Counseling Resource
-  'money management international': 'Nonprofit / Counseling Resource',
-  'mission asset fund': 'Nonprofit / Counseling Resource',
-  'score': 'Nonprofit / Counseling Resource',
-
-  // Government / Regulatory Resource
-  'cfpb': 'Government / Regulatory Resource',
-  'sba': 'Government / Regulatory Resource',
-  'annualcreditreport.com': 'Government / Regulatory Resource',
-};
-
-function entityTypeKey(name: string): string {
-  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-}
-
-/**
- * Look up the curated entity type for a canonical name. Returns null when
- * the name is not in the map. Callers MUST treat null as "unknown" — never
- * default to Direct Competitor.
- */
-export function classifyEntityType(canonicalName: string): EntityType | null {
-  const key = entityTypeKey(canonicalName);
-  if (!key) return null;
-  return ENTITY_TYPE_MAP[key] ?? null;
-}
-
-/**
- * Validate one extracted entity. Returns a ValidatedEntity describing
- * whether it should appear in the competitor landscape and SoV, plus a
- * confidence score and excludedReason when filtered out.
- *
- * Default behavior for low-confidence entities: NEVER classified as a
- * Direct Competitor — always falls back to "Excluded / Unknown" with both
- * landscape and SoV inclusion set to false.
- */
-export function validateEntity(args: {
-  rawText: string;
-  canonicalName: string;
-  classifiedType: string;
-  mentionStatus: EntityMentionStatus;
-  evidenceSnippet: string;
-  provider: string;
-  promptId: string;
-  response: string;
-  knownAliases: Set<string>;
-}): ValidatedEntity {
-  const {
-    rawText, canonicalName, classifiedType, mentionStatus,
-    evidenceSnippet, provider, promptId, response, knownAliases,
-  } = args;
-
-  const base = {
-    rawText,
-    canonicalName,
-    mentionStatus,
-    evidenceSnippet,
-    provider,
-    promptId,
-  };
-
-  const cleaned = (rawText || '').trim();
-  const lower = cleaned.toLowerCase();
-
-  // Hard rejects: empty, too short, non-alpha, blocklisted generic phrase.
-  if (!cleaned || cleaned.length < 2) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'empty or too short',
-      matchedValidationRules: [], matchedExclusionRules: ['empty_or_too_short'] };
-  }
-  if (!/[a-z]/i.test(cleaned)) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'no alphabetic content',
-      matchedValidationRules: [], matchedExclusionRules: ['no_alphabetic_content'] };
-  }
-  // Regulatory / legal context: laws, regulations, agencies, compliance
-  // frameworks. Never a Direct Competitor; excluded from landscape, SoV,
-  // recommendation events, "competitors winning here", and totals.
-  if (isRegulatoryLegalContext(cleaned, canonicalName)) {
-    return { ...base, entityType: 'Regulatory / Legal Context', confidenceScore: 0.9,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'regulatory / legal context — not a competitor',
-      matchedValidationRules: [], matchedExclusionRules: ['regulatory_legal_context'] };
-  }
-  if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'generic term / not an organization',
-      matchedValidationRules: [], matchedExclusionRules: ['generic_phrase_blocklist'] };
-  }
-  // Exclusion filter: AI-answer headings, advice/criteria phrases, product
-  // features, sentence fragments, and generic nouns must never reach the
-  // competitor landscape, types, matrix, gap analysis, or Share of Voice.
-  const exclusionReason = matchesExclusionFilter(cleaned);
-  if (exclusionReason) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: `${exclusionReason} / not an organization`,
-      matchedValidationRules: [], matchedExclusionRules: [`exclusion_filter:${exclusionReason}`] };
-  }
-  // Sentence-fragment heuristic: ends with verb-like trailing phrase or
-  // is excessively long (> 8 words is almost never a single org name).
-  const wordCount = cleaned.split(/\s+/).length;
-  if (wordCount > 8) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'sentence fragment / not an organization',
-      matchedValidationRules: [], matchedExclusionRules: ['too_many_words_sentence_fragment'] };
-  }
-
-  // Test 1: known brand/provider alias map.
-  const matchesAlias = knownAliases.has(lower) || knownAliases.has(canonicalName.toLowerCase());
-
-  // Test 2: organization-like suffix or structure.
-  const hasOrgSuffix = ORG_SUFFIX_PATTERN.test(cleaned);
-
-  // Test 3: provider-list context (numbered/bulleted list or trigger phrase).
-  const inProviderList = appearsInProviderListContext(cleaned, response);
-
-  // Test 4: known brand-style acronym/agency.
-  const isKnownAcronym = KNOWN_BRAND_ACRONYMS.has(lower);
-
-  // Test 5: domain-style brand.
-  const isDomainStyle = looksLikeDomain(cleaned);
-
-  // Soft signal (not sufficient on its own): proper-org-name shape.
-  const properOrgShape = looksLikeProperOrgName(cleaned);
-
-  // Nearby-context keyword signal: ±120 chars window around the mention
-  // contains category words like "provider", "company", "service",
-  // "platform", "bureau", "firm", "tool", "app", "recommended", "best",
-  // "alternative". Strong indicator the entity is in a provider context.
-  const NEARBY_KEYWORDS_RE = /\b(provider|providers|company|companies|service|services|platform|platforms|bureau|bureaus|firm|firms|tool|tools|app|apps|recommended|best|alternative|alternatives)\b/i;
-  let hasNearbyKeyword = false;
-  if (response) {
-    const idx = response.toLowerCase().indexOf(lower);
-    if (idx >= 0) {
-      const window = response.slice(Math.max(0, idx - 120), idx + cleaned.length + 120);
-      hasNearbyKeyword = NEARBY_KEYWORDS_RE.test(window);
-    }
-  }
-
-  // Repetition signal: entity appears multiple times in this response.
-  // (Cross-provider repetition can be layered in later by a caller.)
-  const repetitionCount = response
-    ? (response.toLowerCase().match(new RegExp(`\\b${escapeRegExp(lower)}\\b`, 'g')) || []).length
-    : 0;
-  const repeatedAcrossContext = repetitionCount >= 2;
-
-  // Sentence-fragment / verb-led detection (penalty signal, not a hard reject —
-  // the exclusion filter already hard-rejects the obvious cases).
-  const VERB_LED_RE = /^(provides?|offers?|covers?|monitors?|updates?|choose|select|alongside|use|run|check|consider)\b/i;
-  const isVerbLed = VERB_LED_RE.test(cleaned);
-
-  // Acronym-without-provider-context penalty: SHORT all-caps tokens that
-  // aren't in the known-acronym whitelist and have no provider context.
-  const isUnknownAcronym = /^[A-Z]{2,5}$/.test(cleaned) && !isKnownAcronym;
-
-  // Generic noun phrase: short Title-Case-but-common noun (e.g. "Customer",
-  // "Small Businesses"). Detected when there's no org suffix, no domain,
-  // no acronym, and the cleaned form is fewer than 3 words and lowercased
-  // matches a generic-noun list (already mostly handled by exclusion filter).
-  const isGenericNoun = wordCount <= 2
-    && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym && !matchesAlias
-    && !properOrgShape;
-
-  // ----- Confidence scoring (0..1) -----
-  let confidence = 0;
-  // Positive signals
-  if (matchesAlias)         confidence += 0.40;
-  if (hasOrgSuffix)         confidence += 0.25;
-  if (inProviderList)       confidence += 0.20;
-  if (hasNearbyKeyword)     confidence += 0.20;
-  if (repeatedAcrossContext) confidence += 0.15;
-  // Bonus signals (kept small — primary signals dominate)
-  if (isDomainStyle)        confidence += 0.20;
-  if (isKnownAcronym)       confidence += 0.20;
-  if (properOrgShape)       confidence += 0.10;
-
-  // Negative signals (exclusion filter already removed hard cases earlier;
-  // these apply to soft/borderline matches that slipped through).
-  if (isUnknownAcronym)     confidence -= 0.40; // law-like / regulation-like acronym
-  if (isVerbLed)            confidence -= 0.30;
-  if (isGenericNoun)        confidence -= 0.25;
-
-  if (confidence < 0) confidence = 0;
-  if (confidence > 1) confidence = 1;
-
-  // ----- Threshold gates -----
-  // confidence >= 0.65 → eligible for landscape (entity type permitting)
-  // 0.45..0.64       → eligible only with strong external signal
-  //                    (alias map OR strong provider-list context)
-  // < 0.45           → exclude
-  const strongProviderContext = inProviderList && hasNearbyKeyword;
-  const meetsHighThreshold = confidence >= 0.65;
-  const meetsMidThreshold  = confidence >= 0.45 && (matchesAlias || strongProviderContext);
-
-  // Build the audit trail of which positive validation tests fired. Used by
-  // the admin debug logger to explain inclusion decisions per entity.
-  const matchedValidationRules: string[] = [];
-  if (matchesAlias)         matchedValidationRules.push('alias_map_match');
-  if (hasOrgSuffix)         matchedValidationRules.push('org_suffix');
-  if (inProviderList)       matchedValidationRules.push('provider_list_context');
-  if (hasNearbyKeyword)     matchedValidationRules.push('nearby_keyword');
-  if (repeatedAcrossContext) matchedValidationRules.push('repeated_in_context');
-  if (isDomainStyle)        matchedValidationRules.push('domain_style');
-  if (isKnownAcronym)       matchedValidationRules.push('known_brand_acronym');
-  if (properOrgShape)       matchedValidationRules.push('proper_org_shape');
-  const matchedExclusionRules: string[] = [];
-  if (isUnknownAcronym)     matchedExclusionRules.push('unknown_acronym_penalty');
-  if (isVerbLed)            matchedExclusionRules.push('verb_led_penalty');
-  if (isGenericNoun)        matchedExclusionRules.push('generic_noun_penalty');
-
-  if (!meetsHighThreshold && !meetsMidThreshold) {
-    return { ...base, entityType: 'Excluded / Unknown',
-      confidenceScore: Number(confidence.toFixed(2)),
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: confidence < 0.45
-        ? 'confidence < 0.45 / insufficient signal'
-        : 'confidence 0.45–0.64 without alias or strong provider context',
-      matchedValidationRules,
-      matchedExclusionRules: [...matchedExclusionRules, 'below_confidence_threshold'] };
-  }
-
-  // Type resolution priority (unchanged):
-  //   1. Curated ENTITY_TYPE_MAP lookup on the canonical name (highest trust).
-  //   2. Upstream classifiedType when it's a valid, non-unknown type.
-  //   3. Direct Competitor ONLY when confidence ≥ 0.65 AND a strong org signal.
-  //   4. Otherwise Excluded / Unknown — never default unknowns to Direct Competitor.
-  const curatedType = classifyEntityType(canonicalName) || classifyEntityType(cleaned);
-  const upstreamType = classifiedType && classifiedType !== 'unknown' && classifiedType !== 'Direct Competitor'
-    ? classifiedType
-    : null;
-  const strongOrgSignal = matchesAlias || hasOrgSuffix || isDomainStyle;
-  let finalType: string =
-    curatedType
-    || upstreamType
-    || (meetsHighThreshold && strongOrgSignal ? 'Direct Competitor' : 'Excluded / Unknown');
-
-  if (finalType === 'Excluded / Unknown') {
-    return { ...base, entityType: finalType,
-      confidenceScore: Number(confidence.toFixed(2)),
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'unknown entity / insufficient signal for Direct Competitor',
-      matchedValidationRules,
-      matchedExclusionRules: [...matchedExclusionRules, 'no_resolved_entity_type'] };
-  }
-
-  // Valid competitor/provider entity types eligible for Share of Voice.
-  // (Excludes Regulatory / Legal Context, Government / Regulatory Resource,
-  // and Excluded / Unknown — those are not competitors.)
-  const SOV_ELIGIBLE_TYPES = new Set<string>([
-    'Direct Competitor',
-    'Credit Bureau / Scoring Provider',
-    'Credit Monitoring Platform',
-    'Credit Repair Company',
-    'Business Credit Provider',
-    'Financial Services Platform',
-    'Marketplace / Directory',
-    'Nonprofit / Counseling Resource',
-    'Software Platform',
-    'Adjacent Service Provider',
-  ]);
-
-  // Share of Voice gate: confidence ≥ 0.65 AND listed/recommended/preferred
-  // AND a valid competitor/provider entity type.
-  const includeInShareOfVoice =
-    meetsHighThreshold
-    && (mentionStatus === 'listed' || mentionStatus === 'recommended' || mentionStatus === 'preferred')
-    && SOV_ELIGIBLE_TYPES.has(finalType);
-
-
-  return {
-    ...base,
-    entityType: finalType,
-    confidenceScore: Number(confidence.toFixed(2)),
-    includeInCompetitorLandscape: true,
-    includeInShareOfVoice,
-    matchedValidationRules,
-    matchedExclusionRules,
-  };
-}
-
-
  *
  * For each canonical entity we try its search variants against the response
  * and use the FIRST variant that's actually present, so a response saying
@@ -4750,6 +4196,25 @@ async function generatePDF(
       });
     }
   }
+  // Display-side stats keyed by normalized canonical name. Tracks recommendation
+  // strength and provider diversity so the report can sort competitor lists by
+  // signal quality, not just raw mention count.
+  // statusRank: preferred=3, recommended=2, listed=1, named/other=0.
+  const STATUS_RANK: Record<string, number> = { preferred: 3, recommended: 2, listed: 1, named: 0 };
+  const displayStats = new Map<string, { providers: Set<string>; bestStatusRank: number; recEvents: number; mentions: number }>();
+  for (const v of validatedEntityTrace) {
+    const k = normalizeEntityName(v.canonicalName || v.rawText);
+    if (!k) continue;
+    const cur = displayStats.get(k) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+    if (v.provider) cur.providers.add(v.provider);
+    const r = STATUS_RANK[v.mentionStatus] ?? 0;
+    if (r > cur.bestStatusRank) cur.bestStatusRank = r;
+    if (v.mentionStatus === 'preferred' || v.mentionStatus === 'recommended' || v.mentionStatus === 'listed') cur.recEvents++;
+    cur.mentions++;
+    displayStats.set(k, cur);
+  }
+  const getStats = (name: string) => displayStats.get(normalizeEntityName(name)) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+
   const contentGaps = analyzeContentGaps(results, domain, validatedLookup);
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
     aiOpportunity,
@@ -5265,8 +4730,28 @@ async function generatePDF(
     });
     y -= 18;
 
-    const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
-    for (const cc of sortedAi) {
+    // Sort by: (1) recommendation status, (2) provider diversity,
+    // (3) mention count, (4) commercial relevance (Direct Competitor first).
+    const COMMERCIAL_RANK: Partial<Record<CompetitorType, number>> = {
+      'Direct Competitor': 4,
+      'Local or Boutique Competitor': 3,
+      'Large Firm / Enterprise Competitor': 3,
+      'Software Platform': 2,
+      'ADR Provider': 2,
+      'Marketplace / Directory': 1,
+      'Adjacent Service Provider': 1,
+    };
+    const sortedAi = aiMentionedClassified.slice().sort((a, b) => {
+      const sa = getStats(a.canonical), sb = getStats(b.canonical);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
+      return (COMMERCIAL_RANK[b.type] ?? 0) - (COMMERCIAL_RANK[a.type] ?? 0);
+    });
+    const TOP_AI_LIMIT = 20;
+    const displayedAi = sortedAi.slice(0, TOP_AI_LIMIT);
+    const remainingAi = sortedAi.length - displayedAi.length;
+    for (const cc of displayedAi) {
       if (y < 60) { page = newPage(); y = H - 60; }
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
@@ -5282,6 +4767,13 @@ async function generatePDF(
         x: M + contentW - 160 + cBarW + 4, y: y - 12, size: 8, font: helvetica, color: mid,
       });
       y -= 24;
+    }
+    if (remainingAi > 0) {
+      if (y < 60) { page = newPage(); y = H - 60; }
+      page.drawText(`+ ${remainingAi} more validated entities`, {
+        x: M + 10, y: y - 8, size: 9, font: helveticaOblique, color: mid,
+      });
+      y -= 18;
     }
   } else {
     y = drawCalloutBox(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', y);
@@ -5326,25 +4818,44 @@ async function generatePDF(
       'Irrelevant / Excluded',
     ];
     const grouped = new Map<CompetitorType, ClassifiedCompetitor[]>();
+    const EXCLUDED_TYPES_FOR_DISPLAY = new Set<string>([
+      'Irrelevant / Excluded',
+      'Excluded / Unknown',
+      'Regulatory / Legal Context', // shown only in its own dedicated section, not here
+    ]);
     for (const cc of classifiedCompetitors) {
-      if (cc.type === 'Irrelevant / Excluded') continue;
+      if (EXCLUDED_TYPES_FOR_DISPLAY.has(cc.type as string)) continue;
       const arr = grouped.get(cc.type) || [];
       arr.push(cc);
       grouped.set(cc.type, arr);
     }
 
+    const PER_TYPE_LIMIT = 10;
     for (const t of typeOrder) {
       const arr = grouped.get(t);
       if (!arr || arr.length === 0) continue;
       if (y < 80) { page = newPage(); y = H - 60; }
+      // Sort within each type using the same signal-quality ordering as the AI list.
+      const sortedArr = arr.slice().sort((a, b) => {
+        const sa = getStats(a.canonical), sb = getStats(b.canonical);
+        if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+        if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+        return b.mentionCount - a.mentionCount;
+      });
+      const displayedArr = sortedArr.slice(0, PER_TYPE_LIMIT);
+      const overflow = sortedArr.length - displayedArr.length;
       // Type heading row
       page.drawRectangle({ x: M, y: y - 16, width: contentW, height: 18, color: navy });
-      page.drawText(`${t}  (${arr.length})`, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
+      const headingLabel = overflow > 0
+        ? `${t}  (${displayedArr.length} of ${sortedArr.length})`
+        : `${t}  (${sortedArr.length})`;
+      page.drawText(headingLabel, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
       y -= 22;
       // Members — wrap as comma-separated list
-      const aiNames = arr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
-      const researchNames = arr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
-      const lines = wrapText([...aiNames, ...researchNames].join(', '), 95);
+      const aiNames = displayedArr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
+      const researchNames = displayedArr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
+      const joined = [...aiNames, ...researchNames].join(', ') + (overflow > 0 ? `, + ${overflow} more` : '');
+      const lines = wrapText(joined, 95);
       for (const ln of lines) {
         if (y < 50) { page = newPage(); y = H - 60; }
         page.drawText(ln, { x: M + 10, y: y - 8, size: 9, font: helvetica, color: dark });
@@ -5375,9 +4886,9 @@ async function generatePDF(
       //   3. No entities at all            → genuine first-mover opportunity
       let competitorLine: string;
       if (gap.competitorsWinning.length > 0) {
-        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`;
+        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 5).join(', ')}`;
       } else if (gap.entitiesMentioned && gap.entitiesMentioned.length > 0) {
-        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 4).join(', ')}. No clear recommendation leader was detected.`;
+        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 5).join(', ')}. No clear recommendation leader was detected.`;
       } else {
         competitorLine = 'No clear competitor winning yet — first-mover opportunity.';
       }
@@ -5580,7 +5091,22 @@ async function generatePDF(
     y -= 22;
 
     // Competitor rows
-    const displayCompetitors = h2h.competitors.slice(0, 10);
+    // Prioritize Direct Competitors and high-confidence recommendation events.
+    // Tiebreak by provider diversity and prompt coverage in the matrix itself.
+    const matrixPromptCount = (comp: string) =>
+      h2h.prompts.reduce((n, p) => n + (h2h.matrix[comp]?.[p] ? 1 : 0), 0);
+    const sortedH2H = h2h.competitors.slice().sort((a, b) => {
+      const ca = classificationByCanon.get(normalizeEntityName(a));
+      const cb = classificationByCanon.get(normalizeEntityName(b));
+      const directA = ca?.type === 'Direct Competitor' ? 1 : 0;
+      const directB = cb?.type === 'Direct Competitor' ? 1 : 0;
+      if (directB !== directA) return directB - directA;
+      const sa = getStats(a), sb = getStats(b);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      return matrixPromptCount(b) - matrixPromptCount(a);
+    });
+    const displayCompetitors = sortedH2H.slice(0, 10);
     for (const comp of displayCompetitors) {
       if (y < 80) break;
 
