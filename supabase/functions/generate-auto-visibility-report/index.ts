@@ -4196,6 +4196,25 @@ async function generatePDF(
       });
     }
   }
+  // Display-side stats keyed by normalized canonical name. Tracks recommendation
+  // strength and provider diversity so the report can sort competitor lists by
+  // signal quality, not just raw mention count.
+  // statusRank: preferred=3, recommended=2, listed=1, named/other=0.
+  const STATUS_RANK: Record<string, number> = { preferred: 3, recommended: 2, listed: 1, named: 0 };
+  const displayStats = new Map<string, { providers: Set<string>; bestStatusRank: number; recEvents: number; mentions: number }>();
+  for (const v of validatedEntityTrace) {
+    const k = normalizeEntityName(v.canonicalName || v.rawText);
+    if (!k) continue;
+    const cur = displayStats.get(k) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+    if (v.provider) cur.providers.add(v.provider);
+    const r = STATUS_RANK[v.mentionStatus] ?? 0;
+    if (r > cur.bestStatusRank) cur.bestStatusRank = r;
+    if (v.mentionStatus === 'preferred' || v.mentionStatus === 'recommended' || v.mentionStatus === 'listed') cur.recEvents++;
+    cur.mentions++;
+    displayStats.set(k, cur);
+  }
+  const getStats = (name: string) => displayStats.get(normalizeEntityName(name)) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+
   const contentGaps = analyzeContentGaps(results, domain, validatedLookup);
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
     aiOpportunity,
@@ -4205,23 +4224,11 @@ async function generatePDF(
   });
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-  // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
-  const competitorMentions = new Map<string, number>();
-  for (const r of validResults) {
-    for (const c of r.competitors) {
-      competitorMentions.set(c, (competitorMentions.get(c) || 0) + 1);
-    }
-  }
-
-  const sortedCompetitors = (refinedCompetitors.length > 0
-    ? refinedCompetitors.map((name, index) => ({ name, count: competitorMentions.get(name) || 0, index }))
-    : Array.from(competitorMentions.entries()).map(([name, count], index) => ({ name, count, index }))
-  )
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.index - b.index;
-    })
-    .map(({ name, count }) => [name, count] as const);
+  // NOTE: We intentionally do NOT aggregate raw `r.competitors` for display
+  // here. All competitor surfaces (Competitors Mentioned by AI, Types Found,
+  // Head-to-Head, Content Gap, Detailed Prompt Analysis) read from
+  // `classifiedCompetitors` / `validatedLookup`, which are gated by the
+  // validation layer. Raw extracted phrases must never reach the report PDF.
 
   // Provider aggregate stats
   const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
@@ -4711,8 +4718,28 @@ async function generatePDF(
     });
     y -= 18;
 
-    const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
-    for (const cc of sortedAi) {
+    // Sort by: (1) recommendation status, (2) provider diversity,
+    // (3) mention count, (4) commercial relevance (Direct Competitor first).
+    const COMMERCIAL_RANK: Partial<Record<CompetitorType, number>> = {
+      'Direct Competitor': 4,
+      'Local or Boutique Competitor': 3,
+      'Large Firm / Enterprise Competitor': 3,
+      'Software Platform': 2,
+      'ADR Provider': 2,
+      'Marketplace / Directory': 1,
+      'Adjacent Service Provider': 1,
+    };
+    const sortedAi = aiMentionedClassified.slice().sort((a, b) => {
+      const sa = getStats(a.canonical), sb = getStats(b.canonical);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
+      return (COMMERCIAL_RANK[b.type] ?? 0) - (COMMERCIAL_RANK[a.type] ?? 0);
+    });
+    const TOP_AI_LIMIT = 20;
+    const displayedAi = sortedAi.slice(0, TOP_AI_LIMIT);
+    const remainingAi = sortedAi.length - displayedAi.length;
+    for (const cc of displayedAi) {
       if (y < 60) { page = newPage(); y = H - 60; }
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
@@ -4728,6 +4755,13 @@ async function generatePDF(
         x: M + contentW - 160 + cBarW + 4, y: y - 12, size: 8, font: helvetica, color: mid,
       });
       y -= 24;
+    }
+    if (remainingAi > 0) {
+      if (y < 60) { page = newPage(); y = H - 60; }
+      page.drawText(`+ ${remainingAi} more validated entities`, {
+        x: M + 10, y: y - 8, size: 9, font: helveticaOblique, color: mid,
+      });
+      y -= 18;
     }
   } else {
     y = drawCalloutBox(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', y);
@@ -4772,25 +4806,44 @@ async function generatePDF(
       'Irrelevant / Excluded',
     ];
     const grouped = new Map<CompetitorType, ClassifiedCompetitor[]>();
+    const EXCLUDED_TYPES_FOR_DISPLAY = new Set<string>([
+      'Irrelevant / Excluded',
+      'Excluded / Unknown',
+      'Regulatory / Legal Context', // shown only in its own dedicated section, not here
+    ]);
     for (const cc of classifiedCompetitors) {
-      if (cc.type === 'Irrelevant / Excluded') continue;
+      if (EXCLUDED_TYPES_FOR_DISPLAY.has(cc.type as string)) continue;
       const arr = grouped.get(cc.type) || [];
       arr.push(cc);
       grouped.set(cc.type, arr);
     }
 
+    const PER_TYPE_LIMIT = 10;
     for (const t of typeOrder) {
       const arr = grouped.get(t);
       if (!arr || arr.length === 0) continue;
       if (y < 80) { page = newPage(); y = H - 60; }
+      // Sort within each type using the same signal-quality ordering as the AI list.
+      const sortedArr = arr.slice().sort((a, b) => {
+        const sa = getStats(a.canonical), sb = getStats(b.canonical);
+        if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+        if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+        return b.mentionCount - a.mentionCount;
+      });
+      const displayedArr = sortedArr.slice(0, PER_TYPE_LIMIT);
+      const overflow = sortedArr.length - displayedArr.length;
       // Type heading row
       page.drawRectangle({ x: M, y: y - 16, width: contentW, height: 18, color: navy });
-      page.drawText(`${t}  (${arr.length})`, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
+      const headingLabel = overflow > 0
+        ? `${t}  (${displayedArr.length} of ${sortedArr.length})`
+        : `${t}  (${sortedArr.length})`;
+      page.drawText(headingLabel, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
       y -= 22;
       // Members — wrap as comma-separated list
-      const aiNames = arr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
-      const researchNames = arr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
-      const lines = wrapText([...aiNames, ...researchNames].join(', '), 95);
+      const aiNames = displayedArr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
+      const researchNames = displayedArr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
+      const joined = [...aiNames, ...researchNames].join(', ') + (overflow > 0 ? `, + ${overflow} more` : '');
+      const lines = wrapText(joined, 95);
       for (const ln of lines) {
         if (y < 50) { page = newPage(); y = H - 60; }
         page.drawText(ln, { x: M + 10, y: y - 8, size: 9, font: helvetica, color: dark });
@@ -4821,9 +4874,9 @@ async function generatePDF(
       //   3. No entities at all            → genuine first-mover opportunity
       let competitorLine: string;
       if (gap.competitorsWinning.length > 0) {
-        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`;
+        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 5).join(', ')}`;
       } else if (gap.entitiesMentioned && gap.entitiesMentioned.length > 0) {
-        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 4).join(', ')}. No clear recommendation leader was detected.`;
+        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 5).join(', ')}. No clear recommendation leader was detected.`;
       } else {
         competitorLine = 'No clear competitor winning yet — first-mover opportunity.';
       }
@@ -5026,7 +5079,22 @@ async function generatePDF(
     y -= 22;
 
     // Competitor rows
-    const displayCompetitors = h2h.competitors.slice(0, 10);
+    // Prioritize Direct Competitors and high-confidence recommendation events.
+    // Tiebreak by provider diversity and prompt coverage in the matrix itself.
+    const matrixPromptCount = (comp: string) =>
+      h2h.prompts.reduce((n, p) => n + (h2h.matrix[comp]?.[p] ? 1 : 0), 0);
+    const sortedH2H = h2h.competitors.slice().sort((a, b) => {
+      const ca = classificationByCanon.get(normalizeEntityName(a));
+      const cb = classificationByCanon.get(normalizeEntityName(b));
+      const directA = ca?.type === 'Direct Competitor' ? 1 : 0;
+      const directB = cb?.type === 'Direct Competitor' ? 1 : 0;
+      if (directB !== directA) return directB - directA;
+      const sa = getStats(a), sb = getStats(b);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      return matrixPromptCount(b) - matrixPromptCount(a);
+    });
+    const displayCompetitors = sortedH2H.slice(0, 10);
     for (const comp of displayCompetitors) {
       if (y < 80) break;
 
@@ -5148,10 +5216,17 @@ async function generatePDF(
         y -= 4;
       }
 
-      // Competitors
-      if (r.competitors.length > 0) {
+      // Competitors — filtered through the validation layer so headings,
+      // laws, fragments, and low-confidence phrases never get printed here.
+      // Source of truth: validatedLookup (built from validatedEntityTrace).
+      const validatedCompetitorsForPrompt = (r.competitors || []).filter((c) => {
+        const k = normalizeEntityName(c);
+        const v = validatedLookup.get(k);
+        return v?.includeInCompetitorLandscape === true;
+      });
+      if (validatedCompetitorsForPrompt.length > 0) {
         if (y < 60) { page = newPage(); y = H - 60; }
-        const compText = `Competitors: ${r.competitors.join(', ')}`;
+        const compText = `Competitors: ${validatedCompetitorsForPrompt.join(', ')}`;
         y = drawWrappedText(page, compText, M + 14, y, { size: 8, font: helveticaBold, color: navy, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       }
@@ -6028,7 +6103,104 @@ serve(async (req) => {
       }
     }
 
-    // ===== Admin / debug summary for competitor extraction =====
+    // ===== Single source of truth: validated entities =====
+    // Every report section that displays competitors MUST consult these sets.
+    // Built strictly from validatedEntityTrace (the validation layer's output).
+    // - validatedLandscapeCanonicals: passed includeInCompetitorLandscape
+    // - validatedSoVCanonicals:        passed includeInShareOfVoice + status in
+    //                                  {listed, recommended, preferred}
+    // - validatedDisplayName:          canonical → human display name
+    // - validatedCanonicalType:        canonical → final entityType (post-validation)
+    const validatedLandscapeCanonicals = new Set<string>();
+    const validatedSoVCanonicals = new Set<string>();
+    const validatedDisplayName = new Map<string, string>();
+    const validatedCanonicalType = new Map<string, CompetitorType>();
+    for (const v of validatedEntityTrace) {
+      const k = (v.canonicalName || v.rawText || '').toLowerCase().trim();
+      if (!k) continue;
+      if (v.includeInCompetitorLandscape) {
+        validatedLandscapeCanonicals.add(k);
+        if (!validatedDisplayName.has(k)) validatedDisplayName.set(k, v.rawText || k);
+        // Prefer non-Excluded type if conflicting traces exist for the same canonical.
+        const cur = validatedCanonicalType.get(k);
+        if (!cur || cur === 'Irrelevant / Excluded') {
+          validatedCanonicalType.set(k, v.entityType as CompetitorType);
+        }
+      }
+      if (
+        v.includeInShareOfVoice &&
+        (v.mentionStatus === 'listed' || v.mentionStatus === 'recommended' || v.mentionStatus === 'preferred')
+      ) {
+        validatedSoVCanonicals.add(k);
+      }
+    }
+
+    // Re-derive classifiedCompetitors so EVERY displayed competitor has passed
+    // validation. AI-mentioned entries inherit their post-validation entityType
+    // (so e.g. "FCRA" cannot leak in as "Direct Competitor"); research-backed
+    // entries keep their classifyEntity() type but are still excluded if they
+    // resolve to a non-competitor type.
+    const validatedClassifiedCompetitors: ClassifiedCompetitor[] = [];
+    const NON_COMPETITOR_DISPLAY_TYPES = new Set<string>([
+      'Excluded / Unknown', 'Regulatory / Legal Context', 'Irrelevant / Excluded',
+    ]);
+    for (const cc of classifiedCompetitors) {
+      if (cc.source === 'ai_mentioned') {
+        if (!validatedLandscapeCanonicals.has(cc.canonical)) continue;
+        const validatedType = validatedCanonicalType.get(cc.canonical) || cc.type;
+        if (NON_COMPETITOR_DISPLAY_TYPES.has(validatedType as string)) continue;
+        validatedClassifiedCompetitors.push({ ...cc, type: validatedType as CompetitorType });
+      } else {
+        // research_backed: not in validation trace (never appeared in AI text),
+        // but still must be a real competitor type to render.
+        if (NON_COMPETITOR_DISPLAY_TYPES.has(cc.type as string)) continue;
+        validatedClassifiedCompetitors.push(cc);
+      }
+    }
+    // Replace the working set so all downstream sections (Executive Summary,
+    // Competitors Mentioned by AI, Competitor Types Found, Head-to-Head) use
+    // the validated list. `classifiedCompetitors` is `const` declared as an
+    // array, so we mutate in place.
+    classifiedCompetitors.length = 0;
+    classifiedCompetitors.push(...validatedClassifiedCompetitors);
+    console.log(`[AutoReport] Validation gate applied to classifiedCompetitors → kept=${classifiedCompetitors.length} (ai=${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length}, research=${classifiedCompetitors.filter(c => c.source === 'research_backed').length})`);
+
+    // ===== Recompute Share of Voice from VALIDATED recommendation events =====
+    // The earlier computeShareOfVoice() call only filtered by classifyByName
+    // (no confidence/validation gate), so an entity that was rejected by the
+    // validation layer could still inflate SoV. Rebuild SoV strictly from the
+    // entity-loop's competitorRecommendationEvents (which already enforce
+    // includeInShareOfVoice + status ∈ {listed, recommended, preferred}) so
+    // SoV, AI Visibility Score (which consumes SoV), and AI Opportunity Score
+    // all share the same source of truth as Head-to-Head and Content Gap.
+    let validatedBrandRecEvents = 0;
+    const validatedCompetitorRecPromptIds = new Set<string>();
+    for (const r of validResults) {
+      if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
+        validatedBrandRecEvents += 1;
+      }
+    }
+    for (const ev of competitorRecommendationEvents) {
+      // One competitor recommendation event per (provider, prompt) — matches
+      // the original computeShareOfVoice() denominator.
+      validatedCompetitorRecPromptIds.add(`${ev.provider}::${ev.promptId}`);
+    }
+    const validatedCompetitorRecEvents = validatedCompetitorRecPromptIds.size;
+    const validatedSoVTotal = validatedBrandRecEvents + validatedCompetitorRecEvents;
+    const validatedSoVRatio = validatedSoVTotal === 0 ? 0 : validatedBrandRecEvents / validatedSoVTotal;
+    if (
+      shareOfVoice.brandRecommendationEvents !== validatedBrandRecEvents ||
+      shareOfVoice.competitorRecommendationEvents !== validatedCompetitorRecEvents
+    ) {
+      console.log(`[AutoReport] SoV adjusted by validation gate: brand ${shareOfVoice.brandRecommendationEvents}→${validatedBrandRecEvents}, competitor ${shareOfVoice.competitorRecommendationEvents}→${validatedCompetitorRecEvents}, ratio ${shareOfVoice.sov.toFixed(2)}→${validatedSoVRatio.toFixed(2)}`);
+    }
+    shareOfVoice.brandRecommendationEvents = validatedBrandRecEvents;
+    shareOfVoice.competitorRecommendationEvents = validatedCompetitorRecEvents;
+    shareOfVoice.brandMentions = validatedBrandRecEvents;
+    shareOfVoice.competitorMentions = validatedCompetitorRecEvents;
+    shareOfVoice.sov = validatedSoVRatio;
+
+
     // Always emit the aggregate counts (cheap, ~1 log line) so we can audit
     // why entities were included/excluded without re-running with debug=true.
     const rawExtractedCount = validatedEntityTrace.length;
