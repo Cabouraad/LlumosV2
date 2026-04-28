@@ -2829,6 +2829,15 @@ export function validateEntity(args: {
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: 'generic term / not an organization' };
   }
+  // Exclusion filter: AI-answer headings, advice/criteria phrases, product
+  // features, sentence fragments, and generic nouns must never reach the
+  // competitor landscape, types, matrix, gap analysis, or Share of Voice.
+  const exclusionReason = matchesExclusionFilter(cleaned);
+  if (exclusionReason) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: `${exclusionReason} / not an organization` };
+  }
   // Sentence-fragment heuristic: ends with verb-like trailing phrase or
   // is excessively long (> 8 words is almost never a single org name).
   const wordCount = cleaned.split(/\s+/).length;
