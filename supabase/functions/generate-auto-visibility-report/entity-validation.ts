@@ -142,6 +142,9 @@ const EXCLUSION_FEATURES = new Set<string>([
   'business credit risk score', 'payment index', 'business failure score',
   'small business risk score', 'financial stability risk',
   'live business identity', 'red flag alert', 'regulatory compliance',
+  'credit score model', 'credit report access', 'secured credit cards',
+  'business credit cards', 'vendor credit accounts', 'free credit reports',
+  'personal finance apps',
 ].map(s => s.toLowerCase()));
 
 const EXCLUSION_FRAGMENTS = new Set<string>([
@@ -159,6 +162,8 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'financial advisors', 'small businesses', 'startup tips',
   'california startups', 'california department',
   'california-specific considerations', 'california-compliant',
+  'national foundation', 'credit counseling', 'credit union',
+  'consumer credit counseling service',
 ].map(s => s.toLowerCase()));
 
 // Domain nouns that frequently combine into generic noun phrases that are
@@ -186,6 +191,9 @@ const DOMAIN_NOUN_TOKENS = new Set<string>([
   'small', 'large', 'enterprise', 'startup', 'startups', 'company', 'companies',
   'service', 'services', 'tool', 'tools', 'platform', 'platforms', 'app', 'apps',
   'provider', 'providers', 'solution', 'solutions',
+  'model', 'models', 'access', 'scorecard', 'scorecards', 'counseling',
+  'counselling', 'counselor', 'counsellor', 'union', 'unions', 'national',
+  'vendor', 'vendors', 'account', 'accounts', 'personal', 'finance', 'financial',
   'pay', 'paying', 'payment', 'payments', 'spend', 'spending', 'habits',
   'considerations', 'consideration', 'differences', 'similarities',
   'recommendations', 'recommendation', 'options', 'choices', 'alternatives',
@@ -442,14 +450,14 @@ export function validateEntity(args: {
   const isDomainStyle = looksLikeDomain(cleaned);
   const properOrgShape = looksLikeProperOrgName(cleaned);
 
-  // Reject generic domain noun phrases ("Bad Credit", "Credit Card",
-  // "Important Considerations", "Pay Rent", "Identity Theft Protection",
-  // "Travel Rewards", "Annual Fee", "Credit Monitoring", etc.) UNLESS the
-  // phrase is a known alias, has an org suffix, looks like a domain, or is a
-  // known brand acronym. Two-or-three-word title-cased noun phrases are the
-  // single biggest source of false positives in the AI Visibility Report.
+  // Reject generic domain noun phrases ("Credit Score Model", "Credit Report
+  // Access", "Secured Credit Cards", "Credit Counseling", "Vendor Credit
+  // Accounts", etc.) UNLESS the phrase is a known alias, looks like a domain,
+  // or is a known brand acronym. Do NOT let broad suffix words like "credit",
+  // "service", or "foundation" rescue these phrases — that was the remaining
+  // source of false positives in the MyFairCreditSite report.
   if (
-    !matchesAlias && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym &&
+    !matchesAlias && !isDomainStyle && !isKnownAcronym &&
     isGenericDomainNounPhrase(cleaned)
   ) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
