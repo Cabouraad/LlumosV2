@@ -137,6 +137,28 @@ const MUST_EXCLUDE: string[] = [
   "Credit Repair Organizations Act", "Fair Credit Reporting Act",
   "Fair Debt Collection Practices Act",
   "CROA", "FCRA", "FDCPA", "GDPR", "CCPA", "SEC", "EIN", "SOC II", "AML",
+  // Phrases that leaked through in the v2 PDF report — title-cased noun
+  // phrases the AI used as headings, comparison labels, or feature names.
+  "Key Differences", "Bad Credit", "Credit Card", "Credit Monitoring",
+  "Identity Theft Protection", "Travel Rewards", "Annual Fee", "Cash Rewards",
+  "Bonus Offer", "Credit Limit", "Credit History", "Credit Check",
+  "Credit Score Tracking", "Real-Time Alerts", "Mobile App", "Build Credit",
+  "Pay Rent", "Pay Bills", "Educational Resources", "Free Options",
+  "Best Free Options", "Best Credit Monitoring", "Important Considerations",
+  "Additional Considerations", "Up to", "Provides", "Covers", "Monitors",
+  "Updates", "DIY", "DIY Credit Repair", "Free Experian", "Free FICO",
+  "Free TransUnion", "Free VantageScore", "Major Credit Bureaus",
+  "Specialty Credit Bureaus", "Major Card Issuers", "Top Credit Card Providers",
+  "Credit Card Options", "Student Credit Card", "Student Card",
+  "Sign-Up Bonus", "Introductory Offers", "Notable Cards", "Sapphire Preferred",
+  "Sapphire Reserve", "Freedom Unlimited", "Hybrid Approach", "Guided DIY",
+  "Key Similarities", "Standout Feature", "Cashback Match", "Preferred Rewards",
+  "Saver Rewards", "Bureaus Monitored", "Paid Options", "Trial Period",
+  "Privacy and Security", "Reputation and Reviews", "Monitoring Coverage",
+  "Alert Speed", "Credit Insights", "Added Protections", "Potential Drawbacks",
+  "Essential Features", "Better Features", "Average Credit",
+  "Credit Builder Cards", "Credit Builder Account", "Secured Visa", "Self Visa",
+  "Secured Mastercard", "Secured Card Options", "Build Credit Responsibly",
 ];
 
 function runValidate(rawText: string) {
