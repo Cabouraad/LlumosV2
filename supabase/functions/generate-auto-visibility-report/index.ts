@@ -2728,6 +2728,39 @@ export interface ValidatedEntity {
   evidenceSnippet: string;
   provider: string;
   promptId: string;
+  // Audit trail: which positive validation tests fired and which exclusion
+  // rules matched. Used by the admin debug logger to explain inclusion /
+  // exclusion decisions on a per-entity basis.
+  matchedValidationRules?: string[];
+  matchedExclusionRules?: string[];
+}
+
+// Canonical exclusion-reason categories used by the admin debug grouping.
+// Free-form excludedReason strings are mapped into one of these buckets so
+// the debug summary stays stable and auditable.
+export type ExclusionCategory =
+  | 'heading/advice phrase'
+  | 'product feature'
+  | 'sentence fragment'
+  | 'legal/regulatory term'
+  | 'duplicate child product'
+  | 'generic noun'
+  | 'low confidence'
+  | 'not an organization'
+  | 'other';
+
+export function categorizeExclusionReason(reason?: string): ExclusionCategory {
+  const r = (reason || '').toLowerCase();
+  if (!r) return 'other';
+  if (r.includes('regulatory') || r.includes('legal')) return 'legal/regulatory term';
+  if (r.includes('heading') || r.includes('advice') || r.includes('criteria')) return 'heading/advice phrase';
+  if (r.includes('feature') || r.includes('product feature')) return 'product feature';
+  if (r.includes('sentence fragment') || r.includes('fragment') || r.includes('verb-led')) return 'sentence fragment';
+  if (r.includes('duplicate') || r.includes('child product') || r.includes('rolled up')) return 'duplicate child product';
+  if (r.includes('generic')) return 'generic noun';
+  if (r.includes('confidence')) return 'low confidence';
+  if (r.includes('not an organization') || r.includes('unknown entity') || r.includes('insufficient signal')) return 'not an organization';
+  return 'other';
 }
 
 const ORG_SUFFIX_PATTERN = /\b(?:inc\.?|incorporated|llc|l\.l\.c\.?|llp|l\.l\.p\.?|plc|ltd\.?|limited|corp\.?|corporation|company|co\.?|group|holdings?|partners?|associates?|firm|law|lawyers|attorneys?|bank|bureau|association|foundation|fund|services|capital|credit|analytics|monitoring|repair|systems?|solutions?|technologies|technology|labs?|institute|agency|consulting|advisors?|advisory|enterprises?)\b/i;
@@ -3042,12 +3075,14 @@ export function validateEntity(args: {
   if (!cleaned || cleaned.length < 2) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'empty or too short' };
+      excludedReason: 'empty or too short',
+      matchedValidationRules: [], matchedExclusionRules: ['empty_or_too_short'] };
   }
   if (!/[a-z]/i.test(cleaned)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'no alphabetic content' };
+      excludedReason: 'no alphabetic content',
+      matchedValidationRules: [], matchedExclusionRules: ['no_alphabetic_content'] };
   }
   // Regulatory / legal context: laws, regulations, agencies, compliance
   // frameworks. Never a Direct Competitor; excluded from landscape, SoV,
@@ -3055,12 +3090,14 @@ export function validateEntity(args: {
   if (isRegulatoryLegalContext(cleaned, canonicalName)) {
     return { ...base, entityType: 'Regulatory / Legal Context', confidenceScore: 0.9,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'regulatory / legal context — not a competitor' };
+      excludedReason: 'regulatory / legal context — not a competitor',
+      matchedValidationRules: [], matchedExclusionRules: ['regulatory_legal_context'] };
   }
   if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'generic term / not an organization' };
+      excludedReason: 'generic term / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['generic_phrase_blocklist'] };
   }
   // Exclusion filter: AI-answer headings, advice/criteria phrases, product
   // features, sentence fragments, and generic nouns must never reach the
@@ -3069,7 +3106,8 @@ export function validateEntity(args: {
   if (exclusionReason) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: `${exclusionReason} / not an organization` };
+      excludedReason: `${exclusionReason} / not an organization`,
+      matchedValidationRules: [], matchedExclusionRules: [`exclusion_filter:${exclusionReason}`] };
   }
   // Sentence-fragment heuristic: ends with verb-like trailing phrase or
   // is excessively long (> 8 words is almost never a single org name).
@@ -3077,7 +3115,8 @@ export function validateEntity(args: {
   if (wordCount > 8) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'sentence fragment / not an organization' };
+      excludedReason: 'sentence fragment / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['too_many_words_sentence_fragment'] };
   }
 
   // Test 1: known brand/provider alias map.
@@ -3167,13 +3206,31 @@ export function validateEntity(args: {
   const meetsHighThreshold = confidence >= 0.65;
   const meetsMidThreshold  = confidence >= 0.45 && (matchesAlias || strongProviderContext);
 
+  // Build the audit trail of which positive validation tests fired. Used by
+  // the admin debug logger to explain inclusion decisions per entity.
+  const matchedValidationRules: string[] = [];
+  if (matchesAlias)         matchedValidationRules.push('alias_map_match');
+  if (hasOrgSuffix)         matchedValidationRules.push('org_suffix');
+  if (inProviderList)       matchedValidationRules.push('provider_list_context');
+  if (hasNearbyKeyword)     matchedValidationRules.push('nearby_keyword');
+  if (repeatedAcrossContext) matchedValidationRules.push('repeated_in_context');
+  if (isDomainStyle)        matchedValidationRules.push('domain_style');
+  if (isKnownAcronym)       matchedValidationRules.push('known_brand_acronym');
+  if (properOrgShape)       matchedValidationRules.push('proper_org_shape');
+  const matchedExclusionRules: string[] = [];
+  if (isUnknownAcronym)     matchedExclusionRules.push('unknown_acronym_penalty');
+  if (isVerbLed)            matchedExclusionRules.push('verb_led_penalty');
+  if (isGenericNoun)        matchedExclusionRules.push('generic_noun_penalty');
+
   if (!meetsHighThreshold && !meetsMidThreshold) {
     return { ...base, entityType: 'Excluded / Unknown',
       confidenceScore: Number(confidence.toFixed(2)),
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: confidence < 0.45
         ? 'confidence < 0.45 / insufficient signal'
-        : 'confidence 0.45–0.64 without alias or strong provider context' };
+        : 'confidence 0.45–0.64 without alias or strong provider context',
+      matchedValidationRules,
+      matchedExclusionRules: [...matchedExclusionRules, 'below_confidence_threshold'] };
   }
 
   // Type resolution priority (unchanged):
@@ -3195,7 +3252,9 @@ export function validateEntity(args: {
     return { ...base, entityType: finalType,
       confidenceScore: Number(confidence.toFixed(2)),
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'unknown entity / insufficient signal for Direct Competitor' };
+      excludedReason: 'unknown entity / insufficient signal for Direct Competitor',
+      matchedValidationRules,
+      matchedExclusionRules: [...matchedExclusionRules, 'no_resolved_entity_type'] };
   }
 
   // Valid competitor/provider entity types eligible for Share of Voice.
@@ -3228,6 +3287,8 @@ export function validateEntity(args: {
     confidenceScore: Number(confidence.toFixed(2)),
     includeInCompetitorLandscape: true,
     includeInShareOfVoice,
+    matchedValidationRules,
+    matchedExclusionRules,
   };
 }
 
@@ -6372,6 +6433,33 @@ serve(async (req) => {
     const competitorRecommendationEvents: CompetitorRecommendationEvent[] = [];
     const validatedEntityTrace: ValidatedEntity[] = [];
     const validationExclusions: Record<string, number> = {};
+    // Admin debug counters: duplicates merged after canonicalization (different
+    // raw strings collapsing to the same canonical) and child products rolled
+    // up to a parent brand (e.g. "Experian Business Credit Advantage" → "Experian").
+    const seenCanonicals = new Set<string>();
+    let duplicateAliasesMerged = 0;
+    let childProductsRolledUp = 0;
+    // Per-entity admin debug rows. Always built (cheap) so the summary log
+    // can ship even when debugMode is off; the full row dump is only emitted
+    // when debugMode is true to avoid flooding production logs.
+    const adminEntityRows: Array<{
+      promptId: string;
+      provider: string;
+      rawText: string;
+      canonicalName: string;
+      entityType: string;
+      confidenceScore: number;
+      mentionStatus: EntityMentionStatus;
+      evidenceSnippet: string;
+      includeInCompetitorLandscape: boolean;
+      includeInShareOfVoice: boolean;
+      excludedReason?: string;
+      exclusionCategory?: ExclusionCategory;
+      matchedValidationRules: string[];
+      matchedExclusionRules: string[];
+      wasDuplicateMerge: boolean;
+      wasChildRollup: boolean;
+    }> = [];
     let promptIdCounter = 0;
     const promptIdMap = new Map<string, string>();
     const promptIdFor = (promptText: string): string => {
@@ -6416,6 +6504,41 @@ serve(async (req) => {
         });
         validatedEntityTrace.push(validated);
 
+        // Detect canonicalization side-effects for the audit summary:
+        //  - duplicate alias: raw form differs from canonical AND we've seen
+        //    this canonical key before in this run.
+        //  - child rollup: the parent-brand prefix rollup transformed the
+        //    name (e.g. "Experian Business Credit Advantage" → "Experian").
+        const properCanonical = canonicalizeEntityName(entity) || entity;
+        const canonicalKey = properCanonical.toLowerCase().trim();
+        const wasChildRollup = !!applyParentRollup(entity);
+        const wasDuplicateMerge = seenCanonicals.has(canonicalKey)
+          && entity.toLowerCase().trim() !== canonicalKey;
+        if (wasChildRollup) childProductsRolledUp += 1;
+        if (wasDuplicateMerge) duplicateAliasesMerged += 1;
+        seenCanonicals.add(canonicalKey);
+
+        adminEntityRows.push({
+          promptId,
+          provider: r.provider,
+          rawText: entity,
+          canonicalName: properCanonical,
+          entityType: validated.entityType,
+          confidenceScore: validated.confidenceScore,
+          mentionStatus: status,
+          evidenceSnippet: evidence,
+          includeInCompetitorLandscape: validated.includeInCompetitorLandscape,
+          includeInShareOfVoice: validated.includeInShareOfVoice,
+          excludedReason: validated.excludedReason,
+          exclusionCategory: validated.includeInCompetitorLandscape
+            ? undefined
+            : categorizeExclusionReason(validated.excludedReason),
+          matchedValidationRules: validated.matchedValidationRules || [],
+          matchedExclusionRules: validated.matchedExclusionRules || [],
+          wasDuplicateMerge,
+          wasChildRollup,
+        });
+
         if (!validated.includeInCompetitorLandscape) {
           const reason = validated.excludedReason || 'unknown';
           validationExclusions[reason] = (validationExclusions[reason] || 0) + 1;
@@ -6458,8 +6581,81 @@ serve(async (req) => {
         }
       }
     }
+
+    // ===== Admin / debug summary for competitor extraction =====
+    // Always emit the aggregate counts (cheap, ~1 log line) so we can audit
+    // why entities were included/excluded without re-running with debug=true.
+    const rawExtractedCount = validatedEntityTrace.length;
+    const validatedCount = validatedEntityTrace.filter(v => v.includeInCompetitorLandscape).length;
+    const excludedCount = rawExtractedCount - validatedCount;
+    const competitorLandscapeCount = new Set(
+      adminEntityRows.filter(r => r.includeInCompetitorLandscape).map(r => r.canonicalName.toLowerCase()),
+    ).size;
+    const shareOfVoiceCount = new Set(
+      adminEntityRows.filter(r => r.includeInShareOfVoice).map(r => r.canonicalName.toLowerCase()),
+    ).size;
+    const regulatoryContextCount = adminEntityRows.filter(
+      r => r.entityType === 'Regulatory / Legal Context',
+    ).length;
+    // Group exclusions by canonical category so the audit log highlights the
+    // top reason buckets (heading/advice phrase, product feature, sentence
+    // fragment, legal/regulatory term, duplicate child product, generic noun,
+    // low confidence, not an organization).
+    const exclusionsByCategory: Record<ExclusionCategory, number> = {
+      'heading/advice phrase': 0,
+      'product feature': 0,
+      'sentence fragment': 0,
+      'legal/regulatory term': 0,
+      'duplicate child product': 0,
+      'generic noun': 0,
+      'low confidence': 0,
+      'not an organization': 0,
+      'other': 0,
+    };
+    for (const row of adminEntityRows) {
+      if (row.includeInCompetitorLandscape) continue;
+      const cat = row.exclusionCategory || 'other';
+      exclusionsByCategory[cat] = (exclusionsByCategory[cat] || 0) + 1;
+    }
+
     console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
     console.log(`[AutoReport] Validation layer — kept=${aiMentionedEntities.length}/${validatedEntityTrace.length}, excluded=${validatedEntityTrace.length - aiMentionedEntities.length}, byReason=${JSON.stringify(validationExclusions)}`);
+    console.log(`[AutoReport][AdminDebug] Extraction summary: ${JSON.stringify({
+      rawExtracted: rawExtractedCount,
+      validated: validatedCount,
+      excluded: excludedCount,
+      competitorLandscape: competitorLandscapeCount,
+      shareOfVoice: shareOfVoiceCount,
+      regulatoryLegalContext: regulatoryContextCount,
+      duplicateAliasesMerged,
+      childProductsRolledUp,
+      exclusionsByCategory,
+    })}`);
+
+    // Detailed per-entity row dump — only when debugMode is on. Each row is
+    // a single JSON-encoded log line so it can be grepped/parsed by the
+    // admin debug viewer without flooding production logs by default.
+    if (debugMode) {
+      console.log(`[AutoReport][AdminDebug] === Per-entity extraction trace (${adminEntityRows.length} rows) ===`);
+      for (const row of adminEntityRows) {
+        console.log(`[AutoReport][AdminDebug][Entity] ${JSON.stringify(row)}`);
+      }
+      // Group exclusions by category for quick scanning in the dashboard.
+      const grouped: Record<string, Array<{ rawText: string; canonical: string; reason?: string; provider: string; promptId: string }>> = {};
+      for (const row of adminEntityRows) {
+        if (row.includeInCompetitorLandscape) continue;
+        const cat = row.exclusionCategory || 'other';
+        (grouped[cat] = grouped[cat] || []).push({
+          rawText: row.rawText,
+          canonical: row.canonicalName,
+          reason: row.excludedReason,
+          provider: row.provider,
+          promptId: row.promptId,
+        });
+      }
+      console.log(`[AutoReport][AdminDebug] Exclusions grouped by reason: ${JSON.stringify(grouped)}`);
+    }
+
 
     // Admin-only entity extraction debug trace (gated by debug=true).
     let entityDebug: EntityDebugTrace | null = null;
