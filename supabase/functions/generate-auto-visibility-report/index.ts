@@ -4730,8 +4730,28 @@ async function generatePDF(
     });
     y -= 18;
 
-    const sortedAi = aiMentionedClassified.slice().sort((a, b) => b.mentionCount - a.mentionCount);
-    for (const cc of sortedAi) {
+    // Sort by: (1) recommendation status, (2) provider diversity,
+    // (3) mention count, (4) commercial relevance (Direct Competitor first).
+    const COMMERCIAL_RANK: Partial<Record<CompetitorType, number>> = {
+      'Direct Competitor': 4,
+      'Local or Boutique Competitor': 3,
+      'Large Firm / Enterprise Competitor': 3,
+      'Software Platform': 2,
+      'ADR Provider': 2,
+      'Marketplace / Directory': 1,
+      'Adjacent Service Provider': 1,
+    };
+    const sortedAi = aiMentionedClassified.slice().sort((a, b) => {
+      const sa = getStats(a.canonical), sb = getStats(b.canonical);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
+      return (COMMERCIAL_RANK[b.type] ?? 0) - (COMMERCIAL_RANK[a.type] ?? 0);
+    });
+    const TOP_AI_LIMIT = 20;
+    const displayedAi = sortedAi.slice(0, TOP_AI_LIMIT);
+    const remainingAi = sortedAi.length - displayedAi.length;
+    for (const cc of displayedAi) {
       if (y < 60) { page = newPage(); y = H - 60; }
       page.drawRectangle({ x: M, y: y - 18, width: contentW, height: 20, color: gray });
       page.drawRectangle({ x: M, y: y - 18, width: 3, height: 20, color: navy });
@@ -4747,6 +4767,13 @@ async function generatePDF(
         x: M + contentW - 160 + cBarW + 4, y: y - 12, size: 8, font: helvetica, color: mid,
       });
       y -= 24;
+    }
+    if (remainingAi > 0) {
+      if (y < 60) { page = newPage(); y = H - 60; }
+      page.drawText(`+ ${remainingAi} more validated entities`, {
+        x: M + 10, y: y - 8, size: 9, font: helveticaOblique, color: mid,
+      });
+      y -= 18;
     }
   } else {
     y = drawCalloutBox(page, 'No direct competitor brands were explicitly named in these AI responses. That usually means the prompts were more educational than vendor-comparison oriented, or the models answered with tactics instead of naming providers.', y);
