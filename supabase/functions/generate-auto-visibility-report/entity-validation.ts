@@ -161,6 +161,82 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'california-specific considerations', 'california-compliant',
 ].map(s => s.toLowerCase()));
 
+// Domain nouns that frequently combine into generic noun phrases that are
+// NOT brands or providers (e.g. "Credit Card", "Bad Credit", "Pay Rent",
+// "Build Credit", "Credit Monitoring", "Identity Theft Protection",
+// "Annual Fee", "Travel Rewards"). If every meaningful token of a phrase is
+// in this set AND the phrase has no org-identity signal, the phrase is
+// rejected as a generic noun phrase.
+const DOMAIN_NOUN_TOKENS = new Set<string>([
+  'credit', 'card', 'cards', 'score', 'scores', 'scoring', 'report', 'reports',
+  'reporting', 'monitoring', 'monitor', 'history', 'limit', 'utilization',
+  'building', 'builder', 'build', 'repair', 'check', 'tracking', 'alerts',
+  'alert', 'identity', 'theft', 'protection', 'fraud', 'security',
+  'bad', 'good', 'fair', 'excellent', 'poor', 'free', 'paid', 'premium',
+  'best', 'top', 'key', 'major', 'notable', 'leading', 'preferred', 'expert',
+  'recommended', 'additional', 'important', 'essential', 'standout', 'better',
+  'common', 'general', 'specific', 'overall',
+  'fee', 'fees', 'apr', 'rate', 'rates', 'reward', 'rewards', 'bonus', 'bonuses',
+  'cashback', 'cash', 'back', 'savings', 'saver', 'sign', 'sign-up', 'signup',
+  'introductory', 'offer', 'offers', 'plan', 'plans', 'option', 'options',
+  'pricing', 'price', 'prices', 'comparison', 'comparisons', 'review', 'reviews',
+  'feature', 'features', 'rankings', 'tier', 'tiers', 'trial',
+  'student', 'students', 'business', 'businesses', 'consumer', 'consumers',
+  'customer', 'customers', 'user', 'users', 'family', 'parental', 'guidance',
+  'small', 'large', 'enterprise', 'startup', 'startups', 'company', 'companies',
+  'service', 'services', 'tool', 'tools', 'platform', 'platforms', 'app', 'apps',
+  'provider', 'providers', 'solution', 'solutions',
+  'pay', 'paying', 'payment', 'payments', 'spend', 'spending', 'habits',
+  'considerations', 'consideration', 'differences', 'similarities',
+  'recommendations', 'recommendation', 'options', 'choices', 'alternatives',
+  'highlights', 'insights', 'analysis', 'overview', 'introduction',
+  'conclusion', 'summary', 'tips', 'notes', 'steps', 'guide', 'approach',
+  'method', 'methods', 'rules', 'criteria', 'requirements', 'needs',
+  'monitoring', 'coverage', 'data', 'accuracy', 'speed', 'real-time',
+  'real', 'time', 'live', 'mobile', 'desktop', 'web', 'online',
+  'rent', 'bill', 'bills', 'loan', 'loans', 'debt', 'debts',
+  'unsecured', 'secured', 'visa', 'mastercard', 'discover', 'amex',
+  'reserve', 'platinum', 'gold', 'silver', 'sapphire', 'freedom', 'venture',
+  'savor', 'savorone', 'quicksilver', 'chrome',
+  'and', 'or', 'of', 'the', 'a', 'an', 'with', 'for', 'to', 'from', 'in', 'on',
+  'these', 'those', 'this', 'that', 'their', 'your', 'our', 'my',
+  'is', 'are', 'was', 'were', 'be', 'being', 'been',
+  'use', 'uses', 'using', 'choose', 'choosing', 'select', 'selecting',
+  'consider', 'considering', 'compare', 'comparing',
+  'before', 'after', 'when', 'where', 'why', 'how', 'what',
+  'reputation', 'licensing', 'certification', 'compliance', 'privacy',
+  'positive', 'negative', 'red', 'green', 'flags', 'flag', 'signs', 'sign',
+  'drawbacks', 'benefits', 'pros', 'cons', 'protections',
+  'educational', 'resources', 'resource', 'guidance',
+  'dark', 'light', 'web',
+  'foundation', 'hybrid', 'guided', 'diy',
+  'bureau', 'bureaus', 'agency', 'agencies', 'industry',
+  'period', 'periods', 'limit', 'limits', 'access',
+  'cap', 'caps', 'first', 'second', 'third', 'next', 'last',
+  'work', 'monthly', 'annual', 'yearly', 'weekly', 'daily',
+  'i', 'ii', 'iii', 'iv', 'v',
+  'innovator', 'leader', 'technology', 'tech',
+  'rewards', 'preferred', 'unlimited', 'reflect', 'one',
+]);
+
+// Common English stopwords for token analysis.
+const STOPWORD_TOKENS = new Set<string>([
+  'and', 'or', 'of', 'the', 'a', 'an', 'with', 'for', 'to', 'from', 'in', 'on',
+  'at', 'by', 'as', 'is', 'are', 'was', 'were', 'be', 'these', 'those', 'this',
+  'that', 'their', 'your', 'our', 'my', 'its', 'it', 's', '&',
+]);
+
+function isGenericDomainNounPhrase(rawText: string): boolean {
+  const tokens = rawText
+    .toLowerCase()
+    .replace(/[^\w\s&-]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t && !STOPWORD_TOKENS.has(t));
+  if (tokens.length === 0) return false;
+  // Every meaningful token is a domain noun → it's a noun phrase, not an entity.
+  return tokens.every(t => DOMAIN_NOUN_TOKENS.has(t));
+}
+
 const EXCLUSION_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /^(key|important|additional|top|best|leading|major|recommended|notable|popular)\s+\w+/i,
     reason: 'heading' },
@@ -366,6 +442,22 @@ export function validateEntity(args: {
   const isDomainStyle = looksLikeDomain(cleaned);
   const properOrgShape = looksLikeProperOrgName(cleaned);
 
+  // Reject generic domain noun phrases ("Bad Credit", "Credit Card",
+  // "Important Considerations", "Pay Rent", "Identity Theft Protection",
+  // "Travel Rewards", "Annual Fee", "Credit Monitoring", etc.) UNLESS the
+  // phrase is a known alias, has an org suffix, looks like a domain, or is a
+  // known brand acronym. Two-or-three-word title-cased noun phrases are the
+  // single biggest source of false positives in the AI Visibility Report.
+  if (
+    !matchesAlias && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym &&
+    isGenericDomainNounPhrase(cleaned)
+  ) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'generic noun phrase / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['generic_domain_noun_phrase'] };
+  }
+
   const NEARBY_KEYWORDS_RE = /\b(provider|providers|company|companies|service|services|platform|platforms|bureau|bureaus|firm|firms|tool|tools|app|apps|recommended|best|alternative|alternatives)\b/i;
   let hasNearbyKeyword = false;
   if (response) {
@@ -389,6 +481,19 @@ export function validateEntity(args: {
   const isGenericNoun = wordCount <= 2
     && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym && !matchesAlias
     && !properOrgShape;
+
+  // A "strong org-identity signal" means we have evidence the phrase actually
+  // names an organization — not just that it appears next to one. Pure
+  // context (provider list + nearby keyword + repetition) on a generic
+  // title-cased phrase is NOT enough to admit it as a competitor.
+  const strongProperOrg = properOrgShape && (
+    // 3+ tokens with at least 2 capitalised tokens, OR
+    cleaned.split(/\s+/).filter(w => /^[A-Z]/.test(w)).length >= 3 ||
+    // a single distinctive CamelCase / capitalised token of 4+ chars
+    (wordCount === 1 && /^[A-Z][A-Za-z0-9]{3,}$/.test(cleaned))
+  );
+  const hasOrgIdentitySignal =
+    matchesAlias || hasOrgSuffix || isDomainStyle || isKnownAcronym || strongProperOrg;
 
   let confidence = 0;
   if (matchesAlias)         confidence += 0.40;
@@ -420,6 +525,8 @@ export function validateEntity(args: {
   if (isDomainStyle)        matchedValidationRules.push('domain_style');
   if (isKnownAcronym)       matchedValidationRules.push('known_brand_acronym');
   if (properOrgShape)       matchedValidationRules.push('proper_org_shape');
+  if (strongProperOrg)      matchedValidationRules.push('strong_proper_org_shape');
+  if (hasOrgIdentitySignal) matchedValidationRules.push('org_identity_signal');
   const matchedExclusionRules: string[] = [];
   if (isUnknownAcronym)     matchedExclusionRules.push('unknown_acronym_penalty');
   if (isVerbLed)            matchedExclusionRules.push('verb_led_penalty');
@@ -434,6 +541,18 @@ export function validateEntity(args: {
         : 'confidence 0.45–0.64 without alias or strong provider context',
       matchedValidationRules,
       matchedExclusionRules: [...matchedExclusionRules, 'below_confidence_threshold'] };
+  }
+
+  // STRICT GATE: even with high confidence from contextual signals, we
+  // require an actual organization-identity signal. Without it, the phrase
+  // is almost certainly a noun phrase that happens to live next to brands.
+  if (!hasOrgIdentitySignal) {
+    return { ...base, entityType: 'Excluded / Unknown',
+      confidenceScore: Number(confidence.toFixed(2)),
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'no organization-identity signal (alias / suffix / domain / acronym / strong proper-org shape)',
+      matchedValidationRules,
+      matchedExclusionRules: [...matchedExclusionRules, 'no_org_identity_signal'] };
   }
 
   const curatedType = classifyEntityType(canonicalName) || classifyEntityType(cleaned);
