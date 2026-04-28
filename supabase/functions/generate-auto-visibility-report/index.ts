@@ -523,6 +523,13 @@ function canonicalizeEntityName(raw: string | null | undefined): string {
   const key = entityLookupKey(value);
   if (key && KNOWN_ENTITY_MAP[key]) return KNOWN_ENTITY_MAP[key];
 
+  // 4b. Parent-brand prefix rollup — child products / variants collapse
+  //     to their parent brand (e.g. "Experian Business Credit Advantage"
+  //     → "Experian"). Skipped for child products with their own canonical
+  //     entry above (matched in step 4).
+  const rolled = applyParentRollup(value);
+  if (rolled) return rolled;
+
   // 5. Light cleanup for display:
   //    - normalize commas inside multi-part firm names ("Gibson, Dunn" stays as-is)
   //    - normalize "& " spacing
