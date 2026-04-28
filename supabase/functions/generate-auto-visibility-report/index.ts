@@ -5804,6 +5804,8 @@ serve(async (req) => {
     //                        winning here", AI Opportunity competitor gap).
     const aiMentionedEntities: AIMentionedEntity[] = [];
     const competitorRecommendationEvents: CompetitorRecommendationEvent[] = [];
+    const validatedEntityTrace: ValidatedEntity[] = [];
+    const validationExclusions: Record<string, number> = {};
     let promptIdCounter = 0;
     const promptIdMap = new Map<string, string>();
     const promptIdFor = (promptText: string): string => {
@@ -5814,6 +5816,12 @@ serve(async (req) => {
       promptIdMap.set(promptText, id);
       return id;
     };
+    // Build the known-alias set used by the validation layer (test #1).
+    const knownAliasSet = new Set<string>(
+      [...(refinedCompetitorCandidates || []), ...(competitorCandidates || [])]
+        .map(c => (c || '').toLowerCase().trim())
+        .filter(Boolean),
+    );
     for (const r of validResults) {
       const promptId = promptIdFor(r.prompt);
       for (const entity of r.competitors || []) {
@@ -5823,19 +5831,47 @@ serve(async (req) => {
         const entityType = classifyByName(entity);
         const evidence = buildEvidenceSnippet(entity, r.response);
         const mentionCount = countEntityMentions(entity, r.response);
+
+        // Validation layer: decide whether this entity is allowed into the
+        // competitor landscape and/or Share of Voice. Defaults to
+        // "Excluded / Unknown" for low-confidence extractions so headings,
+        // generic phrases, laws, features, and sentence fragments never
+        // get classified as Direct Competitors.
+        const validated = validateEntity({
+          rawText: entity,
+          canonicalName: canonical,
+          classifiedType: entityType,
+          mentionStatus: status,
+          evidenceSnippet: evidence,
+          provider: r.provider,
+          promptId,
+          response: r.response,
+          knownAliases: knownAliasSet,
+        });
+        validatedEntityTrace.push(validated);
+
+        if (!validated.includeInCompetitorLandscape) {
+          const reason = validated.excludedReason || 'unknown';
+          validationExclusions[reason] = (validationExclusions[reason] || 0) + 1;
+          continue;
+        }
+
         aiMentionedEntities.push({
           entityName: entity,
           canonicalName: canonical,
           provider: r.provider,
           promptId,
           promptText: r.prompt,
-          entityType,
+          entityType: validated.entityType,
           mentionCount,
           evidenceSnippet: evidence,
           mentionStatus: status,
         });
 
-        if (status === 'listed' || status === 'recommended' || status === 'preferred') {
+        if (
+          validated.includeInShareOfVoice &&
+          (status === 'listed' || status === 'recommended' || status === 'preferred')
+        ) {
           // Map mention status → recommendation strength.
           //   preferred   → strong
           //   recommended → moderate
@@ -5848,7 +5884,7 @@ serve(async (req) => {
             provider: r.provider,
             promptId,
             promptText: r.prompt,
-            entityType,
+            entityType: validated.entityType,
             recommendationStrength,
             position: detectEntityPosition(entity, r.response),
             evidenceSnippet: evidence,
@@ -5857,6 +5893,7 @@ serve(async (req) => {
       }
     }
     console.log(`[AutoReport] Entities — aiMentioned=${aiMentionedEntities.length} (unique=${new Set(aiMentionedEntities.map(e => e.canonicalName)).size}), recommendationEvents=${competitorRecommendationEvents.length} (unique=${new Set(competitorRecommendationEvents.map(e => e.canonicalName)).size})`);
+    console.log(`[AutoReport] Validation layer — kept=${aiMentionedEntities.length}/${validatedEntityTrace.length}, excluded=${validatedEntityTrace.length - aiMentionedEntities.length}, byReason=${JSON.stringify(validationExclusions)}`);
 
     // Admin-only entity extraction debug trace (gated by debug=true).
     let entityDebug: EntityDebugTrace | null = null;
