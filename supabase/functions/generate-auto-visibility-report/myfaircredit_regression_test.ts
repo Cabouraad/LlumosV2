@@ -140,7 +140,11 @@ const MUST_EXCLUDE: string[] = [
 ];
 
 function runValidate(rawText: string) {
-  const canonical = (canonicalizeEntityName(rawText) || rawText).toLowerCase().trim();
+  // The pure entity-validation module doesn't ship the canonicalization map.
+  // For the purposes of this regression test we use the lower-cased rawText
+  // as the canonical key; the alias-set already contains lower-cased canonical
+  // names so the alias_map_match path still fires for real competitors.
+  const canonical = rawText.toLowerCase().trim();
   return validateEntity({
     rawText,
     canonicalName: canonical,
