@@ -356,7 +356,108 @@ const KNOWN_ENTITY_MAP: Record<string, string> = {
   'state bar of california': 'State Bar of California',
   'calbar': 'State Bar of California',
   'calbar.ca.gov': 'State Bar of California',
+
+  // ---- Parent-brand rollups: explicit child product / variant aliases ----
+  // FICO family
+  'fico score': 'FICO',
+  'fico sbss': 'FICO',
+  'fico liquidcredit small business': 'FICO',
+  'fico small business scoring service': 'FICO',
+  'multiple fico': 'FICO',
+  "experian's fico": 'FICO',
+  'experians fico': 'FICO',
+
+  // Experian family
+  'experian': 'Experian',
+  'experian business': 'Experian',
+  'experian business credit advantage': 'Experian',
+  'experian business credit monitoring': 'Experian',
+  'experian business credit score': 'Experian',
+  'experian identityworks': 'Experian',
+  'experian boost': 'Experian',
+  'experian free monitoring': 'Experian',
+  'free experian': 'Experian',
+  "experian's intelliscore": 'Experian',
+  'experians intelliscore': 'Experian',
+  'intelliscore plus': 'Experian',
+  'intelliscore': 'Experian',
+
+  // Dun & Bradstreet family
+  'dun bradstreet': 'Dun & Bradstreet',
+  'dun & bradstreet': 'Dun & Bradstreet',
+  'd&b': 'Dun & Bradstreet',
+  'dnb': 'Dun & Bradstreet',
+  "dun & bradstreet's paydex": 'Dun & Bradstreet',
+  'dun bradstreets paydex': 'Dun & Bradstreet',
+  'dun & bradstreet creditbuilder': 'Dun & Bradstreet',
+  'dun bradstreet creditbuilder': 'Dun & Bradstreet',
+  'dun & bradstreet creditsignal': 'Dun & Bradstreet',
+  'dun bradstreet creditsignal': 'Dun & Bradstreet',
+  'paydex': 'Dun & Bradstreet',
+
+  // Equifax family
+  'equifax': 'Equifax',
+  'equifax business': 'Equifax',
+  'equifax business credit report': 'Equifax',
+  'equifax business credit monitoring': 'Equifax',
+  'equifax business credit risk': 'Equifax',
+  'equifax delinquency risk score': 'Equifax',
+  'equifax small business': 'Equifax',
+
+  // TransUnion family (split cases handled in extractor before canonicalize)
+  'transunion': 'TransUnion',
+  'transunion business credit monitoring': 'TransUnion',
+
+  // Credit repair / consumer
+  'sky blue credit repair': 'Sky Blue Credit',
+  'sky blue credit': 'Sky Blue Credit',
+  'creditrepair': 'CreditRepair.com',
+  'creditrepair.com': 'CreditRepair.com',
+  'annualcreditreport': 'AnnualCreditReport.com',
+  'annualcreditreport.com': 'AnnualCreditReport.com',
+
+  // Capital One — display canonical name for the CreditWise product
+  'creditwise capital one': 'Capital One CreditWise',
+  'capital one creditwise': 'Capital One CreditWise',
+  'creditwise': 'Capital One CreditWise',
+
+  // Chase — keep product-level name (explicit per spec)
+  'chase credit journey': 'Chase Credit Journey',
 };
+
+// Prefix-pattern rollups: any "<parent> ..." child product collapses to <parent>.
+// Order matters — most specific first. Applied AFTER explicit map miss.
+const PARENT_PREFIX_ROLLUPS: Array<{ prefix: RegExp; parent: string }> = [
+  { prefix: /^experian(?:'s)?\b/i,           parent: 'Experian' },
+  { prefix: /^equifax\b/i,                   parent: 'Equifax' },
+  { prefix: /^transunion\b/i,                parent: 'TransUnion' },
+  { prefix: /^dun\s*&?\s*bradstreet(?:'s)?\b/i, parent: 'Dun & Bradstreet' },
+  { prefix: /^fico\b/i,                      parent: 'FICO' },
+];
+
+function applyParentRollup(value: string): string | null {
+  for (const { prefix, parent } of PARENT_PREFIX_ROLLUPS) {
+    if (prefix.test(value.trim())) return parent;
+  }
+  return null;
+}
+
+// Split combined "X and Y" / "X & Y" entities into separate canonical names.
+// Returns the split list or [original] when no split applies.
+const COMBINED_SPLIT_PAIRS: Array<{ pattern: RegExp; parts: string[] }> = [
+  { pattern: /^transunion\s*(?:and|&)\s*equifax$/i, parts: ['TransUnion', 'Equifax'] },
+  { pattern: /^equifax\s*(?:and|&)\s*transunion$/i, parts: ['Equifax', 'TransUnion'] },
+];
+
+export function splitCombinedEntity(raw: string): string[] {
+  const v = (raw || '').trim();
+  if (!v) return [];
+  for (const { pattern, parts } of COMBINED_SPLIT_PAIRS) {
+    if (pattern.test(v)) return parts;
+  }
+  // "Alongside TransUnion" — verb-led fragment; let exclusion filter drop it.
+  return [v];
+}
 
 const LEGAL_SUFFIX_RE = /\b(?:llp|l\.l\.p\.|llc|l\.l\.c\.|inc\.?|incorporated|corp\.?|corporation|ltd\.?|plc|p\.c\.|pc|pllc|p\.l\.l\.c\.|lp|l\.p\.|pa|p\.a\.|co\.?)\b/gi;
 
@@ -421,6 +522,13 @@ function canonicalizeEntityName(raw: string | null | undefined): string {
   // 4. Map lookup (with and without legal suffix / punctuation)
   const key = entityLookupKey(value);
   if (key && KNOWN_ENTITY_MAP[key]) return KNOWN_ENTITY_MAP[key];
+
+  // 4b. Parent-brand prefix rollup — child products / variants collapse
+  //     to their parent brand (e.g. "Experian Business Credit Advantage"
+  //     → "Experian"). Skipped for child products with their own canonical
+  //     entry above (matched in step 4).
+  const rolled = applyParentRollup(value);
+  if (rolled) return rolled;
 
   // 5. Light cleanup for display:
   //    - normalize commas inside multi-part firm names ("Gibson, Dunn" stays as-is)
@@ -2419,17 +2527,23 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
   const addIfFound = (candidate: string) => {
     const candidateClean = candidate.trim();
     if (!candidateClean || candidateClean.length < 2) return;
-    if (isSelfBrandCandidate(candidateClean, brandProfile)) return;
-    // Canonicalize so domain forms, abbreviations, punctuation/suffix variants
-    // all collapse to one preferred display name across the report.
-    const canonical = canonicalizeEntityName(candidateClean) || candidateClean;
-    if (isSelfBrandCandidate(canonical, brandProfile)) return;
-    const key = normalizeEntityName(canonical);
-    if (!key) return;
-    // Prefer the longer / more complete display when we see the same key twice
-    // (e.g., "JAMS" beats "jamsadr.com"; "Gibson Dunn & Crutcher LLP" beats "Gibson Dunn").
-    const existing = seen.get(key);
-    if (!existing || canonical.length > existing.length) seen.set(key, canonical);
+    // Split combined entities like "TransUnion and Equifax" into separate
+    // canonical rows BEFORE canonicalization so each parent gets its own row.
+    const parts = splitCombinedEntity(candidateClean);
+    for (const part of parts) {
+      if (isSelfBrandCandidate(part, brandProfile)) continue;
+      // Canonicalize so domain forms, abbreviations, punctuation/suffix variants,
+      // and child-product names all collapse to one preferred parent display.
+      const canonical = canonicalizeEntityName(part) || part;
+      if (isSelfBrandCandidate(canonical, brandProfile)) continue;
+      const key = normalizeEntityName(canonical);
+      if (!key) continue;
+      // Prefer the longer / more complete display when we see the same key twice
+      // (e.g., "JAMS" beats "jamsadr.com"). Parent rollups already collapse
+      // child products, so this also dedupes "Experian Boost" → "Experian".
+      const existing = seen.get(key);
+      if (!existing || canonical.length > existing.length) seen.set(key, canonical);
+    }
   };
 
   // 1. Curated allowlist matches (word-boundary safe)
