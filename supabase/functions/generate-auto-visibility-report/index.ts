@@ -4151,7 +4151,57 @@ function buildGapRecommendation(prompt: string, competitorsWinning: string[], en
   return `${competitorPhrase} Create a focused page answering this exact query — H1 matching the question, FAQ schema, and authoritative backlinks from industry publications.`;
 }
 
-function analyzeContentGaps(results: ProviderResult[], brandName: string): ContentGap[] {
+/**
+ * Per-entity validation summary used by the Content Gap competitor filter.
+ * Keyed by normalized canonical name (normalizeEntityName).
+ */
+export type ValidatedEntityLookup = Map<string, {
+  entityType: string;
+  includeInCompetitorLandscape: boolean;
+  includeInShareOfVoice: boolean;
+}>;
+
+// Entity types that are NEVER eligible to appear in "Competitors winning here"
+// — laws, regulations, agencies, headings, fragments, features.
+const NON_COMPETITOR_ENTITY_TYPES = new Set<string>([
+  'Regulatory / Legal Context',
+  'Excluded / Unknown',
+]);
+
+// Detect prompts explicitly asking about government/regulatory resources, in
+// which case "Government / Regulatory Resource" entities ARE valid winners.
+function promptAsksForGovernmentResource(promptText: string): boolean {
+  const p = (promptText || '').toLowerCase();
+  return /\b(gov|government|federal|agency|regulator|regulatory|cfpb|sba|official resource)\b/.test(p);
+}
+
+function isValidCompetitorWinner(
+  canonicalKey: string,
+  promptText: string,
+  status: string,
+  lookup?: ValidatedEntityLookup,
+): boolean {
+  // Without a validation lookup, fall back to status-only gating (legacy).
+  if (!lookup) return status !== 'named';
+  const v = lookup.get(canonicalKey);
+  if (!v) return false; // unknown / never-validated → exclude
+  if (!v.includeInCompetitorLandscape) return false;
+  // Must be in SoV OR have an explicit listed/recommended/preferred status.
+  const statusOk = status === 'listed' || status === 'recommended' || status === 'preferred';
+  if (!v.includeInShareOfVoice && !statusOk) return false;
+  // Block disallowed entity types (with government-prompt exception).
+  if (NON_COMPETITOR_ENTITY_TYPES.has(v.entityType)) return false;
+  if (v.entityType === 'Government / Regulatory Resource' && !promptAsksForGovernmentResource(promptText)) {
+    return false;
+  }
+  return true;
+}
+
+function analyzeContentGaps(
+  results: ProviderResult[],
+  brandName: string,
+  validatedLookup?: ValidatedEntityLookup,
+): ContentGap[] {
   // Per-prompt aggregation:
   //   entityAgg.get(promptKey).get(canonicalKey) = {
   //     display, status (best across providers), mentionCount, providers
@@ -4216,19 +4266,43 @@ function analyzeContentGaps(results: ProviderResult[], brandName: string): Conte
 
   // Materialize sorted competitorsWinning + entitiesMentioned per gap.
   for (const bucket of gapsByPrompt.values()) {
-    const all = Array.from(bucket._entities.values()).sort((a, b) => {
-      // 1. Status priority (preferred > recommended > listed > named)
+    const allEntries = Array.from(bucket._entities.entries());
+
+    // Sort: 1) status priority 2) provider diversity 3) mention count 4) alpha
+    allEntries.sort(([, a], [, b]) => {
       const sd = (STATUS_RANK[b.status] || 0) - (STATUS_RANK[a.status] || 0);
       if (sd !== 0) return sd;
-      // 2. Mention count
-      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
-      // 3. Provider diversity
       if (b.providers.size !== a.providers.size) return b.providers.size - a.providers.size;
-      // 4. Stable alpha
+      if (b.mentionCount !== a.mentionCount) return b.mentionCount - a.mentionCount;
       return a.display.localeCompare(b.display);
     });
-    bucket.competitorsWinning = all.filter(e => e.status !== 'named').map(e => e.display);
-    bucket.entitiesMentioned = all.filter(e => e.status === 'named').map(e => e.display);
+
+    // "Competitors winning" requires validated competitor status (landscape +
+    // SoV/listed-or-better, not a regulatory/excluded type, not a feature/
+    // heading/fragment). Cap at top 5.
+    const winners = allEntries
+      .filter(([canonKey, e]) => isValidCompetitorWinner(canonKey, bucket.prompt, e.status, validatedLookup))
+      .slice(0, 5)
+      .map(([, e]) => e.display);
+
+    // "Entities mentioned" = anything else that survived the validation
+    // landscape filter but didn't qualify as a winner. We still hide truly
+    // unknown / regulatory / excluded entities here.
+    const winnerSet = new Set(winners);
+    const contextual = allEntries
+      .filter(([canonKey, e]) => {
+        if (winnerSet.has(e.display)) return false;
+        if (!validatedLookup) return e.status === 'named';
+        const v = validatedLookup.get(canonKey);
+        if (!v || !v.includeInCompetitorLandscape) return false;
+        if (NON_COMPETITOR_ENTITY_TYPES.has(v.entityType)) return false;
+        return true;
+      })
+      .slice(0, 5)
+      .map(([, e]) => e.display);
+
+    bucket.competitorsWinning = winners;
+    bucket.entitiesMentioned = contextual;
   }
 
   // Sort by intent weight first (high-intent prompts surface first), then by provider breadth.
