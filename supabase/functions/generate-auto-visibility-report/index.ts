@@ -4818,25 +4818,44 @@ async function generatePDF(
       'Irrelevant / Excluded',
     ];
     const grouped = new Map<CompetitorType, ClassifiedCompetitor[]>();
+    const EXCLUDED_TYPES_FOR_DISPLAY = new Set<string>([
+      'Irrelevant / Excluded',
+      'Excluded / Unknown',
+      'Regulatory / Legal Context', // shown only in its own dedicated section, not here
+    ]);
     for (const cc of classifiedCompetitors) {
-      if (cc.type === 'Irrelevant / Excluded') continue;
+      if (EXCLUDED_TYPES_FOR_DISPLAY.has(cc.type as string)) continue;
       const arr = grouped.get(cc.type) || [];
       arr.push(cc);
       grouped.set(cc.type, arr);
     }
 
+    const PER_TYPE_LIMIT = 10;
     for (const t of typeOrder) {
       const arr = grouped.get(t);
       if (!arr || arr.length === 0) continue;
       if (y < 80) { page = newPage(); y = H - 60; }
+      // Sort within each type using the same signal-quality ordering as the AI list.
+      const sortedArr = arr.slice().sort((a, b) => {
+        const sa = getStats(a.canonical), sb = getStats(b.canonical);
+        if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+        if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+        return b.mentionCount - a.mentionCount;
+      });
+      const displayedArr = sortedArr.slice(0, PER_TYPE_LIMIT);
+      const overflow = sortedArr.length - displayedArr.length;
       // Type heading row
       page.drawRectangle({ x: M, y: y - 16, width: contentW, height: 18, color: navy });
-      page.drawText(`${t}  (${arr.length})`, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
+      const headingLabel = overflow > 0
+        ? `${t}  (${displayedArr.length} of ${sortedArr.length})`
+        : `${t}  (${sortedArr.length})`;
+      page.drawText(headingLabel, { x: M + 8, y: y - 11, size: 9, font: helveticaBold, color: white });
       y -= 22;
       // Members — wrap as comma-separated list
-      const aiNames = arr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
-      const researchNames = arr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
-      const lines = wrapText([...aiNames, ...researchNames].join(', '), 95);
+      const aiNames = displayedArr.filter(c => c.source === 'ai_mentioned').map(c => `${c.name} (${c.mentionCount}x)`);
+      const researchNames = displayedArr.filter(c => c.source === 'research_backed').map(c => `${c.name} (research)`);
+      const joined = [...aiNames, ...researchNames].join(', ') + (overflow > 0 ? `, + ${overflow} more` : '');
+      const lines = wrapText(joined, 95);
       for (const ln of lines) {
         if (y < 50) { page = newPage(); y = H - 60; }
         page.drawText(ln, { x: M + 10, y: y - 8, size: 9, font: helvetica, color: dark });
