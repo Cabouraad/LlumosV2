@@ -2733,9 +2733,9 @@ export type {
   EntityType,
 } from "./entity-validation.ts";
 import {
-  validateEntity as _validateEntity,
+  validateEntity,
   classifyEntityType as _classifyEntityType,
-  categorizeExclusionReason as _categorizeExclusionReason,
+  categorizeExclusionReason,
 } from "./entity-validation.ts";
 
 /**
