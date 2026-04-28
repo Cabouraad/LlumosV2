@@ -6170,6 +6170,42 @@ serve(async (req) => {
     classifiedCompetitors.push(...validatedClassifiedCompetitors);
     console.log(`[AutoReport] Validation gate applied to classifiedCompetitors → kept=${classifiedCompetitors.length} (ai=${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length}, research=${classifiedCompetitors.filter(c => c.source === 'research_backed').length})`);
 
+    // ===== Recompute Share of Voice from VALIDATED recommendation events =====
+    // The earlier computeShareOfVoice() call only filtered by classifyByName
+    // (no confidence/validation gate), so an entity that was rejected by the
+    // validation layer could still inflate SoV. Rebuild SoV strictly from the
+    // entity-loop's competitorRecommendationEvents (which already enforce
+    // includeInShareOfVoice + status ∈ {listed, recommended, preferred}) so
+    // SoV, AI Visibility Score (which consumes SoV), and AI Opportunity Score
+    // all share the same source of truth as Head-to-Head and Content Gap.
+    let validatedBrandRecEvents = 0;
+    const validatedCompetitorRecPromptIds = new Set<string>();
+    for (const r of validResults) {
+      if (r.brandMentioned && (r.recommendationStrength === 'strong' || r.recommendationStrength === 'moderate')) {
+        validatedBrandRecEvents += 1;
+      }
+    }
+    for (const ev of competitorRecommendationEvents) {
+      // One competitor recommendation event per (provider, prompt) — matches
+      // the original computeShareOfVoice() denominator.
+      validatedCompetitorRecPromptIds.add(`${ev.provider}::${ev.promptId}`);
+    }
+    const validatedCompetitorRecEvents = validatedCompetitorRecPromptIds.size;
+    const validatedSoVTotal = validatedBrandRecEvents + validatedCompetitorRecEvents;
+    const validatedSoVRatio = validatedSoVTotal === 0 ? 0 : validatedBrandRecEvents / validatedSoVTotal;
+    if (
+      shareOfVoice.brandRecommendationEvents !== validatedBrandRecEvents ||
+      shareOfVoice.competitorRecommendationEvents !== validatedCompetitorRecEvents
+    ) {
+      console.log(`[AutoReport] SoV adjusted by validation gate: brand ${shareOfVoice.brandRecommendationEvents}→${validatedBrandRecEvents}, competitor ${shareOfVoice.competitorRecommendationEvents}→${validatedCompetitorRecEvents}, ratio ${shareOfVoice.sov.toFixed(2)}→${validatedSoVRatio.toFixed(2)}`);
+    }
+    shareOfVoice.brandRecommendationEvents = validatedBrandRecEvents;
+    shareOfVoice.competitorRecommendationEvents = validatedCompetitorRecEvents;
+    shareOfVoice.brandMentions = validatedBrandRecEvents;
+    shareOfVoice.competitorMentions = validatedCompetitorRecEvents;
+    shareOfVoice.sov = validatedSoVRatio;
+
+
     // Always emit the aggregate counts (cheap, ~1 log line) so we can audit
     // why entities were included/excluded without re-running with debug=true.
     const rawExtractedCount = validatedEntityTrace.length;
