@@ -5404,7 +5404,7 @@ async function generatePDF(
   y = drawWrappedText(page, consistency.detail, M + 15 + consPctW, y, { size: 9, font: helvetica, color: mid, maxChars: 60, lineSpacing: 13 }); page = pageRef.page || page;
 
   // ====================== COMPETITOR HEAD-TO-HEAD ======================
-  const h2h = buildHeadToHeadMatrix(results, domain);
+  const h2h = buildHeadToHeadMatrix(results, domain, validatedLookup);
 
   if (h2h.competitors.length > 0 && h2h.prompts.length > 0) {
     page = newPage();
