@@ -480,7 +480,7 @@ function entityLookupKey(value: string): string {
     .trim();
 }
 
-function canonicalizeEntityName(raw: string | null | undefined): string {
+export function canonicalizeEntityName(raw: string | null | undefined): string {
   if (typeof raw !== 'string') return '';
   let value = raw.trim();
   if (!value) return '';
