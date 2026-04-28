@@ -457,6 +457,12 @@ export function validateEntity(args: {
       excludedReason: 'generic term / not an organization',
       matchedValidationRules: [], matchedExclusionRules: ['generic_phrase_blocklist'] };
   }
+  if (containsSentenceBoundary(cleaned)) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'sentence fragment / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['sentence_boundary_fragment'] };
+  }
   const exclusionReason = matchesExclusionFilter(cleaned);
   if (exclusionReason) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
@@ -478,6 +484,13 @@ export function validateEntity(args: {
   const isKnownAcronym = KNOWN_BRAND_ACRONYMS.has(lower);
   const isDomainStyle = looksLikeDomain(cleaned);
   const properOrgShape = looksLikeProperOrgName(cleaned);
+
+  if (!matchesAlias && !isDomainStyle && !isKnownAcronym && isGenericLegalNounPhrase(cleaned)) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'generic legal noun phrase / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['generic_legal_noun_phrase'] };
+  }
 
   // Reject generic domain noun phrases ("Credit Score Model", "Credit Report
   // Access", "Secured Credit Cards", "Credit Counseling", "Vendor Credit
