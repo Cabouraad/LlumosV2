@@ -6169,11 +6169,13 @@ serve(async (req) => {
         if (!validatedLandscapeCanonicals.has(cc.canonical)) continue;
         const validatedType = validatedCanonicalType.get(cc.canonical) || cc.type;
         if (NON_COMPETITOR_DISPLAY_TYPES.has(validatedType as string)) continue;
+        if (!isActualCompetitorForReport(validatedType as string, reportIndustry)) continue;
         validatedClassifiedCompetitors.push({ ...cc, type: validatedType as CompetitorType });
       } else {
         // research_backed: not in validation trace (never appeared in AI text),
         // but still must be a real competitor type to render.
         if (NON_COMPETITOR_DISPLAY_TYPES.has(cc.type as string)) continue;
+        if (!isActualCompetitorForReport(cc.type as string, reportIndustry)) continue;
         validatedClassifiedCompetitors.push(cc);
       }
     }
