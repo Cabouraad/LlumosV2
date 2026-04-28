@@ -3206,13 +3206,31 @@ export function validateEntity(args: {
   const meetsHighThreshold = confidence >= 0.65;
   const meetsMidThreshold  = confidence >= 0.45 && (matchesAlias || strongProviderContext);
 
+  // Build the audit trail of which positive validation tests fired. Used by
+  // the admin debug logger to explain inclusion decisions per entity.
+  const matchedValidationRules: string[] = [];
+  if (matchesAlias)         matchedValidationRules.push('alias_map_match');
+  if (hasOrgSuffix)         matchedValidationRules.push('org_suffix');
+  if (inProviderList)       matchedValidationRules.push('provider_list_context');
+  if (hasNearbyKeyword)     matchedValidationRules.push('nearby_keyword');
+  if (repeatedAcrossContext) matchedValidationRules.push('repeated_in_context');
+  if (isDomainStyle)        matchedValidationRules.push('domain_style');
+  if (isKnownAcronym)       matchedValidationRules.push('known_brand_acronym');
+  if (properOrgShape)       matchedValidationRules.push('proper_org_shape');
+  const matchedExclusionRules: string[] = [];
+  if (isUnknownAcronym)     matchedExclusionRules.push('unknown_acronym_penalty');
+  if (isVerbLed)            matchedExclusionRules.push('verb_led_penalty');
+  if (isGenericNoun)        matchedExclusionRules.push('generic_noun_penalty');
+
   if (!meetsHighThreshold && !meetsMidThreshold) {
     return { ...base, entityType: 'Excluded / Unknown',
       confidenceScore: Number(confidence.toFixed(2)),
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: confidence < 0.45
         ? 'confidence < 0.45 / insufficient signal'
-        : 'confidence 0.45–0.64 without alias or strong provider context' };
+        : 'confidence 0.45–0.64 without alias or strong provider context',
+      matchedValidationRules,
+      matchedExclusionRules: [...matchedExclusionRules, 'below_confidence_threshold'] };
   }
 
   // Type resolution priority (unchanged):
@@ -3234,7 +3252,9 @@ export function validateEntity(args: {
     return { ...base, entityType: finalType,
       confidenceScore: Number(confidence.toFixed(2)),
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'unknown entity / insufficient signal for Direct Competitor' };
+      excludedReason: 'unknown entity / insufficient signal for Direct Competitor',
+      matchedValidationRules,
+      matchedExclusionRules: [...matchedExclusionRules, 'no_resolved_entity_type'] };
   }
 
   // Valid competitor/provider entity types eligible for Share of Voice.
@@ -3267,6 +3287,8 @@ export function validateEntity(args: {
     confidenceScore: Number(confidence.toFixed(2)),
     includeInCompetitorLandscape: true,
     includeInShareOfVoice,
+    matchedValidationRules,
+    matchedExclusionRules,
   };
 }
 
