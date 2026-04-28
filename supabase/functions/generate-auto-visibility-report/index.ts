@@ -3118,16 +3118,27 @@ export function validateEntity(args: {
       excludedReason: 'low confidence / not a validated organization' };
   }
 
-  // Passed — keep classifier-assigned type when available, otherwise fall
-  // back to a conservative Direct Competitor only when confidence is solid.
-  let finalType = classifiedType && classifiedType !== 'unknown'
+  // Type resolution priority:
+  //   1. Curated ENTITY_TYPE_MAP lookup on the canonical name (highest trust).
+  //   2. Upstream classifiedType when it's a valid, non-unknown type.
+  //   3. Direct Competitor ONLY when confidence is high (≥ 0.7) AND the
+  //      entity has a strong organization signal (alias / org suffix /
+  //      domain-style brand). All other cases fall through to
+  //      Excluded / Unknown — unknowns must NEVER default to Direct Competitor.
+  const curatedType = classifyEntityType(canonicalName) || classifyEntityType(cleaned);
+  const upstreamType = classifiedType && classifiedType !== 'unknown' && classifiedType !== 'Direct Competitor'
     ? classifiedType
-    : (confidence >= 0.5 ? 'Direct Competitor' : 'Excluded / Unknown');
+    : null;
+  const strongOrgSignal = matchesAlias || hasOrgSuffix || isDomainStyle;
+  let finalType: string =
+    curatedType
+    || upstreamType
+    || (confidence >= 0.7 && strongOrgSignal ? 'Direct Competitor' : 'Excluded / Unknown');
 
   if (finalType === 'Excluded / Unknown') {
     return { ...base, entityType: finalType, confidenceScore: confidence,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'low confidence / not a validated organization' };
+      excludedReason: 'unknown entity / insufficient signal for Direct Competitor' };
   }
 
   // Landscape: always allowed once a test passed.
