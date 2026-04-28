@@ -435,7 +435,7 @@ const PARENT_PREFIX_ROLLUPS: Array<{ prefix: RegExp; parent: string }> = [
   { prefix: /^fico\b/i,                      parent: 'FICO' },
 ];
 
-function applyParentRollup(value: string): string | null {
+export function applyParentRollup(value: string): string | null {
   for (const { prefix, parent } of PARENT_PREFIX_ROLLUPS) {
     if (prefix.test(value.trim())) return parent;
   }
