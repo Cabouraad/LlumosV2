@@ -2728,6 +2728,39 @@ export interface ValidatedEntity {
   evidenceSnippet: string;
   provider: string;
   promptId: string;
+  // Audit trail: which positive validation tests fired and which exclusion
+  // rules matched. Used by the admin debug logger to explain inclusion /
+  // exclusion decisions on a per-entity basis.
+  matchedValidationRules?: string[];
+  matchedExclusionRules?: string[];
+}
+
+// Canonical exclusion-reason categories used by the admin debug grouping.
+// Free-form excludedReason strings are mapped into one of these buckets so
+// the debug summary stays stable and auditable.
+export type ExclusionCategory =
+  | 'heading/advice phrase'
+  | 'product feature'
+  | 'sentence fragment'
+  | 'legal/regulatory term'
+  | 'duplicate child product'
+  | 'generic noun'
+  | 'low confidence'
+  | 'not an organization'
+  | 'other';
+
+export function categorizeExclusionReason(reason?: string): ExclusionCategory {
+  const r = (reason || '').toLowerCase();
+  if (!r) return 'other';
+  if (r.includes('regulatory') || r.includes('legal')) return 'legal/regulatory term';
+  if (r.includes('heading') || r.includes('advice') || r.includes('criteria')) return 'heading/advice phrase';
+  if (r.includes('feature') || r.includes('product feature')) return 'product feature';
+  if (r.includes('sentence fragment') || r.includes('fragment') || r.includes('verb-led')) return 'sentence fragment';
+  if (r.includes('duplicate') || r.includes('child product') || r.includes('rolled up')) return 'duplicate child product';
+  if (r.includes('generic')) return 'generic noun';
+  if (r.includes('confidence')) return 'low confidence';
+  if (r.includes('not an organization') || r.includes('unknown entity') || r.includes('insufficient signal')) return 'not an organization';
+  return 'other';
 }
 
 const ORG_SUFFIX_PATTERN = /\b(?:inc\.?|incorporated|llc|l\.l\.c\.?|llp|l\.l\.p\.?|plc|ltd\.?|limited|corp\.?|corporation|company|co\.?|group|holdings?|partners?|associates?|firm|law|lawyers|attorneys?|bank|bureau|association|foundation|fund|services|capital|credit|analytics|monitoring|repair|systems?|solutions?|technologies|technology|labs?|institute|agency|consulting|advisors?|advisory|enterprises?)\b/i;
