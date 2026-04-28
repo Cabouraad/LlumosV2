@@ -159,6 +159,12 @@ const MUST_EXCLUDE: string[] = [
   "Essential Features", "Better Features", "Average Credit",
   "Credit Builder Cards", "Credit Builder Account", "Secured Visa", "Self Visa",
   "Secured Mastercard", "Secured Card Options", "Build Credit Responsibly",
+  // Remaining v3 leaks from the uploaded PDF: generic service/category phrases
+  // that looked title-cased enough to pass as Direct Competitor.
+  "Credit Score Model", "Credit Report Access", "Secured Credit Cards",
+  "National Foundation", "Credit Counseling", "Business Credit Cards",
+  "Vendor Credit Accounts", "Credit Union", "Consumer Credit Counseling Service",
+  "Free Credit Reports", "Discover Credit Scorecard", "Personal Finance Apps",
 ];
 
 function runValidate(rawText: string) {
