@@ -4547,7 +4547,26 @@ async function generatePDF(
   const scoreTlLabel = (s: number) => getVisibilityBand(s).label;
 
   const industryBenchmark = getIndustryBenchmark(businessContext);
-  const contentGaps = analyzeContentGaps(results, domain);
+  // Build a per-entity validation lookup so Content Gap Opportunities can
+  // exclude regulatory/excluded/unknown entities and product-feature noise
+  // from "Competitors winning here". Keyed by normalized canonical name.
+  const validatedLookup: ValidatedEntityLookup = new Map();
+  for (const v of validatedEntityTrace) {
+    const k = normalizeEntityName(v.canonicalName || v.rawText);
+    if (!k) continue;
+    const existing = validatedLookup.get(k);
+    // Keep the strongest validation seen for a given entity across providers.
+    if (!existing
+        || (v.includeInCompetitorLandscape && !existing.includeInCompetitorLandscape)
+        || (v.includeInShareOfVoice && !existing.includeInShareOfVoice)) {
+      validatedLookup.set(k, {
+        entityType: v.entityType,
+        includeInCompetitorLandscape: v.includeInCompetitorLandscape,
+        includeInShareOfVoice: v.includeInShareOfVoice,
+      });
+    }
+  }
+  const contentGaps = analyzeContentGaps(results, domain, validatedLookup);
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
     aiOpportunity,
     categoryDiagnostic,
