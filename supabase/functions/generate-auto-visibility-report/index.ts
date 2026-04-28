@@ -4196,6 +4196,25 @@ async function generatePDF(
       });
     }
   }
+  // Display-side stats keyed by normalized canonical name. Tracks recommendation
+  // strength and provider diversity so the report can sort competitor lists by
+  // signal quality, not just raw mention count.
+  // statusRank: preferred=3, recommended=2, listed=1, named/other=0.
+  const STATUS_RANK: Record<string, number> = { preferred: 3, recommended: 2, listed: 1, named: 0 };
+  const displayStats = new Map<string, { providers: Set<string>; bestStatusRank: number; recEvents: number; mentions: number }>();
+  for (const v of validatedEntityTrace) {
+    const k = normalizeEntityName(v.canonicalName || v.rawText);
+    if (!k) continue;
+    const cur = displayStats.get(k) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+    if (v.provider) cur.providers.add(v.provider);
+    const r = STATUS_RANK[v.mentionStatus] ?? 0;
+    if (r > cur.bestStatusRank) cur.bestStatusRank = r;
+    if (v.mentionStatus === 'preferred' || v.mentionStatus === 'recommended' || v.mentionStatus === 'listed') cur.recEvents++;
+    cur.mentions++;
+    displayStats.set(k, cur);
+  }
+  const getStats = (name: string) => displayStats.get(normalizeEntityName(name)) || { providers: new Set<string>(), bestStatusRank: 0, recEvents: 0, mentions: 0 };
+
   const contentGaps = analyzeContentGaps(results, domain, validatedLookup);
   const execSummary = generateExecutiveSummary(domain, overallScore, results, industryBenchmark, {
     aiOpportunity,
