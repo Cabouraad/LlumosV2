@@ -2619,10 +2619,35 @@ export interface ValidatedEntity {
 const ORG_SUFFIX_PATTERN = /\b(?:inc\.?|incorporated|llc|l\.l\.c\.?|llp|l\.l\.p\.?|plc|ltd\.?|limited|corp\.?|corporation|company|co\.?|group|holdings?|partners?|associates?|firm|law|lawyers|attorneys?|bank|bureau|association|foundation|fund|services|capital|credit|analytics|monitoring|repair|systems?|solutions?|technologies|technology|labs?|institute|agency|consulting|advisors?|advisory|enterprises?)\b/i;
 
 const KNOWN_BRAND_ACRONYMS = new Set([
-  'fico', 'cfpb', 'sba', 'jams', 'nam', 'finra', 'sec', 'irs', 'ftc', 'fdic',
+  'fico', 'jams', 'nam', 'irs', 'ftc', 'fdic',
   'aaa', 'adr', 'lacba', 'aba', 'naacp', 'aclu', 'bbb', 'nfib', 'usbc',
   'experian', 'equifax', 'transunion',
 ]);
+
+// ---------------------------------------------------------------------------
+// REGULATORY / LEGAL CONTEXT — laws, regulations, agencies, compliance
+// frameworks, and statutory acronyms. These must NEVER be classified as
+// Direct Competitors. They are excluded from Share of Voice, competitor
+// recommendation events, "competitors winning here", and competitor totals.
+// They may surface in a separate "Regulatory / Legal Context Mentioned"
+// section via entityType="Regulatory / Legal Context".
+// ---------------------------------------------------------------------------
+const REGULATORY_LEGAL_ENTITIES = new Set<string>([
+  // Acronyms
+  'croa', 'fcra', 'fdcpa', 'gdpr', 'ccpa', 'sec', 'finra', 'sba', 'cfpb',
+  'ein', 'soc', 'soc ii', 'soc 2', 'soc-ii', 'aml',
+  'd-u-n-s number', 'duns number', 'd-u-n-s', 'duns',
+  // Full names
+  'credit repair organizations act',
+  'fair credit reporting act',
+  'fair debt collection practices act',
+].map(s => s.toLowerCase()));
+
+function isRegulatoryLegalContext(rawText: string, canonicalName: string): boolean {
+  const r = (rawText || '').trim().toLowerCase();
+  const c = (canonicalName || '').trim().toLowerCase();
+  return REGULATORY_LEGAL_ENTITIES.has(r) || REGULATORY_LEGAL_ENTITIES.has(c);
+}
 
 const PROVIDER_LIST_TRIGGERS = [
   'top providers include', 'top providers are', 'best options are', 'best options include',
@@ -2823,6 +2848,14 @@ export function validateEntity(args: {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: 'no alphabetic content' };
+  }
+  // Regulatory / legal context: laws, regulations, agencies, compliance
+  // frameworks. Never a Direct Competitor; excluded from landscape, SoV,
+  // recommendation events, "competitors winning here", and totals.
+  if (isRegulatoryLegalContext(cleaned, canonicalName)) {
+    return { ...base, entityType: 'Regulatory / Legal Context', confidenceScore: 0.9,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'regulatory / legal context — not a competitor' };
   }
   if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
