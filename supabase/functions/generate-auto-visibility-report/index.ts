@@ -4224,23 +4224,11 @@ async function generatePDF(
   });
   const validResults = results.filter(r => !r.response.startsWith('Error') && !r.response.startsWith('Provider not') && !r.response.startsWith('No AI Overview'));
 
-  // Aggregate competitor counts, but preserve the full refined/research-backed set for display.
-  const competitorMentions = new Map<string, number>();
-  for (const r of validResults) {
-    for (const c of r.competitors) {
-      competitorMentions.set(c, (competitorMentions.get(c) || 0) + 1);
-    }
-  }
-
-  const sortedCompetitors = (refinedCompetitors.length > 0
-    ? refinedCompetitors.map((name, index) => ({ name, count: competitorMentions.get(name) || 0, index }))
-    : Array.from(competitorMentions.entries()).map(([name, count], index) => ({ name, count, index }))
-  )
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.index - b.index;
-    })
-    .map(({ name, count }) => [name, count] as const);
+  // NOTE: We intentionally do NOT aggregate raw `r.competitors` for display
+  // here. All competitor surfaces (Competitors Mentioned by AI, Types Found,
+  // Head-to-Head, Content Gap, Detailed Prompt Analysis) read from
+  // `classifiedCompetitors` / `validatedLookup`, which are gated by the
+  // validation layer. Raw extracted phrases must never reach the report PDF.
 
   // Provider aggregate stats
   const providerStats: Record<string, { total: number; count: number; mentioned: number }> = {};
