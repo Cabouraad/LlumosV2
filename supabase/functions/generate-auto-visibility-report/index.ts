@@ -2915,6 +2915,92 @@ function appearsInProviderListContext(entity: string, response: string): boolean
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// CURATED ENTITY TYPE CLASSIFIER
+// Maps a canonical (already-rolled-up) entity name to one of the allowed
+// entity types. Returns null when the entity is not in the curated map —
+// callers MUST NOT default unknowns to "Direct Competitor".
+// ---------------------------------------------------------------------------
+export type EntityType =
+  | 'Direct Competitor'
+  | 'Credit Bureau / Scoring Provider'
+  | 'Credit Monitoring Platform'
+  | 'Credit Repair Company'
+  | 'Business Credit Provider'
+  | 'Financial Services Platform'
+  | 'Marketplace / Directory'
+  | 'Nonprofit / Counseling Resource'
+  | 'Government / Regulatory Resource'
+  | 'Regulatory / Legal Context'
+  | 'Software Platform'
+  | 'Adjacent Service Provider'
+  | 'Excluded / Unknown';
+
+const ENTITY_TYPE_MAP: Record<string, EntityType> = {
+  // Credit Bureau / Scoring Provider
+  'experian': 'Credit Bureau / Scoring Provider',
+  'equifax': 'Credit Bureau / Scoring Provider',
+  'transunion': 'Credit Bureau / Scoring Provider',
+  'fico': 'Credit Bureau / Scoring Provider',
+  'dun & bradstreet': 'Credit Bureau / Scoring Provider',
+
+  // Credit Monitoring Platform
+  'credit karma': 'Credit Monitoring Platform',
+  'credit sesame': 'Credit Monitoring Platform',
+  'identity guard': 'Credit Monitoring Platform',
+  'chase credit journey': 'Credit Monitoring Platform',
+  'capital one creditwise': 'Credit Monitoring Platform',
+
+  // Credit Repair Company
+  'lexington law': 'Credit Repair Company',
+  'sky blue credit': 'Credit Repair Company',
+  'credit saint': 'Credit Repair Company',
+  'the credit people': 'Credit Repair Company',
+  'the credit pros': 'Credit Repair Company',
+  'pyramid credit repair': 'Credit Repair Company',
+  'safeport law': 'Credit Repair Company',
+  'creditrepair.com': 'Credit Repair Company',
+
+  // Business Credit Provider
+  'nav': 'Business Credit Provider',
+  'credit suite': 'Business Credit Provider',
+  "moody's analytics creditedge": 'Business Credit Provider',
+  'moodys analytics creditedge': 'Business Credit Provider',
+  'zywave': 'Business Credit Provider',
+
+  // Marketplace / Directory
+  'bestcompany': 'Marketplace / Directory',
+  'bestcompany.com': 'Marketplace / Directory',
+  'consumeraffairs': 'Marketplace / Directory',
+  'bbb': 'Marketplace / Directory',
+  'better business bureau': 'Marketplace / Directory',
+
+  // Nonprofit / Counseling Resource
+  'money management international': 'Nonprofit / Counseling Resource',
+  'mission asset fund': 'Nonprofit / Counseling Resource',
+  'score': 'Nonprofit / Counseling Resource',
+
+  // Government / Regulatory Resource
+  'cfpb': 'Government / Regulatory Resource',
+  'sba': 'Government / Regulatory Resource',
+  'annualcreditreport.com': 'Government / Regulatory Resource',
+};
+
+function entityTypeKey(name: string): string {
+  return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Look up the curated entity type for a canonical name. Returns null when
+ * the name is not in the map. Callers MUST treat null as "unknown" — never
+ * default to Direct Competitor.
+ */
+export function classifyEntityType(canonicalName: string): EntityType | null {
+  const key = entityTypeKey(canonicalName);
+  if (!key) return null;
+  return ENTITY_TYPE_MAP[key] ?? null;
+}
+
 /**
  * Validate one extracted entity. Returns a ValidatedEntity describing
  * whether it should appear in the competitor landscape and SoV, plus a
@@ -3032,16 +3118,27 @@ export function validateEntity(args: {
       excludedReason: 'low confidence / not a validated organization' };
   }
 
-  // Passed — keep classifier-assigned type when available, otherwise fall
-  // back to a conservative Direct Competitor only when confidence is solid.
-  let finalType = classifiedType && classifiedType !== 'unknown'
+  // Type resolution priority:
+  //   1. Curated ENTITY_TYPE_MAP lookup on the canonical name (highest trust).
+  //   2. Upstream classifiedType when it's a valid, non-unknown type.
+  //   3. Direct Competitor ONLY when confidence is high (≥ 0.7) AND the
+  //      entity has a strong organization signal (alias / org suffix /
+  //      domain-style brand). All other cases fall through to
+  //      Excluded / Unknown — unknowns must NEVER default to Direct Competitor.
+  const curatedType = classifyEntityType(canonicalName) || classifyEntityType(cleaned);
+  const upstreamType = classifiedType && classifiedType !== 'unknown' && classifiedType !== 'Direct Competitor'
     ? classifiedType
-    : (confidence >= 0.5 ? 'Direct Competitor' : 'Excluded / Unknown');
+    : null;
+  const strongOrgSignal = matchesAlias || hasOrgSuffix || isDomainStyle;
+  let finalType: string =
+    curatedType
+    || upstreamType
+    || (confidence >= 0.7 && strongOrgSignal ? 'Direct Competitor' : 'Excluded / Unknown');
 
   if (finalType === 'Excluded / Unknown') {
     return { ...base, entityType: finalType, confidenceScore: confidence,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'low confidence / not a validated organization' };
+      excludedReason: 'unknown entity / insufficient signal for Direct Competitor' };
   }
 
   // Landscape: always allowed once a test passed.
