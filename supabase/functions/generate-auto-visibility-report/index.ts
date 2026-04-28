@@ -4886,9 +4886,9 @@ async function generatePDF(
       //   3. No entities at all            → genuine first-mover opportunity
       let competitorLine: string;
       if (gap.competitorsWinning.length > 0) {
-        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 4).join(', ')}`;
+        competitorLine = `Competitors winning here: ${gap.competitorsWinning.slice(0, 5).join(', ')}`;
       } else if (gap.entitiesMentioned && gap.entitiesMentioned.length > 0) {
-        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 4).join(', ')}. No clear recommendation leader was detected.`;
+        competitorLine = `Entities mentioned here: ${gap.entitiesMentioned.slice(0, 5).join(', ')}. No clear recommendation leader was detected.`;
       } else {
         competitorLine = 'No clear competitor winning yet — first-mover opportunity.';
       }
