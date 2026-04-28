@@ -5026,8 +5026,14 @@ async function sendReportEmail(
   try {
     const resend = new Resend(RESEND_API_KEY);
     
-    // Convert PDF to base64
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+    // Convert PDF to base64 in chunks to avoid call stack overflow on large PDFs
+    let binary = '';
+    const chunkSize = 0x8000; // 32KB
+    for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+      const chunk = pdfBytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+    }
+    const pdfBase64 = btoa(binary);
     
     const { data, error: emailError } = await resend.emails.send({
       from: "Llumos × SMBTeam Reports <reports@llumos.app>",
