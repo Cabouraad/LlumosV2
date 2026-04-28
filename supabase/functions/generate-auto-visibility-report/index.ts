@@ -2579,10 +2579,235 @@ function entitySearchVariants(canonical: string): string[] {
   return out;
 }
 
+// ============================================================================
+// Entity Validation Layer
+// ============================================================================
+// Runs AFTER raw entity extraction but BEFORE the entity is allowed into the
+// competitor landscape or Share of Voice. Filters out headings, generic
+// phrases, laws, features, and sentence fragments that the upstream extractor
+// occasionally lets through.
+//
+// An entity is admitted to the competitor landscape only if it passes at
+// least one of these tests:
+//   1. Matches a known brand/provider alias (competitorCandidates).
+//   2. Has an organization-like suffix or structural keyword
+//      (Inc, LLC, LLP, Corp, Group, Law, Bank, Bureau, ...).
+//   3. Appears in a provider-list context in the response
+//      ("top providers include", "best options are", numbered/bulleted list).
+//   4. Is a known brand-style acronym/agency (FICO, JAMS, NAM, FINRA, ...).
+//   5. Is a domain-style brand (AnnualCreditReport.com, etc).
+//
+// Anything that fails ALL five tests is marked as
+// entityType "Excluded / Unknown", excluded from the landscape AND from SoV,
+// and given an excludedReason so the debug trace explains the drop.
+// ============================================================================
+
+export interface ValidatedEntity {
+  rawText: string;
+  canonicalName: string;
+  entityType: string;
+  confidenceScore: number;
+  mentionStatus: EntityMentionStatus;
+  includeInCompetitorLandscape: boolean;
+  includeInShareOfVoice: boolean;
+  excludedReason?: string;
+  evidenceSnippet: string;
+  provider: string;
+  promptId: string;
+}
+
+const ORG_SUFFIX_PATTERN = /\b(?:inc\.?|incorporated|llc|l\.l\.c\.?|llp|l\.l\.p\.?|plc|ltd\.?|limited|corp\.?|corporation|company|co\.?|group|holdings?|partners?|associates?|firm|law|lawyers|attorneys?|bank|bureau|association|foundation|fund|services|capital|credit|analytics|monitoring|repair|systems?|solutions?|technologies|technology|labs?|institute|agency|consulting|advisors?|advisory|enterprises?)\b/i;
+
+const KNOWN_BRAND_ACRONYMS = new Set([
+  'fico', 'cfpb', 'sba', 'jams', 'nam', 'finra', 'sec', 'irs', 'ftc', 'fdic',
+  'aaa', 'adr', 'lacba', 'aba', 'naacp', 'aclu', 'bbb', 'nfib', 'usbc',
+  'experian', 'equifax', 'transunion',
+]);
+
+const PROVIDER_LIST_TRIGGERS = [
+  'top providers include', 'top providers are', 'best options are', 'best options include',
+  'recommended services', 'recommended providers', 'recommended options',
+  'leading companies', 'leading providers', 'leading firms', 'leading services',
+  'top companies', 'top firms', 'top services', 'top choices', 'top picks',
+  'popular options', 'popular providers', 'notable firms', 'notable providers',
+  'consider the following', 'options include', 'examples include', 'such as',
+  'reputable firms', 'well-known firms', 'major providers',
+];
+
+const GENERIC_PHRASE_BLOCKLIST = new Set([
+  'before', 'obtain', 'paid services', 'they', 'key', 'details', 'information',
+  'step', 'step process', 'locate', 'ask', 'run', 'use', 'check', 'bumper',
+  'vehicle history report', 'vehicle identification number', 'accident history',
+  'title issues', 'overview', 'introduction', 'conclusion', 'summary',
+  'pros', 'cons', 'pros and cons', 'features', 'benefits', 'tips', 'notes',
+  'options', 'choices', 'considerations', 'recommendations',
+  'best practices', 'how to', 'getting started', 'next steps',
+]);
+
+function looksLikeDomain(s: string): boolean {
+  return /\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|app|ai|gov|edu)\b/i.test(s);
+}
+
+function looksLikeProperOrgName(s: string): boolean {
+  // Multi-word Title-Case (e.g. "Munger Tolles & Olson"), or single TitleCase
+  // word that's at least 4 chars (e.g. "Carfax", "Modria").
+  const trimmed = s.trim();
+  if (!trimmed) return false;
+  if (looksLikeDomain(trimmed)) return true;
+  const words = trimmed.split(/\s+/);
+  const titleWords = words.filter(w => /^[A-Z][A-Za-z0-9&\-\.']{1,}/.test(w));
+  if (words.length >= 2 && titleWords.length >= Math.ceil(words.length / 2)) return true;
+  if (words.length === 1 && /^[A-Z][A-Za-z0-9]{3,}$/.test(words[0])) return true;
+  return false;
+}
+
+function appearsInProviderListContext(entity: string, response: string): boolean {
+  if (!entity || !response) return false;
+  const lower = response.toLowerCase();
+  const entLower = entity.toLowerCase();
+  const idx = lower.indexOf(entLower);
+  if (idx < 0) return false;
+  // Within 400 chars before the mention, look for a provider-list trigger.
+  const window = lower.slice(Math.max(0, idx - 400), idx);
+  if (PROVIDER_LIST_TRIGGERS.some(t => window.includes(t))) return true;
+  // Or the entity appears at the start of a numbered/bulleted line.
+  const lines = response.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.toLowerCase().includes(entLower)) continue;
+    if (/^(?:\d+[.)]\s|[-•*▪▸]\s)/.test(trimmed)) return true;
+  }
+  return false;
+}
+
 /**
- * Build the per-result map of canonical entity → mention status, plus the
- * strict subset of entities that count as recommendation events
- * (status ∈ {listed, recommended, preferred}).
+ * Validate one extracted entity. Returns a ValidatedEntity describing
+ * whether it should appear in the competitor landscape and SoV, plus a
+ * confidence score and excludedReason when filtered out.
+ *
+ * Default behavior for low-confidence entities: NEVER classified as a
+ * Direct Competitor — always falls back to "Excluded / Unknown" with both
+ * landscape and SoV inclusion set to false.
+ */
+export function validateEntity(args: {
+  rawText: string;
+  canonicalName: string;
+  classifiedType: string;
+  mentionStatus: EntityMentionStatus;
+  evidenceSnippet: string;
+  provider: string;
+  promptId: string;
+  response: string;
+  knownAliases: Set<string>;
+}): ValidatedEntity {
+  const {
+    rawText, canonicalName, classifiedType, mentionStatus,
+    evidenceSnippet, provider, promptId, response, knownAliases,
+  } = args;
+
+  const base = {
+    rawText,
+    canonicalName,
+    mentionStatus,
+    evidenceSnippet,
+    provider,
+    promptId,
+  };
+
+  const cleaned = (rawText || '').trim();
+  const lower = cleaned.toLowerCase();
+
+  // Hard rejects: empty, too short, non-alpha, blocklisted generic phrase.
+  if (!cleaned || cleaned.length < 2) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'empty or too short' };
+  }
+  if (!/[a-z]/i.test(cleaned)) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'no alphabetic content' };
+  }
+  if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'generic term / not an organization' };
+  }
+  // Sentence-fragment heuristic: ends with verb-like trailing phrase or
+  // is excessively long (> 8 words is almost never a single org name).
+  const wordCount = cleaned.split(/\s+/).length;
+  if (wordCount > 8) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'sentence fragment / not an organization' };
+  }
+
+  // Test 1: known brand/provider alias map.
+  const matchesAlias = knownAliases.has(lower) || knownAliases.has(canonicalName.toLowerCase());
+
+  // Test 2: organization-like suffix or structure.
+  const hasOrgSuffix = ORG_SUFFIX_PATTERN.test(cleaned);
+
+  // Test 3: provider-list context.
+  const inProviderList = appearsInProviderListContext(cleaned, response);
+
+  // Test 4: known brand-style acronym/agency.
+  const isKnownAcronym = KNOWN_BRAND_ACRONYMS.has(lower);
+
+  // Test 5: domain-style brand.
+  const isDomainStyle = looksLikeDomain(cleaned);
+
+  // Soft signal (not sufficient on its own): proper-org-name shape.
+  const properOrgShape = looksLikeProperOrgName(cleaned);
+
+  let confidence = 0;
+  if (matchesAlias)       confidence += 0.6;
+  if (hasOrgSuffix)       confidence += 0.4;
+  if (inProviderList)     confidence += 0.25;
+  if (isKnownAcronym)     confidence += 0.5;
+  if (isDomainStyle)      confidence += 0.5;
+  if (properOrgShape)     confidence += 0.15;
+  if (mentionStatus === 'preferred')   confidence += 0.15;
+  else if (mentionStatus === 'recommended') confidence += 0.1;
+  else if (mentionStatus === 'listed') confidence += 0.05;
+  if (confidence > 1) confidence = 1;
+
+  const passesAnyTest = matchesAlias || hasOrgSuffix || inProviderList || isKnownAcronym || isDomainStyle;
+
+  if (!passesAnyTest) {
+    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: confidence,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'low confidence / not a validated organization' };
+  }
+
+  // Passed — keep classifier-assigned type when available, otherwise fall
+  // back to a conservative Direct Competitor only when confidence is solid.
+  let finalType = classifiedType && classifiedType !== 'unknown'
+    ? classifiedType
+    : (confidence >= 0.5 ? 'Direct Competitor' : 'Excluded / Unknown');
+
+  if (finalType === 'Excluded / Unknown') {
+    return { ...base, entityType: finalType, confidenceScore: confidence,
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: 'low confidence / not a validated organization' };
+  }
+
+  // Landscape: always allowed once a test passed.
+  // Share of Voice: stricter — must be listed/recommended/preferred AND have
+  // confidence ≥ 0.4 (which is what the test combinations naturally yield).
+  const includeInShareOfVoice =
+    mentionStatus !== 'named' && confidence >= 0.4;
+
+  return {
+    ...base,
+    entityType: finalType,
+    confidenceScore: Number(confidence.toFixed(2)),
+    includeInCompetitorLandscape: true,
+    includeInShareOfVoice,
+  };
+}
+
+
  *
  * For each canonical entity we try its search variants against the response
  * and use the FIRST variant that's actually present, so a response saying
