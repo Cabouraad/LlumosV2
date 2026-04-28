@@ -2527,17 +2527,23 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
   const addIfFound = (candidate: string) => {
     const candidateClean = candidate.trim();
     if (!candidateClean || candidateClean.length < 2) return;
-    if (isSelfBrandCandidate(candidateClean, brandProfile)) return;
-    // Canonicalize so domain forms, abbreviations, punctuation/suffix variants
-    // all collapse to one preferred display name across the report.
-    const canonical = canonicalizeEntityName(candidateClean) || candidateClean;
-    if (isSelfBrandCandidate(canonical, brandProfile)) return;
-    const key = normalizeEntityName(canonical);
-    if (!key) return;
-    // Prefer the longer / more complete display when we see the same key twice
-    // (e.g., "JAMS" beats "jamsadr.com"; "Gibson Dunn & Crutcher LLP" beats "Gibson Dunn").
-    const existing = seen.get(key);
-    if (!existing || canonical.length > existing.length) seen.set(key, canonical);
+    // Split combined entities like "TransUnion and Equifax" into separate
+    // canonical rows BEFORE canonicalization so each parent gets its own row.
+    const parts = splitCombinedEntity(candidateClean);
+    for (const part of parts) {
+      if (isSelfBrandCandidate(part, brandProfile)) continue;
+      // Canonicalize so domain forms, abbreviations, punctuation/suffix variants,
+      // and child-product names all collapse to one preferred parent display.
+      const canonical = canonicalizeEntityName(part) || part;
+      if (isSelfBrandCandidate(canonical, brandProfile)) continue;
+      const key = normalizeEntityName(canonical);
+      if (!key) continue;
+      // Prefer the longer / more complete display when we see the same key twice
+      // (e.g., "JAMS" beats "jamsadr.com"). Parent rollups already collapse
+      // child products, so this also dedupes "Experian Boost" → "Experian".
+      const existing = seen.get(key);
+      if (!existing || canonical.length > existing.length) seen.set(key, canonical);
+    }
   };
 
   // 1. Curated allowlist matches (word-boundary safe)
