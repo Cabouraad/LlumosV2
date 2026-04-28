@@ -5228,10 +5228,17 @@ async function generatePDF(
         y -= 4;
       }
 
-      // Competitors
-      if (r.competitors.length > 0) {
+      // Competitors — filtered through the validation layer so headings,
+      // laws, fragments, and low-confidence phrases never get printed here.
+      // Source of truth: validatedLookup (built from validatedEntityTrace).
+      const validatedCompetitorsForPrompt = (r.competitors || []).filter((c) => {
+        const k = normalizeEntityName(c);
+        const v = validatedLookup.get(k);
+        return v?.includeInCompetitorLandscape === true;
+      });
+      if (validatedCompetitorsForPrompt.length > 0) {
         if (y < 60) { page = newPage(); y = H - 60; }
-        const compText = `Competitors: ${r.competitors.join(', ')}`;
+        const compText = `Competitors: ${validatedCompetitorsForPrompt.join(', ')}`;
         y = drawWrappedText(page, compText, M + 14, y, { size: 8, font: helveticaBold, color: navy, maxChars: 88, lineSpacing: 11 }); page = pageRef.page || page;
         y -= 4;
       }
