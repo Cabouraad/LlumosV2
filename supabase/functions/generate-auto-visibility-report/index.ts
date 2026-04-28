@@ -3086,7 +3086,7 @@ export function validateEntity(args: {
   // Test 2: organization-like suffix or structure.
   const hasOrgSuffix = ORG_SUFFIX_PATTERN.test(cleaned);
 
-  // Test 3: provider-list context.
+  // Test 3: provider-list context (numbered/bulleted list or trigger phrase).
   const inProviderList = appearsInProviderListContext(cleaned, response);
 
   // Test 4: known brand-style acronym/agency.
@@ -3098,33 +3098,89 @@ export function validateEntity(args: {
   // Soft signal (not sufficient on its own): proper-org-name shape.
   const properOrgShape = looksLikeProperOrgName(cleaned);
 
-  let confidence = 0;
-  if (matchesAlias)       confidence += 0.6;
-  if (hasOrgSuffix)       confidence += 0.4;
-  if (inProviderList)     confidence += 0.25;
-  if (isKnownAcronym)     confidence += 0.5;
-  if (isDomainStyle)      confidence += 0.5;
-  if (properOrgShape)     confidence += 0.15;
-  if (mentionStatus === 'preferred')   confidence += 0.15;
-  else if (mentionStatus === 'recommended') confidence += 0.1;
-  else if (mentionStatus === 'listed') confidence += 0.05;
-  if (confidence > 1) confidence = 1;
-
-  const passesAnyTest = matchesAlias || hasOrgSuffix || inProviderList || isKnownAcronym || isDomainStyle;
-
-  if (!passesAnyTest) {
-    return { ...base, entityType: 'Excluded / Unknown', confidenceScore: confidence,
-      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'low confidence / not a validated organization' };
+  // Nearby-context keyword signal: ±120 chars window around the mention
+  // contains category words like "provider", "company", "service",
+  // "platform", "bureau", "firm", "tool", "app", "recommended", "best",
+  // "alternative". Strong indicator the entity is in a provider context.
+  const NEARBY_KEYWORDS_RE = /\b(provider|providers|company|companies|service|services|platform|platforms|bureau|bureaus|firm|firms|tool|tools|app|apps|recommended|best|alternative|alternatives)\b/i;
+  let hasNearbyKeyword = false;
+  if (response) {
+    const idx = response.toLowerCase().indexOf(lower);
+    if (idx >= 0) {
+      const window = response.slice(Math.max(0, idx - 120), idx + cleaned.length + 120);
+      hasNearbyKeyword = NEARBY_KEYWORDS_RE.test(window);
+    }
   }
 
-  // Type resolution priority:
+  // Repetition signal: entity appears multiple times in this response.
+  // (Cross-provider repetition can be layered in later by a caller.)
+  const repetitionCount = response
+    ? (response.toLowerCase().match(new RegExp(`\\b${escapeRegExp(lower)}\\b`, 'g')) || []).length
+    : 0;
+  const repeatedAcrossContext = repetitionCount >= 2;
+
+  // Sentence-fragment / verb-led detection (penalty signal, not a hard reject —
+  // the exclusion filter already hard-rejects the obvious cases).
+  const VERB_LED_RE = /^(provides?|offers?|covers?|monitors?|updates?|choose|select|alongside|use|run|check|consider)\b/i;
+  const isVerbLed = VERB_LED_RE.test(cleaned);
+
+  // Acronym-without-provider-context penalty: SHORT all-caps tokens that
+  // aren't in the known-acronym whitelist and have no provider context.
+  const isUnknownAcronym = /^[A-Z]{2,5}$/.test(cleaned) && !isKnownAcronym;
+
+  // Generic noun phrase: short Title-Case-but-common noun (e.g. "Customer",
+  // "Small Businesses"). Detected when there's no org suffix, no domain,
+  // no acronym, and the cleaned form is fewer than 3 words and lowercased
+  // matches a generic-noun list (already mostly handled by exclusion filter).
+  const isGenericNoun = wordCount <= 2
+    && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym && !matchesAlias
+    && !properOrgShape;
+
+  // ----- Confidence scoring (0..1) -----
+  let confidence = 0;
+  // Positive signals
+  if (matchesAlias)         confidence += 0.40;
+  if (hasOrgSuffix)         confidence += 0.25;
+  if (inProviderList)       confidence += 0.20;
+  if (hasNearbyKeyword)     confidence += 0.20;
+  if (repeatedAcrossContext) confidence += 0.15;
+  // Bonus signals (kept small — primary signals dominate)
+  if (isDomainStyle)        confidence += 0.20;
+  if (isKnownAcronym)       confidence += 0.20;
+  if (properOrgShape)       confidence += 0.10;
+
+  // Negative signals (exclusion filter already removed hard cases earlier;
+  // these apply to soft/borderline matches that slipped through).
+  if (isUnknownAcronym)     confidence -= 0.40; // law-like / regulation-like acronym
+  if (isVerbLed)            confidence -= 0.30;
+  if (isGenericNoun)        confidence -= 0.25;
+
+  if (confidence < 0) confidence = 0;
+  if (confidence > 1) confidence = 1;
+
+  // ----- Threshold gates -----
+  // confidence >= 0.65 → eligible for landscape (entity type permitting)
+  // 0.45..0.64       → eligible only with strong external signal
+  //                    (alias map OR strong provider-list context)
+  // < 0.45           → exclude
+  const strongProviderContext = inProviderList && hasNearbyKeyword;
+  const meetsHighThreshold = confidence >= 0.65;
+  const meetsMidThreshold  = confidence >= 0.45 && (matchesAlias || strongProviderContext);
+
+  if (!meetsHighThreshold && !meetsMidThreshold) {
+    return { ...base, entityType: 'Excluded / Unknown',
+      confidenceScore: Number(confidence.toFixed(2)),
+      includeInCompetitorLandscape: false, includeInShareOfVoice: false,
+      excludedReason: confidence < 0.45
+        ? 'confidence < 0.45 / insufficient signal'
+        : 'confidence 0.45–0.64 without alias or strong provider context' };
+  }
+
+  // Type resolution priority (unchanged):
   //   1. Curated ENTITY_TYPE_MAP lookup on the canonical name (highest trust).
   //   2. Upstream classifiedType when it's a valid, non-unknown type.
-  //   3. Direct Competitor ONLY when confidence is high (≥ 0.7) AND the
-  //      entity has a strong organization signal (alias / org suffix /
-  //      domain-style brand). All other cases fall through to
-  //      Excluded / Unknown — unknowns must NEVER default to Direct Competitor.
+  //   3. Direct Competitor ONLY when confidence ≥ 0.65 AND a strong org signal.
+  //   4. Otherwise Excluded / Unknown — never default unknowns to Direct Competitor.
   const curatedType = classifyEntityType(canonicalName) || classifyEntityType(cleaned);
   const upstreamType = classifiedType && classifiedType !== 'unknown' && classifiedType !== 'Direct Competitor'
     ? classifiedType
@@ -3133,19 +3189,38 @@ export function validateEntity(args: {
   let finalType: string =
     curatedType
     || upstreamType
-    || (confidence >= 0.7 && strongOrgSignal ? 'Direct Competitor' : 'Excluded / Unknown');
+    || (meetsHighThreshold && strongOrgSignal ? 'Direct Competitor' : 'Excluded / Unknown');
 
   if (finalType === 'Excluded / Unknown') {
-    return { ...base, entityType: finalType, confidenceScore: confidence,
+    return { ...base, entityType: finalType,
+      confidenceScore: Number(confidence.toFixed(2)),
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
       excludedReason: 'unknown entity / insufficient signal for Direct Competitor' };
   }
 
-  // Landscape: always allowed once a test passed.
-  // Share of Voice: stricter — must be listed/recommended/preferred AND have
-  // confidence ≥ 0.4 (which is what the test combinations naturally yield).
+  // Valid competitor/provider entity types eligible for Share of Voice.
+  // (Excludes Regulatory / Legal Context, Government / Regulatory Resource,
+  // and Excluded / Unknown — those are not competitors.)
+  const SOV_ELIGIBLE_TYPES = new Set<string>([
+    'Direct Competitor',
+    'Credit Bureau / Scoring Provider',
+    'Credit Monitoring Platform',
+    'Credit Repair Company',
+    'Business Credit Provider',
+    'Financial Services Platform',
+    'Marketplace / Directory',
+    'Nonprofit / Counseling Resource',
+    'Software Platform',
+    'Adjacent Service Provider',
+  ]);
+
+  // Share of Voice gate: confidence ≥ 0.65 AND listed/recommended/preferred
+  // AND a valid competitor/provider entity type.
   const includeInShareOfVoice =
-    mentionStatus !== 'named' && confidence >= 0.4;
+    meetsHighThreshold
+    && (mentionStatus === 'listed' || mentionStatus === 'recommended' || mentionStatus === 'preferred')
+    && SOV_ELIGIBLE_TYPES.has(finalType);
+
 
   return {
     ...base,
