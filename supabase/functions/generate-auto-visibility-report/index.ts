@@ -3075,12 +3075,14 @@ export function validateEntity(args: {
   if (!cleaned || cleaned.length < 2) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'empty or too short' };
+      excludedReason: 'empty or too short',
+      matchedValidationRules: [], matchedExclusionRules: ['empty_or_too_short'] };
   }
   if (!/[a-z]/i.test(cleaned)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'no alphabetic content' };
+      excludedReason: 'no alphabetic content',
+      matchedValidationRules: [], matchedExclusionRules: ['no_alphabetic_content'] };
   }
   // Regulatory / legal context: laws, regulations, agencies, compliance
   // frameworks. Never a Direct Competitor; excluded from landscape, SoV,
@@ -3088,12 +3090,14 @@ export function validateEntity(args: {
   if (isRegulatoryLegalContext(cleaned, canonicalName)) {
     return { ...base, entityType: 'Regulatory / Legal Context', confidenceScore: 0.9,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'regulatory / legal context — not a competitor' };
+      excludedReason: 'regulatory / legal context — not a competitor',
+      matchedValidationRules: [], matchedExclusionRules: ['regulatory_legal_context'] };
   }
   if (GENERIC_PHRASE_BLOCKLIST.has(lower)) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'generic term / not an organization' };
+      excludedReason: 'generic term / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['generic_phrase_blocklist'] };
   }
   // Exclusion filter: AI-answer headings, advice/criteria phrases, product
   // features, sentence fragments, and generic nouns must never reach the
@@ -3102,7 +3106,8 @@ export function validateEntity(args: {
   if (exclusionReason) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: `${exclusionReason} / not an organization` };
+      excludedReason: `${exclusionReason} / not an organization`,
+      matchedValidationRules: [], matchedExclusionRules: [`exclusion_filter:${exclusionReason}`] };
   }
   // Sentence-fragment heuristic: ends with verb-like trailing phrase or
   // is excessively long (> 8 words is almost never a single org name).
@@ -3110,7 +3115,8 @@ export function validateEntity(args: {
   if (wordCount > 8) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
       includeInCompetitorLandscape: false, includeInShareOfVoice: false,
-      excludedReason: 'sentence fragment / not an organization' };
+      excludedReason: 'sentence fragment / not an organization',
+      matchedValidationRules: [], matchedExclusionRules: ['too_many_words_sentence_fragment'] };
   }
 
   // Test 1: known brand/provider alias map.
