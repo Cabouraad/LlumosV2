@@ -287,10 +287,30 @@ function looksLikeProperOrgName(s: string): boolean {
   const trimmed = s.trim();
   if (!trimmed) return false;
   if (looksLikeDomain(trimmed)) return true;
+  if (/[.!?]\s+\w/.test(trimmed)) return false;
   const words = trimmed.split(/\s+/);
   const titleWords = words.filter(w => /^[A-Z][A-Za-z0-9&\-\.']{1,}/.test(w));
   if (words.length >= 2 && titleWords.length >= Math.ceil(words.length / 2)) return true;
   if (words.length === 1 && /^[A-Z][A-Za-z0-9]{3,}$/.test(words[0])) return true;
+  return false;
+}
+
+function containsSentenceBoundary(rawText: string): boolean {
+  const trimmed = (rawText || '').trim();
+  return /[.!?]\s+\w/.test(trimmed) || /\.\s*(they|this|these|those|it|he|she|we|you|a|an|the)\b/i.test(trimmed);
+}
+
+const GENERIC_LEGAL_ENTITY_RE = /^(?:local\s+)?(?:estate\s+planning\s+attorneys?|eviction\s+attorneys?|landlord\s+law\s+firms?|local\s+law\s+firms?|legal\s+aid\s+organizations?|local\s+law\s+schools?|law\s+school\s+clinics?|apartment\s+associations?|real\s+estate\s+investors?\s+associations?)$/i;
+
+function isGenericLegalNounPhrase(rawText: string): boolean {
+  const normalized = (rawText || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9&\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return false;
+  if (GENERIC_LEGAL_ENTITY_RE.test(normalized)) return true;
+  if (/^(?:uconn|quinnipiac|yale)\s+law\s+school(?:\s+small|\s+clinic)?$/.test(normalized)) return true;
   return false;
 }
 
