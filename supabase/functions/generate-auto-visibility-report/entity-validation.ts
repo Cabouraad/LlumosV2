@@ -450,14 +450,14 @@ export function validateEntity(args: {
   const isDomainStyle = looksLikeDomain(cleaned);
   const properOrgShape = looksLikeProperOrgName(cleaned);
 
-  // Reject generic domain noun phrases ("Bad Credit", "Credit Card",
-  // "Important Considerations", "Pay Rent", "Identity Theft Protection",
-  // "Travel Rewards", "Annual Fee", "Credit Monitoring", etc.) UNLESS the
-  // phrase is a known alias, has an org suffix, looks like a domain, or is a
-  // known brand acronym. Two-or-three-word title-cased noun phrases are the
-  // single biggest source of false positives in the AI Visibility Report.
+  // Reject generic domain noun phrases ("Credit Score Model", "Credit Report
+  // Access", "Secured Credit Cards", "Credit Counseling", "Vendor Credit
+  // Accounts", etc.) UNLESS the phrase is a known alias, looks like a domain,
+  // or is a known brand acronym. Do NOT let broad suffix words like "credit",
+  // "service", or "foundation" rescue these phrases — that was the remaining
+  // source of false positives in the MyFairCreditSite report.
   if (
-    !matchesAlias && !hasOrgSuffix && !isDomainStyle && !isKnownAcronym &&
+    !matchesAlias && !isDomainStyle && !isKnownAcronym &&
     isGenericDomainNounPhrase(cleaned)
   ) {
     return { ...base, entityType: 'Excluded / Unknown', confidenceScore: 0.05,
