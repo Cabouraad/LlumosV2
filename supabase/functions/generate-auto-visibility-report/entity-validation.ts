@@ -161,6 +161,82 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'california-specific considerations', 'california-compliant',
 ].map(s => s.toLowerCase()));
 
+// Domain nouns that frequently combine into generic noun phrases that are
+// NOT brands or providers (e.g. "Credit Card", "Bad Credit", "Pay Rent",
+// "Build Credit", "Credit Monitoring", "Identity Theft Protection",
+// "Annual Fee", "Travel Rewards"). If every meaningful token of a phrase is
+// in this set AND the phrase has no org-identity signal, the phrase is
+// rejected as a generic noun phrase.
+const DOMAIN_NOUN_TOKENS = new Set<string>([
+  'credit', 'card', 'cards', 'score', 'scores', 'scoring', 'report', 'reports',
+  'reporting', 'monitoring', 'monitor', 'history', 'limit', 'utilization',
+  'building', 'builder', 'build', 'repair', 'check', 'tracking', 'alerts',
+  'alert', 'identity', 'theft', 'protection', 'fraud', 'security',
+  'bad', 'good', 'fair', 'excellent', 'poor', 'free', 'paid', 'premium',
+  'best', 'top', 'key', 'major', 'notable', 'leading', 'preferred', 'expert',
+  'recommended', 'additional', 'important', 'essential', 'standout', 'better',
+  'common', 'general', 'specific', 'overall',
+  'fee', 'fees', 'apr', 'rate', 'rates', 'reward', 'rewards', 'bonus', 'bonuses',
+  'cashback', 'cash', 'back', 'savings', 'saver', 'sign', 'sign-up', 'signup',
+  'introductory', 'offer', 'offers', 'plan', 'plans', 'option', 'options',
+  'pricing', 'price', 'prices', 'comparison', 'comparisons', 'review', 'reviews',
+  'feature', 'features', 'rankings', 'tier', 'tiers', 'trial',
+  'student', 'students', 'business', 'businesses', 'consumer', 'consumers',
+  'customer', 'customers', 'user', 'users', 'family', 'parental', 'guidance',
+  'small', 'large', 'enterprise', 'startup', 'startups', 'company', 'companies',
+  'service', 'services', 'tool', 'tools', 'platform', 'platforms', 'app', 'apps',
+  'provider', 'providers', 'solution', 'solutions',
+  'pay', 'paying', 'payment', 'payments', 'spend', 'spending', 'habits',
+  'considerations', 'consideration', 'differences', 'similarities',
+  'recommendations', 'recommendation', 'options', 'choices', 'alternatives',
+  'highlights', 'insights', 'analysis', 'overview', 'introduction',
+  'conclusion', 'summary', 'tips', 'notes', 'steps', 'guide', 'approach',
+  'method', 'methods', 'rules', 'criteria', 'requirements', 'needs',
+  'monitoring', 'coverage', 'data', 'accuracy', 'speed', 'real-time',
+  'real', 'time', 'live', 'mobile', 'desktop', 'web', 'online',
+  'rent', 'bill', 'bills', 'loan', 'loans', 'debt', 'debts',
+  'unsecured', 'secured', 'visa', 'mastercard', 'discover', 'amex',
+  'reserve', 'platinum', 'gold', 'silver', 'sapphire', 'freedom', 'venture',
+  'savor', 'savorone', 'quicksilver', 'chrome',
+  'and', 'or', 'of', 'the', 'a', 'an', 'with', 'for', 'to', 'from', 'in', 'on',
+  'these', 'those', 'this', 'that', 'their', 'your', 'our', 'my',
+  'is', 'are', 'was', 'were', 'be', 'being', 'been',
+  'use', 'uses', 'using', 'choose', 'choosing', 'select', 'selecting',
+  'consider', 'considering', 'compare', 'comparing',
+  'before', 'after', 'when', 'where', 'why', 'how', 'what',
+  'reputation', 'licensing', 'certification', 'compliance', 'privacy',
+  'positive', 'negative', 'red', 'green', 'flags', 'flag', 'signs', 'sign',
+  'drawbacks', 'benefits', 'pros', 'cons', 'protections',
+  'educational', 'resources', 'resource', 'guidance',
+  'dark', 'light', 'web',
+  'foundation', 'hybrid', 'guided', 'diy',
+  'bureau', 'bureaus', 'agency', 'agencies', 'industry',
+  'period', 'periods', 'limit', 'limits', 'access',
+  'cap', 'caps', 'first', 'second', 'third', 'next', 'last',
+  'work', 'monthly', 'annual', 'yearly', 'weekly', 'daily',
+  'i', 'ii', 'iii', 'iv', 'v',
+  'innovator', 'leader', 'technology', 'tech',
+  'rewards', 'preferred', 'unlimited', 'reflect', 'one',
+]);
+
+// Common English stopwords for token analysis.
+const STOPWORD_TOKENS = new Set<string>([
+  'and', 'or', 'of', 'the', 'a', 'an', 'with', 'for', 'to', 'from', 'in', 'on',
+  'at', 'by', 'as', 'is', 'are', 'was', 'were', 'be', 'these', 'those', 'this',
+  'that', 'their', 'your', 'our', 'my', 'its', 'it', 's', '&',
+]);
+
+function isGenericDomainNounPhrase(rawText: string): boolean {
+  const tokens = rawText
+    .toLowerCase()
+    .replace(/[^\w\s&-]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t && !STOPWORD_TOKENS.has(t));
+  if (tokens.length === 0) return false;
+  // Every meaningful token is a domain noun → it's a noun phrase, not an entity.
+  return tokens.every(t => DOMAIN_NOUN_TOKENS.has(t));
+}
+
 const EXCLUSION_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /^(key|important|additional|top|best|leading|major|recommended|notable|popular)\s+\w+/i,
     reason: 'heading' },
