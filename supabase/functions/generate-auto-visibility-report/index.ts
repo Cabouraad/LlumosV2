@@ -4481,6 +4481,7 @@ async function generatePDF(
     finalScore: number;
     note: string;
   },
+  validatedEntityTrace: ValidatedEntity[] = [],
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
