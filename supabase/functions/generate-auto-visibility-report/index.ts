@@ -3389,6 +3389,20 @@ function classifyEntity(
   return { type: 'Direct Competitor', reason: 'default classification' };
 }
 
+function isActualCompetitorForReport(
+  entityType: string,
+  industry: 'legal' | 'saas' | 'ecommerce' | 'agency' | 'general',
+): boolean {
+  if (industry === 'legal') {
+    return entityType === 'Direct Competitor'
+      || entityType === 'Local or Boutique Competitor'
+      || entityType === 'Large Firm / Enterprise Competitor';
+  }
+  return entityType !== 'Irrelevant / Excluded'
+    && entityType !== 'Excluded / Unknown'
+    && entityType !== 'Regulatory / Legal Context';
+}
+
 /**
  * Share of Voice — based on AI-mentioned RECOMMENDATION EVENTS only.
  * Research-backed competitors that never appeared in any AI response are excluded.
@@ -4177,6 +4191,7 @@ async function generatePDF(
   const scoreTlLabel = (s: number) => getVisibilityBand(s).label;
 
   const industryBenchmark = getIndustryBenchmark(businessContext);
+  const reportIndustryForDisplay = inferReportIndustry(businessContext, results.map(r => r.prompt));
   // Build a per-entity validation lookup so Content Gap Opportunities can
   // exclude regulatory/excluded/unknown entities and product-feature noise
   // from "Competitors winning here". Keyed by normalized canonical name.
@@ -4191,7 +4206,8 @@ async function generatePDF(
         || (v.includeInShareOfVoice && !existing.includeInShareOfVoice)) {
       validatedLookup.set(k, {
         entityType: v.entityType,
-        includeInCompetitorLandscape: v.includeInCompetitorLandscape,
+        includeInCompetitorLandscape: v.includeInCompetitorLandscape
+          && isActualCompetitorForReport(v.entityType, reportIndustryForDisplay),
         includeInShareOfVoice: v.includeInShareOfVoice,
       });
     }
@@ -6065,6 +6081,10 @@ serve(async (req) => {
           validationExclusions[reason] = (validationExclusions[reason] || 0) + 1;
           continue;
         }
+        if (!isActualCompetitorForReport(validated.entityType, reportIndustry)) {
+          validationExclusions[`not actual ${reportIndustry} competitor`] = (validationExclusions[`not actual ${reportIndustry} competitor`] || 0) + 1;
+          continue;
+        }
 
         aiMentionedEntities.push({
           entityName: entity,
@@ -6149,11 +6169,13 @@ serve(async (req) => {
         if (!validatedLandscapeCanonicals.has(cc.canonical)) continue;
         const validatedType = validatedCanonicalType.get(cc.canonical) || cc.type;
         if (NON_COMPETITOR_DISPLAY_TYPES.has(validatedType as string)) continue;
+        if (!isActualCompetitorForReport(validatedType as string, reportIndustry)) continue;
         validatedClassifiedCompetitors.push({ ...cc, type: validatedType as CompetitorType });
       } else {
         // research_backed: not in validation trace (never appeared in AI text),
         // but still must be a real competitor type to render.
         if (NON_COMPETITOR_DISPLAY_TYPES.has(cc.type as string)) continue;
+        if (!isActualCompetitorForReport(cc.type as string, reportIndustry)) continue;
         validatedClassifiedCompetitors.push(cc);
       }
     }

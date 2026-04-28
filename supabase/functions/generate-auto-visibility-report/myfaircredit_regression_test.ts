@@ -71,11 +71,20 @@ BBB, Money Management International, Mission Asset Fund, and SCORE.
 Compliance frameworks to know: GDPR, CCPA, SEC, SOC II, AML.
 `;
 
+const MOCK_RESPONSE_LEGAL_FALSE_POSITIVES = `
+For Connecticut landlord and estate planning searches, assistants may cite generic
+phrases like Estate Planning Attorneys, Eviction Attorney, Local Law Firms,
+Landlord Law Firm, Legal Aid Organizations, Local Law Schools, UConn Law School Small,
+Quinnipiac Law School Clinic, Apartment Association, and Connecticut Bar Association. They
+are not all actual competing law firms.
+`;
+
 const ALL_RESPONSES = [
   MOCK_RESPONSE_PERSONAL_CREDIT,
   MOCK_RESPONSE_CREDIT_REPAIR,
   MOCK_RESPONSE_BUSINESS_CREDIT,
   MOCK_RESPONSE_RESOURCES,
+  MOCK_RESPONSE_LEGAL_FALSE_POSITIVES,
 ].join("\n\n");
 
 // Known-alias set the extractor would have built from the catalog of
@@ -165,6 +174,11 @@ const MUST_EXCLUDE: string[] = [
   "National Foundation", "Credit Counseling", "Business Credit Cards",
   "Vendor Credit Accounts", "Credit Union", "Consumer Credit Counseling Service",
   "Free Credit Reports", "Discover Credit Scorecard", "Personal Finance Apps",
+  // MillerLawCT leaks: generic legal categories, adjacent orgs, and sentence fragments.
+  "Estate Planning Attorneys", "Eviction Attorney", "Local Law Firms",
+  "Landlord Law Firm", "Legal Aid Organizations", "Local Law Schools",
+  "UConn Law School Small", "Quinnipiac Law School Clinic", "Apartment Association",
+  "Connecticut Bar Association. They",
 ];
 
 function runValidate(rawText: string) {
