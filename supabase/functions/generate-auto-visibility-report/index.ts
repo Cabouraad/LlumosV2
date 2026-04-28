@@ -6108,7 +6108,68 @@ serve(async (req) => {
       }
     }
 
-    // ===== Admin / debug summary for competitor extraction =====
+    // ===== Single source of truth: validated entities =====
+    // Every report section that displays competitors MUST consult these sets.
+    // Built strictly from validatedEntityTrace (the validation layer's output).
+    // - validatedLandscapeCanonicals: passed includeInCompetitorLandscape
+    // - validatedSoVCanonicals:        passed includeInShareOfVoice + status in
+    //                                  {listed, recommended, preferred}
+    // - validatedDisplayName:          canonical → human display name
+    // - validatedCanonicalType:        canonical → final entityType (post-validation)
+    const validatedLandscapeCanonicals = new Set<string>();
+    const validatedSoVCanonicals = new Set<string>();
+    const validatedDisplayName = new Map<string, string>();
+    const validatedCanonicalType = new Map<string, CompetitorType>();
+    for (const v of validatedEntityTrace) {
+      const k = (v.canonicalName || v.rawText || '').toLowerCase().trim();
+      if (!k) continue;
+      if (v.includeInCompetitorLandscape) {
+        validatedLandscapeCanonicals.add(k);
+        if (!validatedDisplayName.has(k)) validatedDisplayName.set(k, v.rawText || k);
+        // Prefer non-Excluded type if conflicting traces exist for the same canonical.
+        const cur = validatedCanonicalType.get(k);
+        if (!cur || cur === 'Irrelevant / Excluded') {
+          validatedCanonicalType.set(k, v.entityType as CompetitorType);
+        }
+      }
+      if (
+        v.includeInShareOfVoice &&
+        (v.mentionStatus === 'listed' || v.mentionStatus === 'recommended' || v.mentionStatus === 'preferred')
+      ) {
+        validatedSoVCanonicals.add(k);
+      }
+    }
+
+    // Re-derive classifiedCompetitors so EVERY displayed competitor has passed
+    // validation. AI-mentioned entries inherit their post-validation entityType
+    // (so e.g. "FCRA" cannot leak in as "Direct Competitor"); research-backed
+    // entries keep their classifyEntity() type but are still excluded if they
+    // resolve to a non-competitor type.
+    const validatedClassifiedCompetitors: ClassifiedCompetitor[] = [];
+    const NON_COMPETITOR_DISPLAY_TYPES = new Set<string>([
+      'Excluded / Unknown', 'Regulatory / Legal Context', 'Irrelevant / Excluded',
+    ]);
+    for (const cc of classifiedCompetitors) {
+      if (cc.source === 'ai_mentioned') {
+        if (!validatedLandscapeCanonicals.has(cc.canonical)) continue;
+        const validatedType = validatedCanonicalType.get(cc.canonical) || cc.type;
+        if (NON_COMPETITOR_DISPLAY_TYPES.has(validatedType as string)) continue;
+        validatedClassifiedCompetitors.push({ ...cc, type: validatedType as CompetitorType });
+      } else {
+        // research_backed: not in validation trace (never appeared in AI text),
+        // but still must be a real competitor type to render.
+        if (NON_COMPETITOR_DISPLAY_TYPES.has(cc.type as string)) continue;
+        validatedClassifiedCompetitors.push(cc);
+      }
+    }
+    // Replace the working set so all downstream sections (Executive Summary,
+    // Competitors Mentioned by AI, Competitor Types Found, Head-to-Head) use
+    // the validated list. `classifiedCompetitors` is `const` declared as an
+    // array, so we mutate in place.
+    classifiedCompetitors.length = 0;
+    classifiedCompetitors.push(...validatedClassifiedCompetitors);
+    console.log(`[AutoReport] Validation gate applied to classifiedCompetitors → kept=${classifiedCompetitors.length} (ai=${classifiedCompetitors.filter(c => c.source === 'ai_mentioned').length}, research=${classifiedCompetitors.filter(c => c.source === 'research_backed').length})`);
+
     // Always emit the aggregate counts (cheap, ~1 log line) so we can audit
     // why entities were included/excluded without re-running with debug=true.
     const rawExtractedCount = validatedEntityTrace.length;
