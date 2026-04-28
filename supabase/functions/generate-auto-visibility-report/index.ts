@@ -3453,7 +3453,11 @@ function calculateProviderConsistency(results: ProviderResult[]): { score: numbe
  * Build competitor head-to-head matrix
  * Returns: { promptText -> { competitorName -> mentioned:boolean } }
  */
-function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
+function buildHeadToHeadMatrix(
+  results: ProviderResult[],
+  brandName: string,
+  validatedLookup?: ValidatedEntityLookup,
+): {
   prompts: string[];
   competitors: string[];
   matrix: Record<string, Record<string, boolean>>;
@@ -3461,12 +3465,31 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
 } {
   const allCompetitors = new Map<string, string>(); // canonKey -> display
   const competitorCounts = new Map<string, number>();
+  const competitorProviders = new Map<string, Set<string>>(); // canonKey -> providers seen
+  const competitorBestStatus = new Map<string, number>(); // canonKey -> max STATUS_RANK
+  const STATUS_RANK: Record<string, number> = { preferred: 4, recommended: 3, listed: 2, named: 1 };
   const promptTexts: string[] = [];
   const promptSet = new Set<string>();
 
   // Compare via normalized key so "Gibson Dunn" and "Gibson Dunn & Crutcher LLP"
   // (or any minor casing/punctuation drift across providers) collapse to one row.
   const canonKey = (s: string) => normalizeEntityName(s);
+
+  // Validation gate: matrix rows must be validated competitors/providers.
+  // Excludes Regulatory / Legal Context, Excluded / Unknown, generic phrases,
+  // headings, product features, sentence fragments. Government / Regulatory
+  // Resource entities are excluded except on prompts that explicitly ask for
+  // government resources.
+  const isValidMatrixRow = (key: string, sourcePrompt: string): boolean => {
+    if (!validatedLookup) return true; // legacy fallback when lookup unavailable
+    const v = validatedLookup.get(key);
+    if (!v) return false;
+    if (!v.includeInCompetitorLandscape) return false;
+    if (NON_COMPETITOR_ENTITY_TYPES.has(v.entityType)) return false;
+    if (v.entityType === 'Government / Regulatory Resource'
+        && !promptAsksForGovernmentResource(sourcePrompt)) return false;
+    return true;
+  };
 
   for (const result of results) {
     if (!promptSet.has(result.prompt)) {
@@ -3480,16 +3503,41 @@ function buildHeadToHeadMatrix(results: ProviderResult[], brandName: string): {
     for (const competitor of result.recommendedEntities || []) {
       const key = canonKey(competitor);
       if (!key) continue;
+      if (!isValidMatrixRow(key, result.prompt)) continue;
+
+      // Status gate — must be listed/recommended/preferred.
+      const status = (result.entityMentionStatus
+        && result.entityMentionStatus[competitor.toLowerCase().trim()]) || 'listed';
+      if (status !== 'listed' && status !== 'recommended' && status !== 'preferred') continue;
+
       if (!allCompetitors.has(key)) allCompetitors.set(key, competitor);
       // Prefer the longer display name (more complete canonical form).
       else if (competitor.length > (allCompetitors.get(key) || '').length) allCompetitors.set(key, competitor);
       competitorCounts.set(key, (competitorCounts.get(key) || 0) + 1);
+
+      let provs = competitorProviders.get(key);
+      if (!provs) { provs = new Set(); competitorProviders.set(key, provs); }
+      provs.add(result.provider);
+
+      const rank = STATUS_RANK[status] || 1;
+      if (rank > (competitorBestStatus.get(key) || 0)) competitorBestStatus.set(key, rank);
     }
   }
 
-  const competitors = Array.from(allCompetitors.values()).sort(
-    (a, b) => (competitorCounts.get(canonKey(b)) || 0) - (competitorCounts.get(canonKey(a)) || 0) || a.localeCompare(b)
-  );
+  // Sort: 1) status rank 2) provider diversity 3) mention count 4) alpha. Cap at 10.
+  const competitors = Array.from(allCompetitors.entries())
+    .sort(([ka, dispA], [kb, dispB]) => {
+      const sd = (competitorBestStatus.get(kb) || 0) - (competitorBestStatus.get(ka) || 0);
+      if (sd !== 0) return sd;
+      const pd = (competitorProviders.get(kb)?.size || 0) - (competitorProviders.get(ka)?.size || 0);
+      if (pd !== 0) return pd;
+      const md = (competitorCounts.get(kb) || 0) - (competitorCounts.get(ka) || 0);
+      if (md !== 0) return md;
+      return dispA.localeCompare(dispB);
+    })
+    .slice(0, 10)
+    .map(([, disp]) => disp);
+
   const matrix: Record<string, Record<string, boolean>> = {};
   const brandRow: Record<string, boolean> = {};
 
