@@ -2644,6 +2644,102 @@ const GENERIC_PHRASE_BLOCKLIST = new Set([
   'best practices', 'how to', 'getting started', 'next steps',
 ]);
 
+// ---------------------------------------------------------------------------
+// EXCLUSION FILTER — catches non-competitor phrases the upstream extractor
+// frequently captures: AI-answer headings, advice/criteria phrases, product
+// features, sentence fragments, and generic nouns. Anything that matches is
+// excluded from the competitor landscape, types, matrix, gap and SoV.
+// ---------------------------------------------------------------------------
+
+// Category 1: section headings / AI answer headings
+const EXCLUSION_HEADINGS = new Set<string>([
+  'key considerations', 'important considerations', 'additional considerations',
+  'top recommendations', 'best free options', 'best overall options',
+  'best value', 'bottom line', 'key differences', 'key alternatives',
+  'source highlights', 'leading companies', 'major business credit bureaus',
+  'business credit reports here', 'strengths and recommendations',
+  'important implementation notes', 'recommended approach',
+  'conclusion selecting',
+].map(s => s.toLowerCase()));
+
+// Category 2: advice / criteria phrases
+const EXCLUSION_ADVICE = new Set<string>([
+  'specific needs', 'customer reviews', 'reputation and reviews',
+  'licensing and certification', 'personalized service', 'educational resources',
+  'upfront fees', 'written contract', 'money-back guarantee',
+  'understanding of credit laws', 'false claims', 'red flags', 'positive signs',
+  'good bbb', 'services offered', 'services they should provide',
+  'compare prices', 'trial periods', 'customer', 'your company',
+  'your selection', 'coverage focus', 'integration needs',
+  'compliance requirements',
+].map(s => s.toLowerCase()));
+
+// Category 3: product features / generic services
+const EXCLUSION_FEATURES = new Set<string>([
+  'credit monitoring', 'credit scores', 'free credit scores',
+  'identity theft protection', 'paid plans', 'bureaus monitored',
+  'scoring model', 'credit building', 'business credit building',
+  'credit report review', 'build credit responsibly', 'personal monitoring',
+  'business credit risk score', 'payment index', 'business failure score',
+  'small business risk score', 'financial stability risk',
+  'live business identity', 'red flag alert', 'regulatory compliance',
+].map(s => s.toLowerCase()));
+
+// Category 4: sentence fragments / verb phrases
+const EXCLUSION_FRAGMENTS = new Set<string>([
+  'provides', 'covers', 'monitors', 'updates', 'up to',
+  'choose credit karma', 'choose experian', 'provides paydex',
+  'offers d-u-n-s number', 'provides business credit score',
+  'alongside transunion', 'their features other', 'and their features',
+  'top recommendations these', 'important considerations when',
+  'best practice most',
+].map(s => s.toLowerCase()));
+
+// Category 5: generic nouns
+const EXCLUSION_GENERIC_NOUNS = new Set<string>([
+  'credit', 'security', 'mobile apps', 'local nonprofits',
+  'community organizations', 'local credit repair companies',
+  'financial advisors', 'small businesses', 'startup tips',
+  'california startups', 'california department',
+  'california-specific considerations', 'california-compliant',
+].map(s => s.toLowerCase()));
+
+// Heuristic patterns that match the same families of phrases more broadly.
+const EXCLUSION_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
+  // Headings starting with these qualifiers
+  { pattern: /^(key|important|additional|top|best|leading|major|recommended|notable|popular)\s+\w+/i,
+    reason: 'heading' },
+  // "Choose X" / "Provides X" / "Offers X" verb-led fragments
+  { pattern: /^(choose|provides|offers|monitors|covers|updates|alongside|select)\s+/i,
+    reason: 'sentence fragment' },
+  // "X and Their Features" / "Their Features X"
+  { pattern: /\b(their features|and their features)\b/i, reason: 'sentence fragment' },
+  // "California-..." style location qualifiers used as nouns
+  { pattern: /^california[- ]/i, reason: 'generic noun' },
+  // Compliance / requirements / needs / focus when used as a category label
+  { pattern: /\b(requirements|considerations|recommendations|needs|focus|reviews|fees|guarantee|signs|flags)$/i,
+    reason: 'advice phrase' },
+];
+
+/**
+ * Returns the excludedReason if the phrase matches the exclusion filter,
+ * otherwise null. Categories: heading / advice phrase / product feature /
+ * sentence fragment / generic noun.
+ */
+function matchesExclusionFilter(rawText: string): string | null {
+  const lower = (rawText || '').trim().toLowerCase();
+  if (!lower) return null;
+  if (EXCLUSION_HEADINGS.has(lower))       return 'heading';
+  if (EXCLUSION_ADVICE.has(lower))         return 'advice phrase';
+  if (EXCLUSION_FEATURES.has(lower))       return 'product feature';
+  if (EXCLUSION_FRAGMENTS.has(lower))      return 'sentence fragment';
+  if (EXCLUSION_GENERIC_NOUNS.has(lower))  return 'generic noun';
+  for (const { pattern, reason } of EXCLUSION_PATTERNS) {
+    if (pattern.test(lower)) return reason;
+  }
+  return null;
+}
+
 function looksLikeDomain(s: string): boolean {
   return /\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|app|ai|gov|edu)\b/i.test(s);
 }
