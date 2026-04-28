@@ -164,6 +164,9 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'california-specific considerations', 'california-compliant',
   'national foundation', 'credit counseling', 'credit union',
   'consumer credit counseling service',
+  'estate planning attorneys', 'eviction attorney', 'local law firms',
+  'landlord law firm', 'legal aid organizations', 'local law schools',
+  'law school clinic', 'uconn law school small', 'quinnipiac law school clinic',
 ].map(s => s.toLowerCase()));
 
 // Domain nouns that frequently combine into generic noun phrases that are
@@ -191,6 +194,12 @@ const DOMAIN_NOUN_TOKENS = new Set<string>([
   'small', 'large', 'enterprise', 'startup', 'startups', 'company', 'companies',
   'service', 'services', 'tool', 'tools', 'platform', 'platforms', 'app', 'apps',
   'provider', 'providers', 'solution', 'solutions',
+  'law', 'legal', 'firm', 'firms', 'attorney', 'attorneys', 'lawyer', 'lawyers',
+  'estate', 'planning', 'eviction', 'landlord', 'tenant', 'mediation',
+  'litigation', 'probate', 'family', 'families', 'assets', 'complex',
+  'local', 'boutique', 'school', 'schools', 'clinic', 'clinics', 'aid',
+  'organization', 'organizations', 'association', 'associations', 'bar',
+  'apartment', 'apartments', 'investor', 'investors', 'real',
   'model', 'models', 'access', 'scorecard', 'scorecards', 'counseling',
   'counselling', 'counselor', 'counsellor', 'union', 'unions', 'national',
   'vendor', 'vendors', 'account', 'accounts', 'personal', 'finance', 'financial',
