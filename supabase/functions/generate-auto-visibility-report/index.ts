@@ -6081,6 +6081,10 @@ serve(async (req) => {
           validationExclusions[reason] = (validationExclusions[reason] || 0) + 1;
           continue;
         }
+        if (!isActualCompetitorForReport(validated.entityType, reportIndustry)) {
+          validationExclusions[`not actual ${reportIndustry} competitor`] = (validationExclusions[`not actual ${reportIndustry} competitor`] || 0) + 1;
+          continue;
+        }
 
         aiMentionedEntities.push({
           entityName: entity,
