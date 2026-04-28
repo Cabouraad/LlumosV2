@@ -5091,7 +5091,22 @@ async function generatePDF(
     y -= 22;
 
     // Competitor rows
-    const displayCompetitors = h2h.competitors.slice(0, 10);
+    // Prioritize Direct Competitors and high-confidence recommendation events.
+    // Tiebreak by provider diversity and prompt coverage in the matrix itself.
+    const matrixPromptCount = (comp: string) =>
+      h2h.prompts.reduce((n, p) => n + (h2h.matrix[comp]?.[p] ? 1 : 0), 0);
+    const sortedH2H = h2h.competitors.slice().sort((a, b) => {
+      const ca = classificationByCanon.get(normalizeEntityName(a));
+      const cb = classificationByCanon.get(normalizeEntityName(b));
+      const directA = ca?.type === 'Direct Competitor' ? 1 : 0;
+      const directB = cb?.type === 'Direct Competitor' ? 1 : 0;
+      if (directB !== directA) return directB - directA;
+      const sa = getStats(a), sb = getStats(b);
+      if (sb.bestStatusRank !== sa.bestStatusRank) return sb.bestStatusRank - sa.bestStatusRank;
+      if (sb.providers.size !== sa.providers.size) return sb.providers.size - sa.providers.size;
+      return matrixPromptCount(b) - matrixPromptCount(a);
+    });
+    const displayCompetitors = sortedH2H.slice(0, 10);
     for (const comp of displayCompetitors) {
       if (y < 80) break;
 
