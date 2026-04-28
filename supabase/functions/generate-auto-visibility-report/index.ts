@@ -4191,6 +4191,7 @@ async function generatePDF(
   const scoreTlLabel = (s: number) => getVisibilityBand(s).label;
 
   const industryBenchmark = getIndustryBenchmark(businessContext);
+  const reportIndustryForDisplay = inferReportIndustry(businessContext, results.map(r => r.prompt));
   // Build a per-entity validation lookup so Content Gap Opportunities can
   // exclude regulatory/excluded/unknown entities and product-feature noise
   // from "Competitors winning here". Keyed by normalized canonical name.
@@ -4205,7 +4206,8 @@ async function generatePDF(
         || (v.includeInShareOfVoice && !existing.includeInShareOfVoice)) {
       validatedLookup.set(k, {
         entityType: v.entityType,
-        includeInCompetitorLandscape: v.includeInCompetitorLandscape,
+        includeInCompetitorLandscape: v.includeInCompetitorLandscape
+          && isActualCompetitorForReport(v.entityType, reportIndustryForDisplay),
         includeInShareOfVoice: v.includeInShareOfVoice,
       });
     }
