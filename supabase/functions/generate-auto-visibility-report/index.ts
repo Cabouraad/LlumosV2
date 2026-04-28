@@ -3389,6 +3389,20 @@ function classifyEntity(
   return { type: 'Direct Competitor', reason: 'default classification' };
 }
 
+function isActualCompetitorForReport(
+  entityType: string,
+  industry: 'legal' | 'saas' | 'ecommerce' | 'agency' | 'general',
+): boolean {
+  if (industry === 'legal') {
+    return entityType === 'Direct Competitor'
+      || entityType === 'Local or Boutique Competitor'
+      || entityType === 'Large Firm / Enterprise Competitor';
+  }
+  return entityType !== 'Irrelevant / Excluded'
+    && entityType !== 'Excluded / Unknown'
+    && entityType !== 'Regulatory / Legal Context';
+}
+
 /**
  * Share of Voice — based on AI-mentioned RECOMMENDATION EVENTS only.
  * Research-backed competitors that never appeared in any AI response are excluded.
