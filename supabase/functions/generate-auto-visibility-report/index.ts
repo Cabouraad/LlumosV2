@@ -575,7 +575,11 @@ function prettifyDomainLabel(domain: string | null | undefined): string {
   const businessWords = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio', 'firm', 'attorneys', 'attorney', 'lawyers', 'lawyer', 'clinic', 'health', 'dental', 'realty', 'homes', 'tech', 'software', 'solutions', 'systems', 'capital', 'ventures', 'works', 'global'];
 
   // Trailing geo / market abbreviations to keep as their own (uppercased) token.
-  const geoAbbrevs = new Set(['lv', 'nyc', 'la', 'sf', 'dc', 'usa', 'uk', 'us', 'sd', 'atl', 'chi', 'bos', 'phx', 'pdx', 'mia', 'hou', 'sea', 'den', 'lax']);
+  const geoAbbrevs = new Set([
+    'lv', 'nyc', 'la', 'sf', 'dc', 'usa', 'uk', 'us', 'atl', 'chi', 'bos', 'phx', 'pdx', 'mia', 'hou', 'sea', 'den', 'lax',
+    // US state postal codes
+    'al','ak','az','ar','ca','co','ct','de','fl','ga','hi','id','il','in','ia','ks','ky','me','md','ma','mi','mn','ms','mo','mt','ne','nv','nh','nj','nm','ny','nc','nd','oh','ok','or','pa','ri','sc','sd','tn','tx','ut','vt','va','wa','wv','wi','wy',
+  ]);
 
   // Recursively split the label on business words. Sort by length desc so "partners" matches before "partner".
   const sortedWords = [...businessWords].sort((a, b) => b.length - a.length);
