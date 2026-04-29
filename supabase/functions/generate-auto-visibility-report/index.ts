@@ -1723,11 +1723,14 @@ async function refineCompetitorCandidatesFromResults(
 }
 
 /**
- * Research the business to understand their industry and offerings
- * Caches results in the database to ensure consistency across runs
+ * Research the business to understand their industry and offerings.
+ * Always invoked on every report run; results are cached for 24h keyed by
+ * (domain + RESEARCH_PROMPT_VERSION) so prompt-quality improvements take
+ * effect immediately on the next run.
  */
+const RESEARCH_PROMPT_VERSION = 'v2-2026-04-29';
 async function researchBusiness(domain: string): Promise<string> {
-  // Check DB cache first (keyed by domain, valid for 7 days)
+  // Check DB cache first (keyed by domain + prompt version, valid for 24h)
   try {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: cached } = await supabaseAdmin
