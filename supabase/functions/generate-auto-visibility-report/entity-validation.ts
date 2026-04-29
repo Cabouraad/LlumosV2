@@ -167,6 +167,21 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'estate planning attorneys', 'eviction attorney', 'local law firms',
   'landlord law firm', 'legal aid organizations', 'local law schools',
   'law school clinic', 'uconn law school small', 'quinnipiac law school clinic',
+  // Generic legal descriptor phrases that masquerade as firm names
+  'law office', 'the law office', 'law offices', 'the law offices',
+  'law firm', 'the law firm', 'law firms', 'the law firms',
+  'lawyers', 'the lawyers', 'attorneys', 'the attorneys',
+  'family law', 'family lawyer', 'family lawyers', 'family law attorney', 'family law attorneys',
+  'family law group', 'the family law group', 'family law firm', 'the family law firm',
+  'personal injury', 'personal injury attorney', 'personal injury attorneys',
+  'personal injury lawyer', 'personal injury lawyers', 'personal injury firm', 'personal injury law firm',
+  'divorce attorney', 'divorce attorneys', 'divorce lawyer', 'divorce lawyers', 'divorce firm',
+  'criminal defense', 'criminal defense attorney', 'criminal defense lawyer',
+  'half price lawyers', 'preeminent lawyers', 'top lawyers', 'best lawyers', 'super lawyers',
+  'las vegas family law', 'las vegas lawyers', 'las vegas attorneys', 'las vegas law firm',
+  'nevada family law', 'nevada lawyers', 'nevada attorneys', 'nevada law firm',
+  'legal aid', 'legal aid center', 'legal aid society', 'legal aid clinic',
+  'pro bono', 'pro bono services', 'pro bono attorneys',
 ].map(s => s.toLowerCase()));
 
 // Domain nouns that frequently combine into generic noun phrases that are
