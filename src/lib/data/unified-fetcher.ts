@@ -106,6 +106,7 @@ export interface UnifiedPromptData extends UnifiedDashboardData {
       gemini: ProviderResponseData | null;
       perplexity: ProviderResponseData | null;
       google_ai_overview: ProviderResponseData | null;
+      claude: ProviderResponseData | null;
     };
     overallScore: number;
     lastRunAt: string | null;
@@ -623,6 +624,7 @@ export async function getUnifiedPromptData(
           gemini: promptResponses.filter(r => r.provider === 'gemini'),
           perplexity: promptResponses.filter(r => r.provider === 'perplexity'),
           google_ai_overview: promptResponses.filter(r => r.provider === 'google_ai_overview'),
+          claude: promptResponses.filter(r => r.provider === 'claude'),
         };
         
         // Get the latest response per provider for display
@@ -631,6 +633,7 @@ export async function getUnifiedPromptData(
           gemini: allResponsesByProvider.gemini.sort((a, b) => new Date(b.run_at).getTime() - new Date(a.run_at).getTime())[0] || null,
           perplexity: allResponsesByProvider.perplexity.sort((a, b) => new Date(b.run_at).getTime() - new Date(a.run_at).getTime())[0] || null,
           google_ai_overview: allResponsesByProvider.google_ai_overview.sort((a, b) => new Date(b.run_at).getTime() - new Date(a.run_at).getTime())[0] || null,
+          claude: allResponsesByProvider.claude.sort((a, b) => new Date(b.run_at).getTime() - new Date(a.run_at).getTime())[0] || null,
         };
         
         // Store all responses for aggregate calculations
@@ -642,6 +645,7 @@ export async function getUnifiedPromptData(
           gemini: promptResponses.find(r => r.provider === 'gemini') as ProviderResponseData || null,
           perplexity: promptResponses.find(r => r.provider === 'perplexity') as ProviderResponseData || null,
           google_ai_overview: promptResponses.find(r => r.provider === 'google_ai_overview') as ProviderResponseData || null,
+          claude: promptResponses.find(r => r.provider === 'claude') as ProviderResponseData || null,
         };
       }
 
