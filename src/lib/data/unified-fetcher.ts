@@ -507,27 +507,39 @@ export async function getUnifiedPromptData(
     let sevenDayResult: any;
     
     if (dateFrom || dateTo) {
-      // Date filtering mode: get all responses in the range
-      let responsesQuery = supabase
-        .from('prompt_provider_responses')
-        .select('id, prompt_id, provider, model, status, run_at, raw_ai_response, error, metadata, score, org_brand_present, org_brand_prominence, competitors_count, competitors_json, brands_json, citations_json, token_in, token_out')
-        .in('prompt_id', promptIds)
-        .in('status', ['success', 'completed']);
-      
-      if (dateFrom) {
-        responsesQuery = responsesQuery.gte('run_at', dateFrom.toISOString());
-      }
+      // Date filtering mode: get all responses in the range (paginated to avoid 1000-row cap)
+      const PAGE_SIZE = 1000;
+      const MAX_ROWS = 50000; // safety ceiling
+      const dateFromIso = dateFrom?.toISOString();
+      let dateToIso: string | undefined;
       if (dateTo) {
         const endOfDay = new Date(dateTo);
         endOfDay.setHours(23, 59, 59, 999);
-        responsesQuery = responsesQuery.lte('run_at', endOfDay.toISOString());
+        dateToIso = endOfDay.toISOString();
       }
-      
-      responsesQuery = responsesQuery.order('run_at', { ascending: false }).limit(1000);
-      
-      const { data: dateFilteredResponses, error: dateFilterError } = await responsesQuery;
-      if (dateFilterError) throw dateFilterError;
-      allResponses = dateFilteredResponses || [];
+
+      const collected: any[] = [];
+      let from = 0;
+      while (collected.length < MAX_ROWS) {
+        let pageQuery = supabase
+          .from('prompt_provider_responses')
+          .select('id, prompt_id, provider, model, status, run_at, raw_ai_response, error, metadata, score, org_brand_present, org_brand_prominence, competitors_count, competitors_json, brands_json, citations_json, token_in, token_out')
+          .in('prompt_id', promptIds)
+          .in('status', ['success', 'completed']);
+
+        if (dateFromIso) pageQuery = pageQuery.gte('run_at', dateFromIso);
+        if (dateToIso) pageQuery = pageQuery.lte('run_at', dateToIso);
+
+        pageQuery = pageQuery.order('run_at', { ascending: false }).range(from, from + PAGE_SIZE - 1);
+
+        const { data: pageData, error: pageError } = await pageQuery;
+        if (pageError) throw pageError;
+        const rows = pageData || [];
+        collected.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      allResponses = collected;
     } else {
       // Default mode: get latest responses per provider using RPC
       [latestResponsesResult, sevenDayResult] = await Promise.all([
