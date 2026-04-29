@@ -1771,14 +1771,23 @@ async function researchBusiness(domain: string): Promise<string> {
         model: 'sonar',
         messages: [
           {
+            role: 'system',
+            content: 'You are a B2B market research analyst. Be specific, accurate, and explicit about WHO the company sells to vs WHO competes with them. Never confuse the customer base with the competitive set (e.g., a marketing agency for law firms competes with OTHER marketing agencies, not with law firms). If the company is small or hard to research, say so explicitly rather than guessing.'
+          },
+          {
             role: 'user',
-            content: `What does the company at ${domain} do? Provide a brief summary of:
-1. Their industry/category
-2. Their main products or services
-3. Their target audience
-4. Their key competitors
+            content: `Research the company at ${domain} and produce a structured profile. Use the live website and any other sources you can find.
 
-Keep the response concise (under 200 words).`
+Return the following sections, each clearly labeled, in under 350 words total:
+
+1. Company: Official name, headquarters/geography, size if known.
+2. Industry / Category: The specific niche (be precise — "B2B legal marketing agency" beats "marketing").
+3. Products / Services: What they actually sell.
+4. Target Customers (ICP): Who BUYS from them — company size, vertical, geography, role. This is NOT the competitor list.
+5. Direct Competitors: 5-10 NAMED companies that sell SIMILAR products/services to the SAME ICP. These must be real, named businesses — not generic categories ("law firms", "marketing agencies"), not customer types, and not partners. If you cannot confidently name competitors, say "Unknown — insufficient public information" rather than guessing.
+6. Key Differentiators: What sets them apart (if discoverable).
+
+Critical: Customers and competitors are NEVER the same group. Double-check section 5 before answering.`
           }
         ]
       }),
