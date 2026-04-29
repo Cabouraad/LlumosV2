@@ -1728,9 +1728,120 @@ async function refineCompetitorCandidatesFromResults(
  * (domain + RESEARCH_PROMPT_VERSION) so prompt-quality improvements take
  * effect immediately on the next run.
  */
-const RESEARCH_PROMPT_VERSION = 'v2-2026-04-29';
+const RESEARCH_PROMPT_VERSION = 'v3-2026-04-29';
+
+const RESEARCH_SYSTEM_PROMPT = 'You are a B2B market research analyst. Be specific, accurate, and explicit about WHO the company sells to vs WHO competes with them. Never confuse the customer base with the competitive set (e.g., a marketing agency for law firms competes with OTHER marketing agencies, not with law firms). If the company is small or hard to research, say so explicitly rather than guessing — but always extract whatever you CAN see from the live website (services, geography, audience).';
+
+function buildResearchUserPrompt(domain: string, homepageHint?: string): string {
+  const hint = homepageHint && homepageHint.trim().length > 0
+    ? `\n\nHOMEPAGE SIGNALS (extracted from ${domain} — use to ground your research):\n${homepageHint.slice(0, 2000)}\n`
+    : '';
+  return `Research the company at ${domain} and produce a structured profile. Use the live website and any other sources you can find.${hint}
+
+Return the following sections, each clearly labeled, in under 400 words total:
+
+1. Company: Official name, headquarters/geography, size if known.
+2. Industry / Category: The specific niche (be precise — "B2B legal marketing agency for SMB law firms" beats "marketing"). State whether they are B2B or B2C.
+3. Products / Services: What they actually sell — list the concrete offerings.
+4. Target Customers (ICP): Who BUYS from them — company size, vertical, geography, decision-maker role. This is NOT the competitor list.
+5. Direct Competitors: 5-10 NAMED companies that sell SIMILAR products/services to the SAME ICP. These must be real, named businesses — not generic categories ("law firms", "marketing agencies"), not customer types, and not partners/vendors. If you genuinely cannot name any, say "Unknown — insufficient public information" rather than guessing.
+6. Key Differentiators: What sets them apart (positioning, pricing, niche focus, founders).
+7. Buyer-Intent Search Queries: 5 example queries a prospective customer would ask ChatGPT/Perplexity when shopping for this kind of solution (e.g., "best X for Y", "alternatives to [competitor]").
+
+Critical rules:
+- Customers and competitors are NEVER the same group. Double-check section 5.
+- If the company is small/obscure, infer industry & ICP from the homepage signals above and name competitors from that broader category.
+- Never return an empty profile — at minimum fill sections 1-4 from the homepage.`;
+}
+
+/** A research result is "weak" if it's empty, too short, or refuses to answer. */
+function isWeakResearch(text: string): boolean {
+  if (!text) return true;
+  const t = text.trim();
+  if (t.length < 250) return true;
+  const lower = t.toLowerCase();
+  // Refusals / "I don't know" responses
+  if (/^(i (cannot|can't|am unable|don't have)|sorry,? i)/i.test(t)) return true;
+  // Must mention at least 3 of the structured sections
+  const sectionHits = [
+    /industry|category/i, /products?|services?/i, /customers?|icp|target/i,
+    /competitors?/i, /company/i,
+  ].filter((re) => re.test(lower)).length;
+  return sectionHits < 3;
+}
+
+async function callPerplexityResearch(domain: string, homepageHint?: string): Promise<string> {
+  if (!PERPLEXITY_API_KEY) return '';
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar',
+      messages: [
+        { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
+        { role: 'user', content: buildResearchUserPrompt(domain, homepageHint) },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Perplexity research error: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.choices[0]?.message?.content || '';
+}
+
+async function callOpenAIResearchFallback(domain: string, homepageHint: string): Promise<string> {
+  if (!OPENAI_API_KEY) return '';
+  // Without web search we MUST have homepage signals to ground the answer.
+  if (!homepageHint || homepageHint.trim().length < 50) {
+    console.warn('[AutoReport] OpenAI fallback skipped — no homepage signals to ground research');
+    return '';
+  }
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: RESEARCH_SYSTEM_PROMPT + ' You do NOT have live web access — base your profile entirely on the HOMEPAGE SIGNALS provided. Never invent specific numbers, founders, or facts not present in those signals.' },
+          { role: 'user', content: buildResearchUserPrompt(domain, homepageHint) },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`OpenAI fallback research error: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.choices[0]?.message?.content || '';
+  } catch (e) {
+    console.error('[AutoReport] OpenAI research fallback failed:', e);
+    return '';
+  }
+}
+
+/**
+ * Research the business to understand their industry and offerings.
+ * Always invoked on every report run; results are cached for 24h keyed by
+ * (domain + RESEARCH_PROMPT_VERSION) so prompt-quality improvements take
+ * effect immediately on the next run.
+ *
+ * Resilience strategy (so we NEVER run a report blind):
+ *   1. Try cached research (24h, version-keyed).
+ *   2. Try Perplexity sonar (live web).
+ *   3. If empty/weak, fetch homepage signals and retry Perplexity grounded on them.
+ *   4. If still weak, fall back to OpenAI grounded on homepage signals.
+ *   5. Last resort: synthesize a minimal profile from homepage signals alone.
+ */
 async function researchBusiness(domain: string): Promise<string> {
-  // Check DB cache first (keyed by domain + prompt version, valid for 24h)
+  // Step 1: Check DB cache (keyed by domain + prompt version, valid for 24h)
   try {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: cached } = await supabaseAdmin
@@ -1745,9 +1856,7 @@ async function researchBusiness(domain: string): Promise<string> {
     const cachedResearch = (cached?.metadata as any)?.business_research;
     const cachedAt = (cached?.metadata as any)?.research_cached_at;
     const cachedVersion = (cached?.metadata as any)?.research_version;
-    // Cache for 24h only, and invalidate any research generated by an older prompt version
-    // so improvements to the research prompt take effect on the next run.
-    if (cachedResearch && cachedAt && cachedVersion === RESEARCH_PROMPT_VERSION) {
+    if (cachedResearch && cachedAt && cachedVersion === RESEARCH_PROMPT_VERSION && !isWeakResearch(cachedResearch)) {
       const ageMs = Date.now() - new Date(cachedAt).getTime();
       if (ageMs < 24 * 60 * 60 * 1000) {
         console.log('[AutoReport] Using cached business research for', domain);
@@ -1758,53 +1867,72 @@ async function researchBusiness(domain: string): Promise<string> {
     console.warn('[AutoReport] Cache lookup failed, will research fresh:', e);
   }
 
-  if (!PERPLEXITY_API_KEY) {
-    console.log('[AutoReport] No Perplexity key, skipping business research');
-    return '';
+  let businessContext = '';
+  let researchSource = 'none';
+
+  // Step 2: Perplexity (live web) — first attempt without homepage hint
+  if (PERPLEXITY_API_KEY) {
+    try {
+      businessContext = await callPerplexityResearch(domain);
+      researchSource = 'perplexity';
+      console.log('[AutoReport] Perplexity research (attempt 1):', businessContext.substring(0, 200) + '...');
+    } catch (error) {
+      console.error('[AutoReport] Perplexity attempt 1 failed:', error);
+    }
+  } else {
+    console.warn('[AutoReport] PERPLEXITY_API_KEY missing — skipping live research');
   }
 
-  try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a B2B market research analyst. Be specific, accurate, and explicit about WHO the company sells to vs WHO competes with them. Never confuse the customer base with the competitive set (e.g., a marketing agency for law firms competes with OTHER marketing agencies, not with law firms). If the company is small or hard to research, say so explicitly rather than guessing.'
-          },
-          {
-            role: 'user',
-            content: `Research the company at ${domain} and produce a structured profile. Use the live website and any other sources you can find.
-
-Return the following sections, each clearly labeled, in under 350 words total:
-
-1. Company: Official name, headquarters/geography, size if known.
-2. Industry / Category: The specific niche (be precise — "B2B legal marketing agency" beats "marketing").
-3. Products / Services: What they actually sell.
-4. Target Customers (ICP): Who BUYS from them — company size, vertical, geography, role. This is NOT the competitor list.
-5. Direct Competitors: 5-10 NAMED companies that sell SIMILAR products/services to the SAME ICP. These must be real, named businesses — not generic categories ("law firms", "marketing agencies"), not customer types, and not partners. If you cannot confidently name competitors, say "Unknown — insufficient public information" rather than guessing.
-6. Key Differentiators: What sets them apart (if discoverable).
-
-Critical: Customers and competitors are NEVER the same group. Double-check section 5 before answering.`
-          }
-        ]
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Perplexity research error: ${response.status}`);
+  // Step 3: If weak, retry Perplexity grounded on homepage signals
+  if (isWeakResearch(businessContext)) {
+    console.warn('[AutoReport] Research weak/empty — fetching homepage signals and retrying');
+    let homepageHint = '';
+    try {
+      const signals = await fetchHomepageSignals(domain);
+      homepageHint = signals.context || '';
+    } catch (e) {
+      console.warn('[AutoReport] Homepage signals fetch failed:', e);
     }
 
-    const data = await response.json();
-    const businessContext = data.choices[0]?.message?.content || '';
-    console.log('[AutoReport] Business research:', businessContext.substring(0, 200) + '...');
+    if (PERPLEXITY_API_KEY && homepageHint) {
+      try {
+        const retry = await callPerplexityResearch(domain, homepageHint);
+        if (!isWeakResearch(retry)) {
+          businessContext = retry;
+          researchSource = 'perplexity_grounded';
+          console.log('[AutoReport] Perplexity research (attempt 2, grounded):', retry.substring(0, 200) + '...');
+        }
+      } catch (error) {
+        console.error('[AutoReport] Perplexity attempt 2 failed:', error);
+      }
+    }
 
-    // Persist to DB cache
+    // Step 4: OpenAI fallback grounded on homepage
+    if (isWeakResearch(businessContext) && homepageHint) {
+      const fallback = await callOpenAIResearchFallback(domain, homepageHint);
+      if (!isWeakResearch(fallback)) {
+        businessContext = fallback;
+        researchSource = 'openai_homepage';
+        console.log('[AutoReport] OpenAI fallback research:', fallback.substring(0, 200) + '...');
+      }
+    }
+
+    // Step 5: Last-resort minimal profile from homepage signals only
+    if (isWeakResearch(businessContext) && homepageHint) {
+      businessContext = `1. Company: ${domain}\n2. Industry / Category: Unknown — insufficient public information.\n3. Products / Services (from homepage):\n${homepageHint.slice(0, 1500)}\n4. Target Customers (ICP): Unknown — insufficient public information.\n5. Direct Competitors: Unknown — insufficient public information.\n6. Key Differentiators: Unknown.`;
+      researchSource = 'homepage_only';
+      console.warn('[AutoReport] Using homepage-only minimal profile for', domain);
+    }
+  }
+
+  if (isWeakResearch(businessContext)) {
+    console.error(`[AutoReport] ⚠️  All research strategies failed for ${domain} — proceeding with empty context. Report quality will be degraded.`);
+  } else {
+    console.log(`[AutoReport] ✅ Research complete for ${domain} (source: ${researchSource}, ${businessContext.length} chars)`);
+  }
+
+  // Persist to DB cache (only if we got something usable)
+  if (!isWeakResearch(businessContext)) {
     try {
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const { data: lead } = await supabaseAdmin
@@ -1824,20 +1952,18 @@ Critical: Customers and competitors are NEVER the same group. Double-check secti
               business_research: businessContext,
               research_cached_at: new Date().toISOString(),
               research_version: RESEARCH_PROMPT_VERSION,
+              research_source: researchSource,
             }
           })
           .eq('id', lead.id);
-        console.log('[AutoReport] Cached business research for', domain);
+        console.log('[AutoReport] Cached business research for', domain, `(source: ${researchSource})`);
       }
     } catch (e) {
       console.warn('[AutoReport] Failed to cache research:', e);
     }
-
-    return businessContext;
-  } catch (error) {
-    console.error('[AutoReport] Error researching business:', error);
-    return '';
   }
+
+  return businessContext;
 }
 
 /**
