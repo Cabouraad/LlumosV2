@@ -167,6 +167,21 @@ const EXCLUSION_GENERIC_NOUNS = new Set<string>([
   'estate planning attorneys', 'eviction attorney', 'local law firms',
   'landlord law firm', 'legal aid organizations', 'local law schools',
   'law school clinic', 'uconn law school small', 'quinnipiac law school clinic',
+  // Generic legal descriptor phrases that masquerade as firm names
+  'law office', 'the law office', 'law offices', 'the law offices',
+  'law firm', 'the law firm', 'law firms', 'the law firms',
+  'lawyers', 'the lawyers', 'attorneys', 'the attorneys',
+  'family law', 'family lawyer', 'family lawyers', 'family law attorney', 'family law attorneys',
+  'family law group', 'the family law group', 'family law firm', 'the family law firm',
+  'personal injury', 'personal injury attorney', 'personal injury attorneys',
+  'personal injury lawyer', 'personal injury lawyers', 'personal injury firm', 'personal injury law firm',
+  'divorce attorney', 'divorce attorneys', 'divorce lawyer', 'divorce lawyers', 'divorce firm',
+  'criminal defense', 'criminal defense attorney', 'criminal defense lawyer',
+  'half price lawyers', 'preeminent lawyers', 'top lawyers', 'best lawyers', 'super lawyers',
+  'las vegas family law', 'las vegas lawyers', 'las vegas attorneys', 'las vegas law firm',
+  'nevada family law', 'nevada lawyers', 'nevada attorneys', 'nevada law firm',
+  'legal aid', 'legal aid center', 'legal aid society', 'legal aid clinic',
+  'pro bono', 'pro bono services', 'pro bono attorneys',
 ].map(s => s.toLowerCase()));
 
 // Domain nouns that frequently combine into generic noun phrases that are
@@ -302,6 +317,29 @@ function containsSentenceBoundary(rawText: string): boolean {
 
 const GENERIC_LEGAL_ENTITY_RE = /^(?:local\s+)?(?:estate\s+planning\s+attorneys?|eviction\s+attorneys?|landlord\s+law\s+firms?|local\s+law\s+firms?|legal\s+aid\s+organizations?|local\s+law\s+schools?|law\s+school\s+clinics?|apartment\s+associations?|real\s+estate\s+investors?\s+associations?)$/i;
 
+// Catches generic legal descriptor phrases that aren't real firm names:
+//   "Law Office", "The Law Office(s)", "Law Firm", "Family Law Group",
+//   "Personal Injury Attorneys", "Half Price Lawyers", "Preeminent Lawyers",
+//   "Top Lawyers", "Best Lawyers", "Las Vegas Family Law",
+//   "Nevada Family Law Group", "Legal Aid Center", etc.
+const GENERIC_LEGAL_DESCRIPTOR_RE = new RegExp(
+  '^(?:' +
+    // Optional leading article / superlative / location descriptor
+    '(?:the\\s+)?' +
+    '(?:' +
+      '(?:half\\s+price|preeminent|top|best|super|elite|leading|premier|expert|experienced|board\\s+certified|certified|local|nearby|affordable|cheap|low\\s+cost|free)\\s+' +
+      '|' +
+      // Geo prefix: 1-3 capitalized-ish words ending before a legal noun (handled lowercased here)
+      '(?:[a-z][a-z.\\-]+\\s+){1,3}' +
+    ')?' +
+    // Optional practice-area qualifier
+    '(?:family|personal\\s+injury|criminal\\s+defense|divorce|estate\\s+planning|estate|immigration|bankruptcy|tax|civil|business|corporate|employment|labor|real\\s+estate|landlord|tenant|eviction|probate|workers?\\s+comp(?:ensation)?|dui|car\\s+accident|truck\\s+accident|motorcycle\\s+accident|slip\\s+and\\s+fall|medical\\s+malpractice|wrongful\\s+death|class\\s+action)?\\s*' +
+    // Required generic legal noun
+    '(?:law\\s+offices?|law\\s+firms?|law\\s+groups?|law\\s+center|law\\s+practice|law\\s+practices|legal\\s+services|legal\\s+aid(?:\\s+(?:center|society|clinic|organization|organizations))?|lawyers?|attorneys?|counsel|counselors?)' +
+  ')$',
+  'i',
+);
+
 function isGenericLegalNounPhrase(rawText: string): boolean {
   const normalized = (rawText || '')
     .toLowerCase()
@@ -311,8 +349,34 @@ function isGenericLegalNounPhrase(rawText: string): boolean {
   if (!normalized) return false;
   if (GENERIC_LEGAL_ENTITY_RE.test(normalized)) return true;
   if (/^(?:uconn|quinnipiac|yale)\s+law\s+school(?:\s+small|\s+clinic)?$/.test(normalized)) return true;
+  if (GENERIC_LEGAL_DESCRIPTOR_RE.test(normalized)) {
+    // Don't reject phrases that look like real firm names — i.e., contain a
+    // proper-noun token that's not a known practice-area / geo / superlative.
+    // Heuristic: if the phrase has a token that isn't a common legal/geo/qualifier
+    // word AND isn't a US state/city stopword, treat it as a real firm.
+    const PRACTICE_GEO_QUALIFIERS = new Set([
+      'the','a','an','of','and','&',
+      'law','office','offices','firm','firms','group','groups','center','practice','practices',
+      'legal','aid','services','lawyer','lawyers','attorney','attorneys','counsel','counselor','counselors',
+      'family','personal','injury','criminal','defense','divorce','estate','planning','immigration',
+      'bankruptcy','tax','civil','business','corporate','employment','labor','real','landlord','tenant',
+      'eviction','probate','workers','comp','compensation','dui','car','truck','motorcycle','accident',
+      'slip','and','fall','medical','malpractice','wrongful','death','class','action',
+      'half','price','preeminent','top','best','super','elite','leading','premier','expert','experienced',
+      'board','certified','local','nearby','affordable','cheap','low','cost','free',
+      // Common US geo tokens
+      'las','vegas','nevada','los','angeles','san','francisco','new','york','chicago','miami','dallas',
+      'houston','phoenix','seattle','denver','boston','atlanta','detroit','michigan','connecticut',
+      'california','texas','florida','arizona','washington','colorado','massachusetts','georgia',
+      'illinois','ohio','pennsylvania','virginia','maryland','minnesota','oregon','utah',
+    ]);
+    const tokens = normalized.split(/\s+/).filter(Boolean);
+    const hasProperToken = tokens.some(t => !PRACTICE_GEO_QUALIFIERS.has(t) && /^[a-z][a-z'\-]{1,}$/.test(t));
+    if (!hasProperToken) return true;
+  }
   return false;
 }
+
 
 function appearsInProviderListContext(entity: string, response: string): boolean {
   if (!entity || !response) return false;
