@@ -1823,6 +1823,7 @@ Critical: Customers and competitors are NEVER the same group. Double-check secti
               ...(lead.metadata as any || {}),
               business_research: businessContext,
               research_cached_at: new Date().toISOString(),
+              research_version: RESEARCH_PROMPT_VERSION,
             }
           })
           .eq('id', lead.id);
