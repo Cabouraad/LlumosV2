@@ -21,15 +21,18 @@ interface ProviderResponseCardProps {
   promptText: string;
 }
 
-const PROVIDER_CONFIG = {
+const PROVIDER_CONFIG: Record<string, { name: string; color: string; icon: typeof Bot }> = {
   openai: { name: 'OpenAI', color: 'bg-emerald-50 border-emerald-200 text-emerald-700', icon: Bot },
   gemini: { name: 'Gemini', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: Sparkles },
   perplexity: { name: 'Perplexity', color: 'bg-blue-50 border-blue-200 text-blue-700', icon: Search },
-  google_ai_overview: { name: 'Google AI Overview', color: 'bg-orange-50 border-orange-200 text-orange-700', icon: Globe }
+  google_ai_overview: { name: 'Google AI Overview', color: 'bg-orange-50 border-orange-200 text-orange-700', icon: Globe },
+  claude: { name: 'Claude', color: 'bg-amber-50 border-amber-200 text-amber-700', icon: Sparkles },
 };
 
+const FALLBACK_CONFIG = { name: 'Unknown', color: 'bg-gray-50 border-gray-200 text-gray-700', icon: Bot };
+
 const ProviderResponseCardComponent = ({ provider, response, promptText }: ProviderResponseCardProps) => {
-  const config = PROVIDER_CONFIG[provider];
+  const config = PROVIDER_CONFIG[provider] ?? FALLBACK_CONFIG;
   const { orgBrandVariants } = useOrgBrands();
   const { filterCompetitorsByCatalog } = useCatalogCompetitors();
   
