@@ -570,22 +570,55 @@ function prettifyDomainLabel(domain: string | null | undefined): string {
     }
   }
 
-  // Split a known business-type suffix (e.g., "gilmanlaw" -> "gilman law")
-  const suffixes = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio', 'firm', 'attorneys', 'attorney', 'lawyers', 'lawyer', 'clinic', 'health', 'dental', 'realty', 'homes', 'tech', 'software', 'solutions', 'systems', 'capital', 'ventures'];
-  const matchingSuffix = suffixes.find((suffix) => label.endsWith(suffix) && label.length > suffix.length + 2 && !label.includes(' '));
+  // Known business words — split wherever they appear (not just at end).
+  // e.g., "doylelawgrouplv" -> "doyle law group lv"
+  const businessWords = ['team', 'group', 'labs', 'legal', 'law', 'marketing', 'media', 'partners', 'partner', 'agency', 'coaching', 'coach', 'consulting', 'services', 'studio', 'firm', 'attorneys', 'attorney', 'lawyers', 'lawyer', 'clinic', 'health', 'dental', 'realty', 'homes', 'tech', 'software', 'solutions', 'systems', 'capital', 'ventures', 'works', 'global'];
 
-  if (matchingSuffix) {
-    label = `${label.slice(0, -matchingSuffix.length)} ${matchingSuffix}`;
+  // Trailing geo / market abbreviations to keep as their own (uppercased) token.
+  const geoAbbrevs = new Set(['lv', 'nyc', 'la', 'sf', 'dc', 'usa', 'uk', 'us', 'sd', 'atl', 'chi', 'bos', 'phx', 'pdx', 'mia', 'hou', 'sea', 'den', 'lax']);
+
+  // Recursively split the label on business words. Sort by length desc so "partners" matches before "partner".
+  const sortedWords = [...businessWords].sort((a, b) => b.length - a.length);
+  const splitOnBusinessWords = (segment: string): string[] => {
+    if (!segment || segment.includes(' ')) {
+      return segment.split(/\s+/).filter(Boolean);
+    }
+    for (const word of sortedWords) {
+      const idx = segment.indexOf(word);
+      // Require the word to leave at least 2 chars on the side it's attached to (avoid "labs" inside "lab" type matches; also avoid splitting tiny stems).
+      if (idx >= 0) {
+        const before = segment.slice(0, idx);
+        const after = segment.slice(idx + word.length);
+        const beforeOk = before.length === 0 || before.length >= 2;
+        const afterOk = after.length === 0 || after.length >= 2;
+        if (beforeOk && afterOk && (before.length > 0 || after.length > 0)) {
+          return [
+            ...splitOnBusinessWords(before),
+            word,
+            ...splitOnBusinessWords(after),
+          ].filter(Boolean);
+        }
+      }
+    }
+    return [segment];
+  };
+
+  let parts = label.split(/\s+/).flatMap(splitOnBusinessWords).filter(Boolean);
+
+  // If the final token is a short alphabetic chunk (2-3 chars) that looks like a geo abbreviation,
+  // keep it as its own uppercase token (e.g., "lv" -> "LV").
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1];
+    if (/^[a-z]{2,3}$/.test(last) && (geoAbbrevs.has(last) || parts.length >= 3)) {
+      // Already separated — will be uppercased below if in geoAbbrevs set.
+    }
   }
 
-  return label
-    .split(/\s+/)
-    .filter(Boolean)
+  return parts
     .map((part) => {
       const uppercaseTokens = new Set(['ai', 'seo', 'ppc', 'cfo', 'crm', 'smb']);
-      return uppercaseTokens.has(part)
-        ? part.toUpperCase()
-        : `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+      if (uppercaseTokens.has(part) || geoAbbrevs.has(part)) return part.toUpperCase();
+      return `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
     })
     .join(' ')
     .trim();
