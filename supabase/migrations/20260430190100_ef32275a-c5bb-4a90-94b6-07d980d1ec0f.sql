@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status='pending', metadata = COALESCE(metadata, '{}'::jsonb) || '{"resetReason":"stuck_in_processing_retry"}'::jsonb WHERE id='fe1bd062-de36-43e3-8a9f-60fe07fdbd83';
