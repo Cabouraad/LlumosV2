@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET metadata = (COALESCE(metadata, '{}'::jsonb) - 'emailSent' - 'reportGeneratedAt') || '{"resetReason":"rerun_with_proper_brand_name","companyName":"Amy Rose Oliver"}'::jsonb, status='pending' WHERE id='fe1bd062-de36-43e3-8a9f-60fe07fdbd83';
