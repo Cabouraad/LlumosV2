@@ -875,10 +875,27 @@ function isSelfBrandCandidate(name: string, brandProfile: BrandProfile, domain?:
   if (candidateWords.length >= 2) {
     for (const alias of exclusionKeys) {
       const aliasWords = alias.split(' ').filter(Boolean);
+      // Candidate is a prefix of alias (e.g., "Allmand" vs alias "Allmand Law")
       if (
         aliasWords.length > candidateWords.length &&
         aliasWords.slice(0, candidateWords.length).join(' ') === normalizedCandidate
       ) {
+        return true;
+      }
+    }
+  }
+
+  // Candidate extends an alias with only generic descriptors
+  // (e.g., "Allmand Law Firm" vs alias "Allmand Law" — extra word "firm" is weak)
+  for (const alias of exclusionKeys) {
+    const aliasWords = alias.split(' ').filter(Boolean);
+    if (
+      aliasWords.length >= 2 &&
+      candidateWords.length > aliasWords.length &&
+      candidateWords.slice(0, aliasWords.length).join(' ') === alias
+    ) {
+      const extras = candidateWords.slice(aliasWords.length);
+      if (extras.every((w) => WEAK_SINGLE_TOKEN_ALIASES.has(w))) {
         return true;
       }
     }
