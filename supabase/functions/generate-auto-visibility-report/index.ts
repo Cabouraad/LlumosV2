@@ -2774,11 +2774,11 @@ function extractCompetitors(text: string, brandProfile: BrandProfile, competitor
     // canonical rows BEFORE canonicalization so each parent gets its own row.
     const parts = splitCombinedEntity(candidateClean);
     for (const part of parts) {
-      if (isSelfBrandCandidate(part, brandProfile)) continue;
+      if (isSelfBrandCandidate(part, brandProfile, brandProfile.domain)) continue;
       // Canonicalize so domain forms, abbreviations, punctuation/suffix variants,
       // and child-product names all collapse to one preferred parent display.
       const canonical = canonicalizeEntityName(part) || part;
-      if (isSelfBrandCandidate(canonical, brandProfile)) continue;
+      if (isSelfBrandCandidate(canonical, brandProfile, brandProfile.domain)) continue;
       const key = normalizeEntityName(canonical);
       if (!key) continue;
       // Prefer the longer / more complete display when we see the same key twice
