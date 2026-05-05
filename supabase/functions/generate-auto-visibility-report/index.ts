@@ -901,7 +901,54 @@ function isSelfBrandCandidate(name: string, brandProfile: BrandProfile, domain?:
     }
   }
 
+  // Domain-stem match: if the candidate's first token equals (or fuzzy-matches by ≤1 edit)
+  // the domain stem AND every remaining token is a weak/generic descriptor, it's self.
+  // Catches "Allmand Law Firm" / "Allman Law Firm" (typo) for domain allmandlaw.com.
+  if (domain && candidateWords.length >= 1) {
+    const stem = normalizeEntityName(
+      domain
+        .replace(/^https?:\/\//i, '')
+        .replace(/^www\./i, '')
+        .split('.')[0],
+    );
+    if (stem && stem.length >= 4) {
+      // Try matching the first 1-3 tokens of the candidate against the stem
+      // (handles glued stems like "allmandlaw" => candidate "allmand law").
+      for (let take = 1; take <= Math.min(3, candidateWords.length); take++) {
+        const head = candidateWords.slice(0, take).join('');
+        const matches =
+          head === stem ||
+          stem.startsWith(head) && head.length >= Math.max(5, stem.length - 4) ||
+          (head.length >= 5 && stem.length >= 5 && levenshtein(head, stem) <= 1);
+        if (matches) {
+          const extras = candidateWords.slice(take);
+          if (extras.length === 0 || extras.every((w) => WEAK_SINGLE_TOKEN_ALIASES.has(w))) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
   return false;
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const v0 = new Array(b.length + 1);
+  const v1 = new Array(b.length + 1);
+  for (let i = 0; i <= b.length; i++) v0[i] = i;
+  for (let i = 0; i < a.length; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) v0[j] = v1[j];
+  }
+  return v1[b.length];
 }
 
 function aliasToRegexSource(alias: string): string | null {
