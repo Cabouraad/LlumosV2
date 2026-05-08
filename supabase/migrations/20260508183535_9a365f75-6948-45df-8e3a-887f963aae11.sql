@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status='pending', metadata = jsonb_set(coalesce(metadata,'{}'::jsonb), '{firstName}', '"Rob"'::jsonb) || '{"companyName":"Rob Reid Attorney"}'::jsonb WHERE id='95e00a25-e1b9-47fb-a4c7-017467890a0e';
