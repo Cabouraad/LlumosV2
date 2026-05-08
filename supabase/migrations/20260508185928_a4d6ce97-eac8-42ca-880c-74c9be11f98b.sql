@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status='pending', metadata = metadata - 'backgroundTriggeredAt' WHERE id IN ('eda87444-eb15-4ae0-8763-4ee3f354cbbf','5ea47cf3-abb6-42da-a20c-40d3c4eb7dad');
