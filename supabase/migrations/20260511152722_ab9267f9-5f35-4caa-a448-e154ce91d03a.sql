@@ -1,0 +1,14 @@
+INSERT INTO public.visibility_report_requests (email, domain, score, status, metadata)
+VALUES (
+  'chris.abouraad@smbteam.com',
+  'heslinlawfirm.com',
+  0,
+  'pending',
+  jsonb_build_object(
+    'firstName','Gary',
+    'companyName','Heslin Law Firm',
+    'industryHint','Legal Firm / Law Firm',
+    'manualRerun',true,
+    'logoFix','v2-trimmed-inline'
+  )
+);
