@@ -4611,25 +4611,22 @@ async function generatePDF(
     coverY -= 40;
   }
 
-  // "Powered by Llumos" directly under SMB Team logo — text then logo
+  // "Powered by Llumos" directly under SMB Team logo — high-contrast text plus cyan mark
   const poweredText = 'Powered by Llumos';
   const poweredFontSize = 16;
   const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, poweredFontSize);
-  if (llumosLogo) {
-    // Trimmed PNG with true aspect ratio (~289x225) — render at readable size
-    const dims = llumosLogo.scale(1);
-    const llLogoH = 40;
-    const llLogoW = (dims.width / dims.height) * llLogoH;
-    const gap = 8;
-    const totalW2 = poweredTextW + gap + llLogoW;
-    const startX = (W - totalW2) / 2;
-    const textCenterY = coverY + poweredFontSize / 2;
-    const logoY = textCenterY - llLogoH / 2;
-    page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.85, 0.87, 0.92) });
-    page.drawImage(llumosLogo, { x: startX + poweredTextW + gap, y: logoY, width: llLogoW, height: llLogoH });
-  } else {
-    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.65, 0.65, 0.70) });
-  }
+  const markColor = rgb(0.07, 0.94, 0.91);
+  const markW = 22;
+  const markH = 30;
+  const gap = 10;
+  const totalW2 = poweredTextW + gap + markW;
+  const startX = (W - totalW2) / 2;
+  const markX = startX + poweredTextW + gap;
+  const markY = coverY - 5;
+  page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.92, 0.95, 0.98) });
+  page.drawRectangle({ x: markX, y: markY + 6, width: 5, height: 18, color: markColor });
+  page.drawRectangle({ x: markX + 8.5, y: markY, width: 5, height: markH, color: markColor });
+  page.drawRectangle({ x: markX + 17, y: markY + 6, width: 5, height: 18, color: markColor });
   coverY -= 60;
 
   // Report title
