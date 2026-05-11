@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2.0.0";
 import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
+import { LLUMOS_LOGO_B64 } from "./llumos-logo-b64.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -4395,15 +4396,13 @@ async function generatePDF(
     console.warn('Could not load SMB Team logo:', e);
   }
 
-  // Embed Llumos logo
+  // Embed Llumos logo (inlined trimmed PNG, ~289x225 — content-only, no padding)
   let llumosLogo: any = null;
   try {
-    const llumosLogoUrl = 'https://lumos-ai-optimize.lovable.app/images/llumos-logo.png';
-    const llumosLogoRes = await fetch(llumosLogoUrl);
-    if (llumosLogoRes.ok) {
-      const llumosLogoBytes = new Uint8Array(await llumosLogoRes.arrayBuffer());
-      llumosLogo = await pdfDoc.embedPng(llumosLogoBytes);
-    }
+    const binStr = atob(LLUMOS_LOGO_B64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+    llumosLogo = await pdfDoc.embedPng(bytes);
   } catch (e) {
     console.warn('Could not load Llumos logo:', e);
   }
@@ -4629,15 +4628,13 @@ async function generatePDF(
   const poweredFontSize = 16;
   const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, poweredFontSize);
   if (llumosLogo) {
-    // The source PNG is square (512x512) with the actual logo artwork occupying
-    // only the center ~40% of the canvas, so we render it noticeably larger
-    // than the text so the logo + wordmark are clearly visible on the navy bg.
-    const llLogoH = 60;
-    const llLogoW = 60; // square source — keep 1:1 aspect to avoid distortion
-    const gap = 4;
+    // Trimmed PNG with true aspect ratio (~289x225) — render at readable size
+    const dims = llumosLogo.scale(1);
+    const llLogoH = 40;
+    const llLogoW = (dims.width / dims.height) * llLogoH;
+    const gap = 8;
     const totalW2 = poweredTextW + gap + llLogoW;
     const startX = (W - totalW2) / 2;
-    // Vertically center the (much taller) logo against the text baseline
     const textCenterY = coverY + poweredFontSize / 2;
     const logoY = textCenterY - llLogoH / 2;
     page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.85, 0.87, 0.92) });
