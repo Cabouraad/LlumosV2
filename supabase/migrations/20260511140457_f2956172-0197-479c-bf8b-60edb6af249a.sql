@@ -1,0 +1,1 @@
+UPDATE visibility_report_requests SET status='pending', metadata = metadata - 'backgroundTriggeredAt' WHERE email='chris.abouraad@smbteam.com' AND domain='heslinlawfirm.com' AND status='processing';
