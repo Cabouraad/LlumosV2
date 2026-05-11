@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2.0.0";
 import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
-import { LLUMOS_LOGO_B64 } from "./llumos-logo-b64.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -4394,17 +4393,6 @@ async function generatePDF(
     }
   } catch (e) {
     console.warn('Could not load SMB Team logo:', e);
-  }
-
-  // Embed Llumos logo (inlined trimmed PNG, ~289x225 — content-only, no padding)
-  let llumosLogo: any = null;
-  try {
-    const binStr = atob(LLUMOS_LOGO_B64);
-    const bytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-    llumosLogo = await pdfDoc.embedPng(bytes);
-  } catch (e) {
-    console.warn('Could not load Llumos logo:', e);
   }
 
   const W = 612;
