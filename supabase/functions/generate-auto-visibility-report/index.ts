@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@2.0.0";
 import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
-import { LLUMOS_LOGO_B64 } from "./llumos-logo-b64.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -4396,17 +4395,6 @@ async function generatePDF(
     console.warn('Could not load SMB Team logo:', e);
   }
 
-  // Embed Llumos logo (inlined trimmed PNG, ~289x225 — content-only, no padding)
-  let llumosLogo: any = null;
-  try {
-    const binStr = atob(LLUMOS_LOGO_B64);
-    const bytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-    llumosLogo = await pdfDoc.embedPng(bytes);
-  } catch (e) {
-    console.warn('Could not load Llumos logo:', e);
-  }
-
   const W = 612;
   const H = 792;
   const M = 40; // margin
@@ -4623,25 +4611,22 @@ async function generatePDF(
     coverY -= 40;
   }
 
-  // "Powered by Llumos" directly under SMB Team logo — text then logo
+  // "Powered by Llumos" directly under SMB Team logo — high-contrast text plus cyan mark
   const poweredText = 'Powered by Llumos';
   const poweredFontSize = 16;
   const poweredTextW = helveticaBold.widthOfTextAtSize(poweredText, poweredFontSize);
-  if (llumosLogo) {
-    // Trimmed PNG with true aspect ratio (~289x225) — render at readable size
-    const dims = llumosLogo.scale(1);
-    const llLogoH = 40;
-    const llLogoW = (dims.width / dims.height) * llLogoH;
-    const gap = 8;
-    const totalW2 = poweredTextW + gap + llLogoW;
-    const startX = (W - totalW2) / 2;
-    const textCenterY = coverY + poweredFontSize / 2;
-    const logoY = textCenterY - llLogoH / 2;
-    page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.85, 0.87, 0.92) });
-    page.drawImage(llumosLogo, { x: startX + poweredTextW + gap, y: logoY, width: llLogoW, height: llLogoH });
-  } else {
-    page.drawText(poweredText, { x: (W - poweredTextW) / 2, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.65, 0.65, 0.70) });
-  }
+  const markColor = rgb(0.07, 0.94, 0.91);
+  const markW = 22;
+  const markH = 30;
+  const gap = 10;
+  const totalW2 = poweredTextW + gap + markW;
+  const startX = (W - totalW2) / 2;
+  const markX = startX + poweredTextW + gap;
+  const markY = coverY - 5;
+  page.drawText(poweredText, { x: startX, y: coverY, size: poweredFontSize, font: helveticaBold, color: rgb(0.92, 0.95, 0.98) });
+  page.drawRectangle({ x: markX, y: markY + 6, width: 5, height: 18, color: markColor });
+  page.drawRectangle({ x: markX + 8.5, y: markY, width: 5, height: markH, color: markColor });
+  page.drawRectangle({ x: markX + 17, y: markY + 6, width: 5, height: 18, color: markColor });
   coverY -= 60;
 
   // Report title
