@@ -58,10 +58,11 @@ export default function PromptDetail() {
       try {
         setLoading(true);
 
-        // Fetch prompt basics and unified data in parallel
-        // Note: rely on RLS for access control instead of filtering by selected brand's org_id,
-        // so prompts belonging to a different brand in the same user's orgs still load.
-        const [promptResult, unifiedData] = await Promise.all([
+        // Fetch prompt basics and unified data INDEPENDENTLY so a slow/timed-out
+        // unified-data query never hides a perfectly valid prompt row.
+        // (Previously a single Promise.all would reject on unified-data failure
+        // and surface "Prompt not found" even when the row existed.)
+        const [promptResult, unifiedResult] = await Promise.allSettled([
           supabase
             .from('prompts')
             .select('*')
@@ -70,18 +71,34 @@ export default function PromptDetail() {
           getUnifiedPromptData(true, dateRange.from, dateRange.to)
         ]);
 
-        const { data: promptData, error: promptError } = promptResult as any;
-        if (promptError) throw promptError;
+        let finalPrompt: any = null;
+        if (promptResult.status === 'fulfilled') {
+          const { data: promptData, error: promptError } = promptResult.value as any;
+          if (promptError) {
+            console.error('Prompt row fetch error:', promptError);
+          } else {
+            finalPrompt = promptData;
+          }
+        } else {
+          console.error('Prompt row fetch rejected:', promptResult.reason);
+        }
 
-        // Prefer direct row; fallback to unified list if RLS/cache returns 0 rows
-        let finalPrompt = promptData as any;
-        if (!finalPrompt) {
-          const fallback = (unifiedData as any)?.prompts?.find((p: any) => p.id === promptId);
+        const unifiedData =
+          unifiedResult.status === 'fulfilled' ? (unifiedResult.value as any) : null;
+        if (unifiedResult.status === 'rejected') {
+          console.error('Unified prompt data fetch failed (likely DB timeout):', unifiedResult.reason);
+        }
+
+        // Fallback: if direct row missed (RLS edge case), try unified list
+        if (!finalPrompt && unifiedData?.prompts) {
+          const fallback = unifiedData.prompts.find((p: any) => p.id === promptId);
           if (fallback) finalPrompt = fallback;
         }
         setPrompt(finalPrompt || null);
 
-        const promptDetail = (unifiedData as any)?.promptDetails?.find((p: any) => p.promptId === promptId);
+        const promptDetail = unifiedData?.promptDetails?.find(
+          (p: any) => p.promptId === promptId
+        );
         setPromptDetails(promptDetail || null);
       } catch (error) {
         console.error('Error fetching prompt details:', error);
