@@ -3756,6 +3756,7 @@ export type Database = {
         Returns: number
       }
       cron_unschedule: { Args: { job_name: string }; Returns: boolean }
+      delete_brand_cascade: { Args: { p_brand_id: string }; Returns: undefined }
       detect_visibility_drops: {
         Args: { p_days?: number; p_org_id?: string; p_threshold?: number }
         Returns: {

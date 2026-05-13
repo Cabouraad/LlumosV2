@@ -76,18 +76,20 @@ export function useBrands() {
 
   const deleteBrand = useMutation({
     mutationFn: async (brandId: string) => {
-      const { error } = await supabase
-        .from('brands')
-        .delete()
-        .eq('id', brandId);
+      const { error } = await supabase.rpc('delete_brand_cascade', {
+        p_brand_id: brandId,
+      });
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] });
+      queryClient.invalidateQueries({ queryKey: ['brand-visibility-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['brand-llumos-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
       toast({
-        title: 'Brand deleted',
-        description: 'The brand has been removed successfully.',
+        title: 'Brand removed',
+        description: 'The brand and all of its tracked data have been deleted.',
       });
     },
     onError: (error: Error) => {
