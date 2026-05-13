@@ -205,7 +205,9 @@ export default function Dashboard() {
       | Array<{ date: string; total: number; present: number; competitorPresence: Record<string, number> }>
       | undefined;
     const responses = dashboardData?.responses as any[] | undefined;
-    if (competitorData.length === 0) return [];
+    // Note: do NOT early-return when competitorData is empty — we still need to
+    // render the "Your Brand" presence line. Brands that have no competitor
+    // data yet should still see their own line on the chart.
 
     const DAY_MS = 24 * 60 * 60 * 1000;
     const now = new Date();
