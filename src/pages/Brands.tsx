@@ -3,8 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, ExternalLink, LogOut, HelpCircle } from 'lucide-react';
+import { Plus, Search, ExternalLink, LogOut, HelpCircle, Trash2 } from 'lucide-react';
 import { useBrands, Brand } from '@/hooks/useBrands';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useBrand } from '@/contexts/BrandContext';
 import { BrandDisplay } from '@/components/BrandDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
