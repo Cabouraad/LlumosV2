@@ -84,9 +84,12 @@ export function useBrands() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brands'] });
+      queryClient.invalidateQueries({ queryKey: ['brand-visibility-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['brand-llumos-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
       toast({
-        title: 'Brand deleted',
-        description: 'The brand has been removed successfully.',
+        title: 'Brand removed',
+        description: 'The brand and all of its tracked data have been deleted.',
       });
     },
     onError: (error: Error) => {
