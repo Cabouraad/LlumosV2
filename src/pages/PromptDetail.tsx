@@ -14,7 +14,6 @@ import { PromptCitationsTable } from '@/components/citations/PromptCitationsTabl
 import { PromptCompetitorsTab } from '@/components/prompts/PromptCompetitorsTab';
 import { ScoreBreakdownTooltip } from '@/components/prompts/ScoreBreakdownTooltip';
 import { OptimizePromptDialog } from '@/components/prompts/OptimizePromptDialog';
-import { getUnifiedPromptData } from '@/lib/data/unified-fetcher';
 import { getAllowedProviders } from '@/lib/providers/tier-policy';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
 import { useBrand } from '@/contexts/BrandContext';
@@ -31,13 +30,46 @@ import {
   Sparkles
 } from 'lucide-react';
 
+const PROVIDERS = ['openai', 'gemini', 'perplexity', 'google_ai_overview', 'claude'] as const;
+
+const normalizeProvider = (provider: string | null | undefined) => {
+  if (!provider) return null;
+  const normalized = provider.toLowerCase().trim();
+  const providerMap: Record<string, string> = {
+    perplexity_ai: 'perplexity',
+    'perplexity ai': 'perplexity',
+    google: 'google_ai_overview',
+    google_aio: 'google_ai_overview',
+    'google aio': 'google_ai_overview',
+    googleaio: 'google_ai_overview',
+  };
+  return providerMap[normalized] || normalized;
+};
+
+const getProviderResponses = (providers: any): any[] => {
+  const allResponses = providers?._allResponses;
+  if (allResponses) {
+    return Object.values(allResponses).flat().filter(Boolean) as any[];
+  }
+
+  return Object.entries(providers || {})
+    .filter(([key]) => key !== '_allResponses')
+    .flatMap(([, value]: any) => Array.isArray(value) ? value : (value ? [value] : []));
+};
+
+const getCompetitorName = (competitor: any) => {
+  if (typeof competitor === 'string') return competitor;
+  return competitor?.name || competitor?.brand || competitor?.company || null;
+};
+
 export default function PromptDetail() {
   const { promptId } = useParams<{ promptId: string }>();
   const navigate = useNavigate();
-  const { orgData } = useAuth();
+  const { orgData, ready, user } = useAuth();
   const { currentTier } = useSubscriptionGate();
-  const { selectedBrand } = useBrand();
+  const { selectedBrand, isValidated: isBrandValidated } = useBrand();
   const brandId = selectedBrand?.id && selectedBrand.id !== 'null' ? selectedBrand.id : null;
+  const orgId = orgData?.organizations?.id || orgData?.org_id || null;
   
   const [prompt, setPrompt] = useState<any>(null);
   const [promptDetails, setPromptDetails] = useState<any>(null);
@@ -55,63 +87,97 @@ export default function PromptDetail() {
   const [optimizeDialogOpen, setOptimizeDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!promptId || !orgData?.id) return;
+    if (!ready || !isBrandValidated) return;
+    if (!user || !promptId || !orgId || !brandId) {
+      setLoading(false);
+      return;
+    }
 
     const fetchPromptData = async () => {
       try {
         setLoading(true);
+        const endOfDay = dateRange.to ? new Date(dateRange.to) : new Date();
+        endOfDay.setHours(23, 59, 59, 999);
 
-        // Fetch prompt basics and unified data INDEPENDENTLY so a slow/timed-out
-        // unified-data query never hides a perfectly valid prompt row.
-        // (Previously a single Promise.all would reject on unified-data failure
-        // and surface "Prompt not found" even when the row existed.)
-        const [promptResult, unifiedResult] = await Promise.allSettled([
+        const [promptResult, responsesResult] = await Promise.all([
           supabase
             .from('prompts')
             .select('*')
             .eq('id', promptId)
+            .eq('org_id', orgId)
+            .eq('brand_id', brandId)
             .maybeSingle(),
-          getUnifiedPromptData(true, dateRange.from, dateRange.to, brandId)
+          supabase
+            .from('prompt_provider_responses')
+            .select('id, prompt_id, provider, model, status, run_at, raw_ai_response, error, metadata, score, org_brand_present, org_brand_prominence, competitors_count, competitors_json, brands_json, citations_json, token_in, token_out')
+            .eq('prompt_id', promptId)
+            .eq('org_id', orgId)
+            .eq('brand_id', brandId)
+            .in('status', ['success', 'completed'])
+            .gte('run_at', (dateRange.from || thirtyDaysAgo).toISOString())
+            .lte('run_at', endOfDay.toISOString())
+            .order('run_at', { ascending: false })
+            .limit(1000)
         ]);
 
-        let finalPrompt: any = null;
-        if (promptResult.status === 'fulfilled') {
-          const { data: promptData, error: promptError } = promptResult.value as any;
-          if (promptError) {
-            console.error('Prompt row fetch error:', promptError);
-          } else {
-            finalPrompt = promptData;
-          }
-        } else {
-          console.error('Prompt row fetch rejected:', promptResult.reason);
-        }
+        if (promptResult.error) throw promptResult.error;
+        if (responsesResult.error) throw responsesResult.error;
 
-        const unifiedData =
-          unifiedResult.status === 'fulfilled' ? (unifiedResult.value as any) : null;
-        if (unifiedResult.status === 'rejected') {
-          console.error('Unified prompt data fetch failed (likely DB timeout):', unifiedResult.reason);
-        }
+        const finalPrompt = promptResult.data;
+        const responses = (responsesResult.data || [])
+          .map((response: any) => ({ ...response, provider: normalizeProvider(response.provider) || response.provider }))
+          .filter((response: any) => response.provider);
 
-        // Fallback: if direct row missed (RLS edge case), try unified list
-        if (!finalPrompt && unifiedData?.prompts) {
-          const fallback = unifiedData.prompts.find((p: any) => p.id === promptId);
-          if (fallback) finalPrompt = fallback;
-        }
         setPrompt(finalPrompt || null);
 
-        const promptDetail = unifiedData?.promptDetails?.find(
-          (p: any) => p.promptId === promptId
-        );
-        setPromptDetails(promptDetail || null);
+        if (!finalPrompt) {
+          setPromptDetails(null);
+          return;
+        }
+
+        const allResponsesByProvider = PROVIDERS.reduce((acc, provider) => {
+          acc[provider] = responses.filter((response: any) => response.provider === provider);
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        const providerData = PROVIDERS.reduce((acc, provider) => {
+          acc[provider] = allResponsesByProvider[provider][0] || null;
+          return acc;
+        }, {} as Record<string, any | null>);
+
+        (providerData as any)._allResponses = allResponsesByProvider;
+
+        const scores = responses
+          .map((response: any) => Number(response.score))
+          .filter((score: number) => Number.isFinite(score));
+
+        setPromptDetails({
+          promptId: finalPrompt.id,
+          promptText: finalPrompt.text,
+          active: finalPrompt.active,
+          providers: providerData,
+          overallScore: scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0,
+          lastRunAt: responses[0]?.run_at || null,
+          sevenDayStats: {
+            totalRuns: responses.length,
+            avgScore: scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0,
+            brandPresenceRate: responses.length > 0
+              ? (responses.filter((response: any) => response.org_brand_present).length / responses.length) * 100
+              : 0,
+          },
+          competitors: [],
+          dateRange: { from: dateRange.from || thirtyDaysAgo, to: dateRange.to || new Date() }
+        });
       } catch (error) {
         console.error('Error fetching prompt details:', error);
+        setPromptDetails(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchPromptData();
-  }, [promptId, orgData?.id, dateRange.from, dateRange.to, brandId]);
+  }, [promptId, ready, user, orgId, isBrandValidated, dateRange.from, dateRange.to, brandId]);
 
   // Calculate metrics
   const metrics = (() => {
@@ -119,41 +185,36 @@ export default function PromptDetail() {
       return { avgScore: 0, totalRuns: 0, brandVisible: 0, totalCompetitors: 0 };
     }
 
-    const providers = Object.values(promptDetails.providers);
+    const responses = getProviderResponses(promptDetails.providers).filter(
+      (response: any) => response?.status === 'completed' || response?.status === 'success'
+    );
     let totalScore = 0;
     let validScores = 0;
-    let totalRuns = 0;
     let brandVisibleCount = 0;
     let competitorSet = new Set<string>();
 
-    providers.forEach((providerVal: any) => {
-      const responses = Array.isArray(providerVal) ? providerVal : (providerVal ? [providerVal] : []);
-      
-      responses.forEach((response: any) => {
-        if (response?.status === 'completed' || response?.status === 'success') {
-          totalRuns++;
-          if (typeof response.score === 'number') {
-            totalScore += response.score;
-            validScores++;
-          }
-          if (response.org_brand_present) {
-            brandVisibleCount++;
-          }
-          if (response.competitors_json) {
-            const competitors = Array.isArray(response.competitors_json) 
-              ? response.competitors_json 
-              : [];
-            competitors.forEach((comp: any) => {
-              competitorSet.add(comp?.name || comp);
-            });
-          }
-        }
-      });
+    responses.forEach((response: any) => {
+      if (typeof response.score === 'number') {
+        totalScore += response.score;
+        validScores++;
+      }
+      if (response.org_brand_present) {
+        brandVisibleCount++;
+      }
+      if (response.competitors_json) {
+        const competitors = Array.isArray(response.competitors_json)
+          ? response.competitors_json
+          : [];
+        competitors.forEach((comp: any) => {
+          const name = getCompetitorName(comp);
+          if (name) competitorSet.add(name);
+        });
+      }
     });
 
     return {
-      avgScore: validScores > 0 ? (totalScore / validScores) * 10 : 0,
-      totalRuns,
+      avgScore: validScores > 0 ? totalScore / validScores : 0,
+      totalRuns: responses.length,
       brandVisible: brandVisibleCount,
       totalCompetitors: competitorSet.size
     };
@@ -396,7 +457,7 @@ export default function PromptDetail() {
           <TabsContent value="competitors" className="mt-6">
             <PromptCompetitorsTab 
               promptDetails={promptDetails?.providers ? 
-                Object.values(promptDetails.providers).flat().filter((r: any) => r?.status === 'completed' || r?.status === 'success') 
+                getProviderResponses(promptDetails.providers).filter((r: any) => r?.status === 'completed' || r?.status === 'success') 
                 : null
               }
               isLoading={loading}
