@@ -111,7 +111,7 @@ export default function PromptDetail() {
     };
 
     fetchPromptData();
-  }, [promptId, orgData?.id, dateRange.from, dateRange.to]);
+  }, [promptId, orgData?.id, dateRange.from, dateRange.to, brandId]);
 
   // Calculate metrics
   const metrics = (() => {
