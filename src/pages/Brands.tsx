@@ -197,7 +197,7 @@ export default function Brands() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             onClick={(e) => e.stopPropagation()}
                             disabled={isDeleting}
                             aria-label={`Remove ${brand.name}`}
