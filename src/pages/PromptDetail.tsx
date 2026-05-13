@@ -36,6 +36,8 @@ export default function PromptDetail() {
   const navigate = useNavigate();
   const { orgData } = useAuth();
   const { currentTier } = useSubscriptionGate();
+  const { selectedBrand } = useBrand();
+  const brandId = selectedBrand?.id && selectedBrand.id !== 'null' ? selectedBrand.id : null;
   
   const [prompt, setPrompt] = useState<any>(null);
   const [promptDetails, setPromptDetails] = useState<any>(null);
