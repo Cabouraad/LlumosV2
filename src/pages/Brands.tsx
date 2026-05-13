@@ -32,7 +32,8 @@ const SupportDialog = lazy(() => import('@/components/SupportDialog').then(m => 
 
 export default function Brands() {
   const navigate = useNavigate();
-  const { brands, isLoading } = useBrands();
+  const { brands, isLoading, deleteBrand, isDeleting } = useBrands();
+  const { selectedBrand, clearSelectedBrand } = useBrand();
   const { setSelectedBrand } = useBrand();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSupportDialogOpen, setIsSupportDialogOpen] = useState(false);
