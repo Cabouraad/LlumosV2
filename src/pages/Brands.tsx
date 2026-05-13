@@ -62,6 +62,13 @@ export default function Brands() {
     navigate('/dashboard');
   };
 
+  const handleDeleteBrand = (brand: Brand) => {
+    if (selectedBrand?.id === brand.id) {
+      clearSelectedBrand();
+    }
+    deleteBrand(brand.id);
+  };
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
