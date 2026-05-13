@@ -24,46 +24,38 @@ interface BrandCardStatsRow {
  * Fetch visibility scores for multiple brands using efficient batched query
  */
 export function useBrandVisibilityScores(brandIds: string[]) {
-  const { ready } = useAuth();
+  const { ready, user } = useAuth();
   const ctxOrgId = useOrgId();
   return useQuery({
-    queryKey: ['brand-visibility-scores', ctxOrgId, brandIds],
+    queryKey: ['brand-visibility-scores', user?.id, ctxOrgId, brandIds],
     queryFn: async () => {
-      if (brandIds.length === 0) {
-        return [];
-      }
+      if (brandIds.length === 0) return [];
 
       const orgId = ctxOrgId || (await getOrgIdSafe());
 
-      // Use the lightweight batched function instead of calling heavy RPC per brand
+      // Confirm session is actually attached before firing the RPC.
+      // Avoids the auth-ready race that returns 400 → cached zeros.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        throw new Error('Auth session not ready');
+      }
+
       const { data, error } = await supabase.rpc('get_brand_card_stats', {
         p_org_id: orgId,
-        p_brand_ids: brandIds
+        p_brand_ids: brandIds,
       });
 
-
       if (error) {
-        console.error('Error fetching brand card stats:', error);
-        // Return empty scores for all brands on error
-        return brandIds.map(brandId => ({
-          brandId,
-          score: 0,
-          totalPrompts: 0,
-          brandPresenceRate: 0,
-          totalMentions: 0,
-          lastActivity: null
-        }));
+        // Throw so React Query retries instead of caching zeros for 60s.
+        console.error('[useBrandVisibilityScores] RPC error:', error);
+        throw error;
       }
 
-      // Map the results to the expected format
       const statsMap = new Map<string, BrandCardStatsRow>();
       if (Array.isArray(data)) {
-        (data as BrandCardStatsRow[]).forEach(row => {
-          statsMap.set(row.brand_id, row);
-        });
+        (data as BrandCardStatsRow[]).forEach(row => statsMap.set(row.brand_id, row));
       }
 
-      // Return scores for all requested brand IDs
       const scores: BrandVisibilityScore[] = brandIds.map(brandId => {
         const stats = statsMap.get(brandId);
         if (stats) {
@@ -73,7 +65,7 @@ export function useBrandVisibilityScores(brandIds: string[]) {
             totalPrompts: stats.prompt_count || 0,
             brandPresenceRate: stats.brand_presence_rate || 0,
             totalMentions: stats.total_responses || 0,
-            lastActivity: null // Not needed for cards
+            lastActivity: null,
           };
         }
         return {
@@ -82,14 +74,16 @@ export function useBrandVisibilityScores(brandIds: string[]) {
           totalPrompts: 0,
           brandPresenceRate: 0,
           totalMentions: 0,
-          lastActivity: null
+          lastActivity: null,
         };
       });
 
       return scores;
     },
-    enabled: brandIds.length > 0 && ready && !!ctxOrgId,
-    staleTime: 60000, // Cache for 1 minute
-    refetchOnWindowFocus: false
+    enabled: brandIds.length > 0 && ready && !!user && !!ctxOrgId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 4000),
   });
 }
