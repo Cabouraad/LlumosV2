@@ -48,12 +48,15 @@ export default function Dashboard() {
   const [searchParams] = useSearchParams();
   
   // Use optimized competitor hook - filter by selected brand
+  // Note: competitors are a primary visual element on the dashboard chart, so we
+  // fetch them eagerly rather than waiting for the secondary-queries idle gate.
+  // Without this, brands whose initial dashboard fetch is slow / fails leave the
+  // chart with no competitor toggles or lines (only "Your Brand").
   const { data: competitorData = [], isLoading: loadingCompetitors } = useCompetitors({
     days: 30,
     limit: 5, // Top 5 competitors only for dashboard chart
     offset: 0,
     brandId: selectedBrand?.id || null,
-    enabled: secondaryQueriesEnabled,
   });
   
   // Post-checkout: refresh subscription and clean URL
