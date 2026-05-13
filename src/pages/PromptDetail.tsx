@@ -457,7 +457,7 @@ export default function PromptDetail() {
           <TabsContent value="competitors" className="mt-6">
             <PromptCompetitorsTab 
               promptDetails={promptDetails?.providers ? 
-                Object.values(promptDetails.providers).flat().filter((r: any) => r?.status === 'completed' || r?.status === 'success') 
+                getProviderResponses(promptDetails.providers).filter((r: any) => r?.status === 'completed' || r?.status === 'success') 
                 : null
               }
               isLoading={loading}
