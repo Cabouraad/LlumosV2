@@ -71,7 +71,7 @@ export default function PromptDetail() {
             .select('*')
             .eq('id', promptId)
             .maybeSingle(),
-          getUnifiedPromptData(true, dateRange.from, dateRange.to)
+          getUnifiedPromptData(true, dateRange.from, dateRange.to, brandId)
         ]);
 
         let finalPrompt: any = null;
