@@ -76,10 +76,9 @@ export function useBrands() {
 
   const deleteBrand = useMutation({
     mutationFn: async (brandId: string) => {
-      const { error } = await supabase
-        .from('brands')
-        .delete()
-        .eq('id', brandId);
+      const { error } = await supabase.rpc('delete_brand_cascade', {
+        p_brand_id: brandId,
+      });
 
       if (error) throw error;
     },
