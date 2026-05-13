@@ -3,8 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, ExternalLink, LogOut, HelpCircle } from 'lucide-react';
+import { Plus, Search, ExternalLink, LogOut, HelpCircle, Trash2 } from 'lucide-react';
 import { useBrands, Brand } from '@/hooks/useBrands';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useBrand } from '@/contexts/BrandContext';
 import { BrandDisplay } from '@/components/BrandDisplay';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,8 +32,8 @@ const SupportDialog = lazy(() => import('@/components/SupportDialog').then(m => 
 
 export default function Brands() {
   const navigate = useNavigate();
-  const { brands, isLoading } = useBrands();
-  const { setSelectedBrand } = useBrand();
+  const { brands, isLoading, deleteBrand, isDeleting } = useBrands();
+  const { selectedBrand, setSelectedBrand, clearSelectedBrand } = useBrand();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSupportDialogOpen, setIsSupportDialogOpen] = useState(false);
   const { TourComponent } = useBrandsTour();
@@ -49,6 +60,13 @@ export default function Brands() {
   const handleBrandSelect = (brand: Brand) => {
     setSelectedBrand(brand);
     navigate('/dashboard');
+  };
+
+  const handleDeleteBrand = (brand: Brand) => {
+    if (selectedBrand?.id === brand.id) {
+      clearSelectedBrand();
+    }
+    deleteBrand(brand.id);
   };
 
   return (
@@ -170,7 +188,45 @@ export default function Brands() {
                 className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer group"
                 onClick={() => handleBrandSelect(brand)}
               >
-                <CardContent className="p-6 flex flex-col">
+                <CardContent className="p-6 flex flex-col relative">
+                  {/* Delete button */}
+                  <AlertDialog>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={isDeleting}
+                            aria-label={`Remove ${brand.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>Remove this brand from your account</TooltipContent>
+                    </Tooltip>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remove {brand.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently remove this brand and all of its tracked prompts, responses, and analytics data. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => handleDeleteBrand(brand)}
+                        >
+                          Remove brand
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
                   {/* Centered Brand Display */}
                   <div className="flex flex-col items-center text-center mb-6">
                     <div className="flex items-center gap-4 mb-3">
