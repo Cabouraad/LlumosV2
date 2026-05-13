@@ -17,6 +17,7 @@ import { OptimizePromptDialog } from '@/components/prompts/OptimizePromptDialog'
 import { getUnifiedPromptData } from '@/lib/data/unified-fetcher';
 import { getAllowedProviders } from '@/lib/providers/tier-policy';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
+import { useBrand } from '@/contexts/BrandContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { 
