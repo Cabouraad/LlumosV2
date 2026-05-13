@@ -17,6 +17,7 @@ import { OptimizePromptDialog } from '@/components/prompts/OptimizePromptDialog'
 import { getUnifiedPromptData } from '@/lib/data/unified-fetcher';
 import { getAllowedProviders } from '@/lib/providers/tier-policy';
 import { useSubscriptionGate } from '@/hooks/useSubscriptionGate';
+import { useBrand } from '@/contexts/BrandContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { 
@@ -35,6 +36,8 @@ export default function PromptDetail() {
   const navigate = useNavigate();
   const { orgData } = useAuth();
   const { currentTier } = useSubscriptionGate();
+  const { selectedBrand } = useBrand();
+  const brandId = selectedBrand?.id && selectedBrand.id !== 'null' ? selectedBrand.id : null;
   
   const [prompt, setPrompt] = useState<any>(null);
   const [promptDetails, setPromptDetails] = useState<any>(null);
@@ -68,7 +71,7 @@ export default function PromptDetail() {
             .select('*')
             .eq('id', promptId)
             .maybeSingle(),
-          getUnifiedPromptData(true, dateRange.from, dateRange.to)
+          getUnifiedPromptData(true, dateRange.from, dateRange.to, brandId)
         ]);
 
         let finalPrompt: any = null;
@@ -108,7 +111,7 @@ export default function PromptDetail() {
     };
 
     fetchPromptData();
-  }, [promptId, orgData?.id, dateRange.from, dateRange.to]);
+  }, [promptId, orgData?.id, dateRange.from, dateRange.to, brandId]);
 
   // Calculate metrics
   const metrics = (() => {
