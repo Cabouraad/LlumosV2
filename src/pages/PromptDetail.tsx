@@ -185,41 +185,36 @@ export default function PromptDetail() {
       return { avgScore: 0, totalRuns: 0, brandVisible: 0, totalCompetitors: 0 };
     }
 
-    const providers = Object.values(promptDetails.providers);
+    const responses = getProviderResponses(promptDetails.providers).filter(
+      (response: any) => response?.status === 'completed' || response?.status === 'success'
+    );
     let totalScore = 0;
     let validScores = 0;
-    let totalRuns = 0;
     let brandVisibleCount = 0;
     let competitorSet = new Set<string>();
 
-    providers.forEach((providerVal: any) => {
-      const responses = Array.isArray(providerVal) ? providerVal : (providerVal ? [providerVal] : []);
-      
-      responses.forEach((response: any) => {
-        if (response?.status === 'completed' || response?.status === 'success') {
-          totalRuns++;
-          if (typeof response.score === 'number') {
-            totalScore += response.score;
-            validScores++;
-          }
-          if (response.org_brand_present) {
-            brandVisibleCount++;
-          }
-          if (response.competitors_json) {
-            const competitors = Array.isArray(response.competitors_json) 
-              ? response.competitors_json 
-              : [];
-            competitors.forEach((comp: any) => {
-              competitorSet.add(comp?.name || comp);
-            });
-          }
-        }
-      });
+    responses.forEach((response: any) => {
+      if (typeof response.score === 'number') {
+        totalScore += response.score;
+        validScores++;
+      }
+      if (response.org_brand_present) {
+        brandVisibleCount++;
+      }
+      if (response.competitors_json) {
+        const competitors = Array.isArray(response.competitors_json)
+          ? response.competitors_json
+          : [];
+        competitors.forEach((comp: any) => {
+          const name = getCompetitorName(comp);
+          if (name) competitorSet.add(name);
+        });
+      }
     });
 
     return {
-      avgScore: validScores > 0 ? (totalScore / validScores) * 10 : 0,
-      totalRuns,
+      avgScore: validScores > 0 ? totalScore / validScores : 0,
+      totalRuns: responses.length,
       brandVisible: brandVisibleCount,
       totalCompetitors: competitorSet.size
     };
